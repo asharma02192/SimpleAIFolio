@@ -1,0 +1,29 @@
+node_modules/
+.next/
+dist/
+.env
+.env.local
+*.log
+uploads/
+.turbo/
+src/generated/
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+CON
+
+# Playwright MCP
+.playwright-mcp/
+
+# Design / docs not part of app
+.impeccable/
+.impeccable.md
+audit-upload.png
+test-frontend.mjs
