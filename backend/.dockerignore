@@ -1,0 +1,8 @@
+node_modules
+dist
+src/generated
+uploads
+.git
+*.md
+.env
+.env.local

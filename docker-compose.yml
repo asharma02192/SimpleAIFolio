@@ -1,0 +1,53 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: myplweb
+      POSTGRES_USER: myplweb
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-myplweb_secret}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U myplweb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://myplweb:${DB_PASSWORD:-myplweb_secret}@db:5432/myplweb
+      JWT_SECRET: ${JWT_SECRET:-change-this-to-a-strong-random-string}
+      PORT: 3001
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3200}
+    volumes:
+      - uploads:/app/uploads
+    ports:
+      - "3201:3001"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3201}
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3200}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      API_INTERNAL_URL: http://backend:3001
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3201}
+    ports:
+      - "3200:3000"
+
+volumes:
+  pgdata:
+  uploads:
