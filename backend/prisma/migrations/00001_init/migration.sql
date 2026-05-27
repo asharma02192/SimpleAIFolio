@@ -80,11 +80,11 @@ CREATE TABLE "page_views" (
 );
 
 -- CreateTable
-CREATE TABLE "_post_tags" (
+CREATE TABLE "_PostToTag" (
     "A" TEXT NOT NULL,
     "B" TEXT NOT NULL,
 
-    CONSTRAINT "_post_tags_AB_pkey" PRIMARY KEY ("A", "B")
+    CONSTRAINT "_PostToTag_AB_pkey" PRIMARY KEY ("A", "B")
 );
 
 -- CreateIndex
@@ -100,10 +100,10 @@ CREATE INDEX "posts_status_publishedAt_idx" ON "posts"("status", "publishedAt");
 CREATE INDEX "posts_categoryId_idx" ON "posts"("categoryId");
 CREATE INDEX "page_views_path_createdAt_idx" ON "page_views"("path", "createdAt");
 CREATE INDEX "page_views_createdAt_idx" ON "page_views"("createdAt");
-CREATE INDEX "_post_tags_B_index" ON "_post_tags"("B");
+CREATE INDEX "_PostToTag_B_index" ON "_PostToTag"("B");
 
 -- AddForeignKeys
 ALTER TABLE "posts" ADD CONSTRAINT "posts_authorId_fkey" FOREIGN KEY ("authorId") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "posts" ADD CONSTRAINT "posts_categoryId_fkey" FOREIGN KEY ("categoryId") REFERENCES "categories"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-ALTER TABLE "_post_tags" ADD CONSTRAINT "_post_tags_A_fkey" FOREIGN KEY ("A") REFERENCES "posts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "_post_tags" ADD CONSTRAINT "_post_tags_B_fkey" FOREIGN KEY ("B") REFERENCES "tags"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "_PostToTag" ADD CONSTRAINT "_PostToTag_A_fkey" FOREIGN KEY ("A") REFERENCES "posts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "_PostToTag" ADD CONSTRAINT "_PostToTag_B_fkey" FOREIGN KEY ("B") REFERENCES "tags"("id") ON DELETE CASCADE ON UPDATE CASCADE;
