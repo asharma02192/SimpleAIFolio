@@ -1,66 +1,204 @@
-import { Router } from "express";
+import { Router, Response } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import prisma from "../utils/db";
+import { authMiddleware, AuthRequest } from "../middleware/auth";
+import { createRateLimiter } from "../middleware/rate-limit";
+import { getRequestLogMeta, logError, logInfo, logWarn, sanitizeEmailForLog } from "../utils/logging";
 
-const router = Router();
+type AuthPrisma = { user: any };
 
-// POST /api/auth/login
-router.post("/login", async (req, res) => {
-  const { email, password } = req.body;
+function signToken(userId: string) {
+  return jwt.sign({ userId }, process.env.JWT_SECRET!, { expiresIn: "7d" });
+}
 
-  if (!email || !password) {
-    res.status(400).json({ error: "Email and password required" });
-    return;
-  }
+function setAuthCookie(res: Response, token: string) {
+  res.cookie("admin_token", token, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+    path: "/",
+  });
+}
 
-  const user = await prisma.user.findUnique({ where: { email } });
-  if (!user) {
-    res.status(401).json({ error: "Invalid credentials" });
-    return;
-  }
+function clearAuthCookie(res: Response) {
+  res.clearCookie("admin_token", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+  });
+}
 
-  const valid = await bcrypt.compare(password, user.password);
-  if (!valid) {
-    res.status(401).json({ error: "Invalid credentials" });
-    return;
-  }
-
-  const token = jwt.sign(
-    { userId: user.id },
-    process.env.JWT_SECRET!,
-    { expiresIn: "7d" }
-  );
-
-  res.json({ token, user: { id: user.id, email: user.email, name: user.name } });
-});
-
-// POST /api/auth/setup — one-time admin account creation
-router.post("/setup", async (req, res) => {
-  const userCount = await prisma.user.count();
-  if (userCount > 0) {
-    res.status(403).json({ error: "Admin account already exists" });
-    return;
-  }
-
-  const { email, password, name } = req.body;
-  if (!email || !password || !name) {
-    res.status(400).json({ error: "All fields required" });
-    return;
-  }
-
-  const hashed = await bcrypt.hash(password, 12);
-  const user = await prisma.user.create({
-    data: { email, password: hashed, name },
+export function createAuthRouter({ prismaClient = prisma }: { prismaClient?: AuthPrisma } = {}) {
+  const router = Router();
+  const loginRateLimit = createRateLimiter({
+    keyPrefix: "auth-login",
+    maxRequests: 30,
+    windowMs: 15 * 60 * 1000,
+    message: "Too many login attempts. Please try again later.",
+  });
+  const setupRateLimit = createRateLimiter({
+    keyPrefix: "auth-setup",
+    maxRequests: 5,
+    windowMs: 15 * 60 * 1000,
+    message: "Too many setup attempts. Please try again later.",
   });
 
-  const token = jwt.sign(
-    { userId: user.id },
-    process.env.JWT_SECRET!,
-    { expiresIn: "7d" }
-  );
+  // POST /api/auth/login
+  router.post("/login", loginRateLimit, async (req, res) => {
+    const { email, password } = req.body;
 
-  res.status(201).json({ token, user: { id: user.id, email: user.email, name: user.name } });
-});
+    if (!email || !password) {
+      logWarn("Login rejected: missing credentials", {
+        ...getRequestLogMeta(req),
+        email: sanitizeEmailForLog(email),
+      });
+      res.status(400).json({ error: "Email and password required" });
+      return;
+    }
 
-export default router;
+    try {
+      const user = await prismaClient.user.findUnique({ where: { email } });
+      if (!user) {
+        logWarn("Login rejected: unknown email", {
+          ...getRequestLogMeta(req),
+          email: sanitizeEmailForLog(email),
+        });
+        res.status(401).json({ error: "Invalid credentials" });
+        return;
+      }
+
+      const valid = await bcrypt.compare(password, user.password);
+      if (!valid) {
+        logWarn("Login rejected: invalid password", {
+          ...getRequestLogMeta(req),
+          email: sanitizeEmailForLog(email),
+        });
+        res.status(401).json({ error: "Invalid credentials" });
+        return;
+      }
+
+      const token = signToken(user.id);
+      setAuthCookie(res, token);
+      logInfo("Login succeeded", {
+        ...getRequestLogMeta(req),
+        email: sanitizeEmailForLog(email),
+        userId: user.id,
+      });
+
+      res.json({ token, user: { id: user.id, email: user.email, name: user.name } });
+    } catch (error) {
+      logError("Login failed unexpectedly", {
+        ...getRequestLogMeta(req),
+        email: sanitizeEmailForLog(email),
+        error: error instanceof Error ? error.message : String(error),
+      });
+      res.status(500).json({ error: "Login failed" });
+    }
+  });
+
+  // POST /api/auth/setup - one-time admin account creation
+  router.post("/setup", setupRateLimit, async (req, res) => {
+    const installSecret = process.env.INSTALL_SECRET;
+    const providedSecret = req.header("x-install-secret") || req.body?.installSecret;
+
+    if (!installSecret) {
+      logWarn("Setup attempt rejected: install secret not configured", getRequestLogMeta(req));
+      res.status(503).json({ error: "Initial setup is disabled" });
+      return;
+    }
+
+    if (providedSecret !== installSecret) {
+      logWarn("Setup attempt rejected: invalid install secret", {
+        ...getRequestLogMeta(req),
+        email: sanitizeEmailForLog(req.body?.email),
+      });
+      res.status(403).json({ error: "Invalid install secret" });
+      return;
+    }
+
+    try {
+      const userCount = await prismaClient.user.count();
+      if (userCount > 0) {
+        logWarn("Setup attempt rejected: admin already exists", {
+          ...getRequestLogMeta(req),
+          email: sanitizeEmailForLog(req.body?.email),
+        });
+        res.status(403).json({ error: "Admin account already exists" });
+        return;
+      }
+
+      const { email, password, name } = req.body;
+      if (!email || !password || !name) {
+        logWarn("Setup rejected: missing required fields", {
+          ...getRequestLogMeta(req),
+          email: sanitizeEmailForLog(email),
+        });
+        res.status(400).json({ error: "All fields required" });
+        return;
+      }
+
+      const hashed = await bcrypt.hash(password, 12);
+      const user = await prismaClient.user.create({
+        data: { email, password: hashed, name },
+      });
+
+      const token = signToken(user.id);
+      setAuthCookie(res, token);
+      logInfo("Setup succeeded", {
+        ...getRequestLogMeta(req),
+        email: sanitizeEmailForLog(email),
+        userId: user.id,
+      });
+
+      res.status(201).json({ token, user: { id: user.id, email: user.email, name: user.name } });
+    } catch (error) {
+      logError("Setup failed unexpectedly", {
+        ...getRequestLogMeta(req),
+        email: sanitizeEmailForLog(req.body?.email),
+        error: error instanceof Error ? error.message : String(error),
+      });
+      res.status(500).json({ error: "Initial setup failed" });
+    }
+  });
+
+  router.get("/me", authMiddleware, async (req: AuthRequest, res) => {
+    try {
+      const user = await prismaClient.user.findUnique({
+        where: { id: req.userId! },
+        select: { id: true, email: true, name: true },
+      });
+
+      if (!user) {
+        clearAuthCookie(res);
+        logWarn("Session check failed: user not found", {
+          ...getRequestLogMeta(req),
+          userId: req.userId,
+        });
+        res.status(401).json({ error: "User not found" });
+        return;
+      }
+
+      res.json({ user });
+    } catch (error) {
+      logError("Session check failed unexpectedly", {
+        ...getRequestLogMeta(req),
+        userId: req.userId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      res.status(500).json({ error: "Failed to verify session" });
+    }
+  });
+
+  router.post("/logout", (req, res) => {
+    clearAuthCookie(res);
+    logInfo("Logout completed", getRequestLogMeta(req));
+    res.status(204).send();
+  });
+
+  return router;
+}
+
+export default createAuthRouter();

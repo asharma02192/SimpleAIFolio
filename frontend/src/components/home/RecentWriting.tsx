@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Post } from "@/types";
-import { serverFetch } from "@/lib/config";
+import { logPublicFetchError, serverFetch } from "@/lib/config";
 
 function formatDate(date: string) {
   return new Date(date).toLocaleDateString("en-US", {
@@ -11,11 +11,35 @@ function formatDate(date: string) {
 
 export default async function RecentWriting() {
   let posts: Post[] = [];
+  let postsError = false;
   try {
     const data = await serverFetch<{ data: Post[]; total: number }>("/api/posts?perPage=3");
     posts = data.data;
-  } catch {
-    return null;
+  } catch (error) {
+    postsError = true;
+    logPublicFetchError("failed to load home recent writing", error);
+  }
+
+  if (postsError) {
+    return (
+      <section className="py-[var(--space-16)] md:py-[var(--space-24)]">
+        <div className="max-w-[var(--max-width)] mx-auto px-[var(--space-6)] lg:px-[var(--space-12)]">
+          <div className="section-label">Recent Writing</div>
+          <h2
+            className="font-[family-name:var(--font-display)] text-[var(--text-2xl)] md:text-[var(--text-3xl)] font-700 mb-[var(--space-6)]"
+            style={{ letterSpacing: "-0.02em" }}
+          >
+            Latest Posts
+          </h2>
+          <p
+            className="font-[family-name:var(--font-body)] text-[var(--text-sm)]"
+            style={{ color: "var(--color-text-tertiary)" }}
+          >
+            Latest posts are temporarily unavailable.
+          </p>
+        </div>
+      </section>
+    );
   }
 
   if (posts.length === 0) return null;

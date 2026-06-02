@@ -1,13 +1,59 @@
 import Link from "next/link";
 import type { Project } from "@/types";
-import { serverFetch } from "@/lib/config";
+import { logPublicFetchError, serverFetch, toAbsoluteUrl } from "@/lib/config";
+
+function renderThumbnail(thumbnail?: string | null) {
+  const thumbnailUrl = toAbsoluteUrl(thumbnail);
+  if (!thumbnailUrl) return null;
+
+  return (
+    <div
+      className="w-full aspect-[16/9] mb-[var(--space-5)]"
+      style={{
+        backgroundImage: `url("${thumbnailUrl}")`,
+        backgroundPosition: "center",
+        backgroundSize: "cover",
+        borderRadius: "var(--radius-lg)",
+        backgroundColor: "var(--color-bg-muted)",
+      }}
+      aria-hidden="true"
+    />
+  );
+}
 
 export default async function ProjectsSection() {
   let projects: Project[] = [];
+  let projectsError = false;
   try {
     projects = await serverFetch<Project[]>("/api/projects");
-  } catch {
-    return null;
+  } catch (error) {
+    projectsError = true;
+    logPublicFetchError("failed to load home projects", error);
+  }
+
+  if (projectsError) {
+    return (
+      <section
+        className="py-[var(--space-16)] md:py-[var(--space-24)]"
+        style={{ background: "var(--color-bg-elevated)" }}
+      >
+        <div className="max-w-[var(--max-width)] mx-auto px-[var(--space-6)] lg:px-[var(--space-12)]">
+          <div className="section-label">Work</div>
+          <h2
+            className="font-[family-name:var(--font-display)] text-[var(--text-2xl)] md:text-[var(--text-3xl)] font-700 mb-[var(--space-6)]"
+            style={{ letterSpacing: "-0.02em" }}
+          >
+            Selected Projects
+          </h2>
+          <p
+            className="font-[family-name:var(--font-body)] text-[var(--text-sm)]"
+            style={{ color: "var(--color-text-tertiary)" }}
+          >
+            Projects are temporarily unavailable.
+          </p>
+        </div>
+      </section>
+    );
   }
 
   if (projects.length === 0) return null;
@@ -40,6 +86,7 @@ export default async function ProjectsSection() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-[var(--space-6)]">
           {projects.slice(0, 4).map((project, i) => (
             <div key={project.id} className="card group" style={{ padding: "var(--space-8)" }}>
+              {renderThumbnail(project.thumbnail)}
               {/* Number badge */}
               <div className="flex items-center justify-between mb-[var(--space-5)]">
                 <span

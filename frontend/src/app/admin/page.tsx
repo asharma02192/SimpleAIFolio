@@ -97,9 +97,9 @@ function AdminContent() {
   }
 
   return (
-    <div className="min-h-screen flex" style={{ background: "var(--color-bg)" }}>
+    <div className="min-h-screen flex flex-col md:flex-row" style={{ background: "var(--color-bg)" }}>
       <AdminSidebar onLogout={logout} />
-      <main className="flex-1 p-[var(--space-8)] overflow-auto">
+      <main className="min-w-0 flex-1 overflow-x-hidden p-[var(--space-4)] sm:p-[var(--space-6)] md:p-[var(--space-8)]">
         <AdminDashboard />
       </main>
     </div>

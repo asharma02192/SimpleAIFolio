@@ -1,8 +1,18 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 import PageWrapper from "@/components/PageWrapper";
-import { fetchSettings, serverFetch } from "@/lib/config";
+import { fetchSettings, logPublicFetchError, serverFetch } from "@/lib/config";
 
-export const metadata: Metadata = { title: "About" };
+export const revalidate = 60;
+
+export async function generateMetadata(): Promise<Metadata> {
+  const settings = await fetchSettings();
+
+  return {
+    title: "About",
+    description: `Learn more about ${settings.siteConfig.authorName} and the work behind ${settings.siteConfig.title}.`,
+  };
+}
 
 interface Experience {
   id: string;
@@ -13,11 +23,21 @@ interface Experience {
 }
 
 export default async function AboutPage() {
-  const { siteConfig: cfg, bioAbout, skillGroups } = await fetchSettings();
-  const experience = await serverFetch<Experience[]>("/api/experience").catch(() => [] as Experience[]);
+  await connection();
+  const settings = await fetchSettings();
+  const { siteConfig: cfg, bioAbout, skillGroups } = settings;
+  let experience: Experience[] = [];
+  let experienceError = false;
+
+  try {
+    experience = await serverFetch<Experience[]>("/api/experience");
+  } catch (error) {
+    experienceError = true;
+    logPublicFetchError("failed to load public experience", error);
+  }
 
   return (
-    <PageWrapper>
+    <PageWrapper settings={settings}>
       <section className="py-[var(--space-16)] md:py-[var(--space-24)]">
         <div className="max-w-[var(--max-width)] mx-auto px-[var(--space-6)] lg:px-[var(--space-12)]">
           <div className="grid grid-cols-12 gap-x-[var(--space-8)] gap-y-[var(--space-8)]">
@@ -55,6 +75,17 @@ export default async function AboutPage() {
                     ))}
                   </div>
                 </>
+              )}
+
+              {experienceError && (
+                <div className="mt-[var(--space-12)]">
+                  <h2 className="font-[family-name:var(--font-display)] text-[var(--text-lg)] font-700 mb-[var(--space-3)]" style={{ color: "var(--color-text)" }}>
+                    Experience
+                  </h2>
+                  <p className="font-[family-name:var(--font-body)] text-[var(--text-sm)]" style={{ color: "var(--color-text-tertiary)" }}>
+                    Experience is temporarily unavailable. Please check back shortly.
+                  </p>
+                </div>
               )}
             </div>
 

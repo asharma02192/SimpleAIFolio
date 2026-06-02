@@ -1,13 +1,19 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import PageWrapper from "@/components/PageWrapper";
-import { siteConfig, serverFetch } from "@/lib/config";
+import { fetchSettings, logPublicFetchError, serverFetch } from "@/lib/config";
 import type { Post, Category } from "@/types";
 
-export const metadata: Metadata = {
-  title: "Blog",
-  description: `Writing by ${siteConfig.authorName} about AI tools, techniques, agents, and software development.`,
-};
+export const revalidate = 60;
+
+export async function generateMetadata(): Promise<Metadata> {
+  const settings = await fetchSettings();
+
+  return {
+    title: "Blog",
+    description: `Writing by ${settings.siteConfig.authorName} about AI tools, techniques, agents, and software development.`,
+  };
+}
 
 function formatDate(date: string) {
   return new Date(date).toLocaleDateString("en-US", {
@@ -28,6 +34,7 @@ export default async function BlogPage({
   let posts: Post[] = [];
   let categories: Category[] = [];
   let totalPages = 1;
+  let postsError = false;
 
   try {
     const catParam = params.category ? `&category=${params.category}` : "";
@@ -36,11 +43,16 @@ export default async function BlogPage({
     );
     posts = data.data;
     totalPages = data.totalPages;
-  } catch { /* empty */ }
+  } catch (error) {
+    postsError = true;
+    logPublicFetchError("failed to load blog listing", error);
+  }
 
   try {
     categories = await serverFetch<Category[]>("/api/categories");
-  } catch { /* empty */ }
+  } catch (error) {
+    logPublicFetchError("failed to load blog categories", error);
+  }
 
   return (
     <PageWrapper>
@@ -91,7 +103,14 @@ export default async function BlogPage({
         )}
 
         {/* Post listing */}
-        {posts.length > 0 ? (
+        {postsError ? (
+          <p
+            className="font-[family-name:var(--font-body)] text-[var(--text-base)]"
+            style={{ color: "var(--color-text-tertiary)" }}
+          >
+            Posts are temporarily unavailable. Please try again later.
+          </p>
+        ) : posts.length > 0 ? (
           <div className="flex flex-col">
             {posts.map((post) => (
               <Link
@@ -165,7 +184,7 @@ export default async function BlogPage({
             className="font-[family-name:var(--font-body)] text-[var(--text-base)]"
             style={{ color: "var(--color-text-tertiary)" }}
           >
-            No posts yet. Start writing from the admin dashboard.
+            No published posts yet.
           </p>
         )}
 

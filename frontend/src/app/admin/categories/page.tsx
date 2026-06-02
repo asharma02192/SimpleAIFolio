@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useAuth, apiFetch } from "@/lib/auth";
+import { useState, useEffect, useCallback } from "react";
+import { useAuth, logoutAdmin } from "@/lib/auth";
+import { adminApiRequest, getAdminErrorMessage, isAdminApiError } from "@/lib/admin-api";
 import AdminSidebar from "@/components/admin/Sidebar";
 import { AuthProvider } from "@/lib/auth";
 import { UIProvider, useUI } from "@/components/admin/Toast";
@@ -35,32 +36,60 @@ function CategoriesContent() {
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
-  const load = () => {
-    apiFetch("/api/categories")
-      .then((r) => r.json())
-      .then(setCategories)
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  };
+  const load = useCallback(async () => {
+    try {
+      const data = await adminApiRequest<Category[]>("/api/categories");
+      setCategories(data);
+    } catch (err) {
+      console.error(err);
+      toast(getAdminErrorMessage(err, "Failed to load categories"), "error");
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
 
-  useEffect(() => { if (token) load(); }, [token]);
+  useEffect(() => {
+    if (!token) return;
+
+    const timeoutId = window.setTimeout(() => {
+      void load();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [token, load]);
 
   const generateSlug = (name: string) =>
     name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
-  const startCreate = () => { setEditing(null); setCreating(true); setForm(emptyForm); };
+  const startCreate = () => {
+    setEditing(null);
+    setCreating(true);
+    setForm(emptyForm);
+    setFormError(null);
+  };
 
   const startEdit = (c: Category) => {
     setCreating(false);
     setEditing(c);
     setForm({ name: c.name, slug: c.slug, description: c.description || "" });
+    setFormError(null);
   };
 
-  const cancel = () => { setEditing(null); setCreating(false); setForm(emptyForm); };
+  const cancel = () => {
+    setEditing(null);
+    setCreating(false);
+    setForm(emptyForm);
+    setFormError(null);
+  };
 
   const handleSave = async () => {
+    if (saving) return;
+
     setSaving(true);
+    setFormError(null);
     const payload = {
       name: form.name,
       slug: form.slug || generateSlug(form.name),
@@ -68,33 +97,58 @@ function CategoriesContent() {
     };
     try {
       if (editing) {
-        await apiFetch(`/api/categories/${editing.id}`, {
-          method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+        await adminApiRequest(`/api/categories/${editing.id}`, {
+          method: "PUT",
+          body: JSON.stringify(payload),
         });
       } else {
-        await apiFetch("/api/categories", {
-          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+        await adminApiRequest("/api/categories", {
+          method: "POST",
+          body: JSON.stringify(payload),
         });
       }
-      cancel(); load(); toast(editing ? "Category updated" : "Category created", "success");
-    } catch (err) { console.error(err); toast("Save failed", "error"); } finally { setSaving(false); }
+      cancel();
+      await load();
+      toast(editing ? "Category updated" : "Category created", "success");
+    } catch (err) {
+      console.error(err);
+      const message = getAdminErrorMessage(err, "Save failed");
+      setFormError(message);
+      toast(message, "error");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleDelete = async (id: string) => {
+    if (deletingId) return;
     if (!(await confirm("Delete this category?"))) return;
-    await apiFetch(`/api/categories/${id}`, { method: "DELETE" });
-    setCategories((prev) => prev.filter((c) => c.id !== id));
-    toast("Category deleted", "success");
+    setDeletingId(id);
+    try {
+      await adminApiRequest(`/api/categories/${id}`, { method: "DELETE" });
+      await load();
+      toast("Category deleted", "success");
+    } catch (err) {
+      console.error(err);
+      if (isAdminApiError(err) && err.status === 404) {
+        await load();
+        toast("Category was already deleted.", "info");
+      } else {
+        toast(getAdminErrorMessage(err, "Delete failed"), "error");
+      }
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   return (
-    <div className="min-h-screen flex" style={{ background: "var(--color-bg)" }}>
-      <AdminSidebar onLogout={() => { localStorage.removeItem("admin_token"); window.location.href = "/admin"; }} />
-      <main className="flex-1 p-[var(--space-8)] max-w-[50rem]">
-        <div className="flex items-center justify-between mb-[var(--space-8)]">
+    <div className="min-h-screen flex flex-col md:flex-row" style={{ background: "var(--color-bg)" }}>
+      <AdminSidebar onLogout={logoutAdmin} />
+      <main className="min-w-0 w-full flex-1 overflow-x-hidden p-[var(--space-4)] sm:p-[var(--space-6)] md:p-[var(--space-8)]">
+        <div className="mb-[var(--space-8)] flex flex-col gap-[var(--space-4)] sm:flex-row sm:items-center sm:justify-between">
           <h1 className="font-[family-name:var(--font-display)] text-[var(--text-xl)] font-semibold" style={{ color: "var(--color-text)" }}>Categories</h1>
           {!creating && !editing && (
-            <button onClick={startCreate} className="font-[family-name:var(--font-body)] text-[var(--text-sm)] font-500 px-5 py-2.5 transition-all duration-150 cursor-pointer hover:brightness-110" style={{ background: "var(--color-accent)", color: "var(--color-accent-on)", borderRadius: "var(--radius-md)", minHeight: "40px" }}>+ New Category</button>
+            <button onClick={startCreate} className="inline-flex min-h-[40px] items-center justify-center self-start px-5 py-2.5 font-[family-name:var(--font-body)] text-[var(--text-sm)] font-500 transition-all duration-150 hover:brightness-110 sm:self-auto" style={{ background: "var(--color-accent)", color: "var(--color-accent-on)", borderRadius: "var(--radius-md)", minHeight: "40px" }}>+ New Category</button>
           )}
         </div>
 
@@ -103,20 +157,25 @@ function CategoriesContent() {
             <h2 className="font-[family-name:var(--font-display)] text-[var(--text-base)] font-600 mb-[var(--space-4)]" style={{ color: "var(--color-text)" }}>{editing ? "Edit Category" : "New Category"}</h2>
             <div className="flex flex-col gap-[var(--space-4)]">
               <div>
-                <label className="font-[family-name:var(--font-mono)] text-[var(--text-xs)] uppercase tracking-wider block mb-[var(--space-1)]" style={{ color: "var(--color-text-tertiary)" }}>Name</label>
-                <input value={form.name} onChange={(e) => { const name = e.target.value; setForm((f) => ({ ...f, name, slug: f.slug || generateSlug(name) })); }} className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30 focus:border-[var(--color-accent)] transition-colors" style={{ background: "var(--color-bg)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", color: "var(--color-text)" }} />
+                <label htmlFor="category-name" className="font-[family-name:var(--font-mono)] text-[var(--text-xs)] uppercase tracking-wider block mb-[var(--space-1)]" style={{ color: "var(--color-text-tertiary)" }}>Name</label>
+                <input id="category-name" value={form.name} onChange={(e) => { const name = e.target.value; setForm((f) => ({ ...f, name, slug: f.slug || generateSlug(name) })); }} className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30 focus:border-[var(--color-accent)] transition-colors" style={{ background: "var(--color-bg)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", color: "var(--color-text)" }} />
               </div>
               <div>
-                <label className="font-[family-name:var(--font-mono)] text-[var(--text-xs)] uppercase tracking-wider block mb-[var(--space-1)]" style={{ color: "var(--color-text-tertiary)" }}>Slug</label>
-                <input value={form.slug} onChange={(e) => setForm((f) => ({ ...f, slug: e.target.value }))} className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30 focus:border-[var(--color-accent)] transition-colors" style={{ background: "var(--color-bg)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", color: "var(--color-text)" }} />
+                <label htmlFor="category-slug" className="font-[family-name:var(--font-mono)] text-[var(--text-xs)] uppercase tracking-wider block mb-[var(--space-1)]" style={{ color: "var(--color-text-tertiary)" }}>Slug</label>
+                <input id="category-slug" value={form.slug} onChange={(e) => setForm((f) => ({ ...f, slug: e.target.value }))} className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30 focus:border-[var(--color-accent)] transition-colors" style={{ background: "var(--color-bg)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", color: "var(--color-text)" }} />
               </div>
               <div>
                 <label className="font-[family-name:var(--font-mono)] text-[var(--text-xs)] uppercase tracking-wider block mb-[var(--space-1)]" style={{ color: "var(--color-text-tertiary)" }}>Description</label>
                 <textarea value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} rows={2} className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30 focus:border-[var(--color-accent)] transition-colors" style={{ background: "var(--color-bg)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", color: "var(--color-text)" }} />
               </div>
-              <div className="flex gap-[var(--space-3)]">
+              {formError && (
+                <p className="text-[var(--text-sm)]" style={{ color: "var(--color-error)" }}>
+                  {formError}
+                </p>
+              )}
+              <div className="flex flex-wrap gap-[var(--space-3)]">
                 <button onClick={handleSave} disabled={saving || !form.name} className="font-[family-name:var(--font-body)] text-[var(--text-sm)] font-500 px-5 py-2.5 transition-all duration-150 cursor-pointer hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed" style={{ background: "var(--color-accent)", color: "var(--color-accent-on)", borderRadius: "var(--radius-md)", minHeight: "40px" }}>{saving ? "Saving..." : editing ? "Update" : "Create"}</button>
-                <button onClick={cancel} className="font-[family-name:var(--font-body)] text-[var(--text-sm)] font-500 px-5 py-2.5 transition-colors cursor-pointer hover:text-[var(--color-accent)]" style={{ color: "var(--color-text-tertiary)", minHeight: "40px" }}>Cancel</button>
+                <button onClick={cancel} disabled={saving} className="font-[family-name:var(--font-body)] text-[var(--text-sm)] font-500 px-5 py-2.5 transition-colors cursor-pointer hover:text-[var(--color-accent)] disabled:opacity-50 disabled:cursor-not-allowed" style={{ color: "var(--color-text-tertiary)", minHeight: "40px" }}>Cancel</button>
               </div>
             </div>
           </div>
@@ -129,14 +188,14 @@ function CategoriesContent() {
         ) : (
           <div className="flex flex-col">
             {categories.map((cat) => (
-              <div key={cat.id} className="flex items-center justify-between py-[var(--space-4)]" style={{ borderBottom: "1px solid var(--color-border)" }}>
-                <div>
+              <div key={cat.id} className="flex flex-col gap-[var(--space-3)] py-[var(--space-4)] sm:flex-row sm:items-center sm:justify-between" style={{ borderBottom: "1px solid var(--color-border)" }}>
+                <div className="min-w-0">
                   <h3 className="font-[family-name:var(--font-display)] text-[var(--text-sm)] font-600" style={{ color: "var(--color-text)" }}>{cat.name}</h3>
-                  <span className="font-[family-name:var(--font-mono)] text-[var(--text-xs)]" style={{ color: "var(--color-text-tertiary)" }}>{cat.slug} &middot; {cat.postCount || 0} posts</span>
+                  <span className="break-all font-[family-name:var(--font-mono)] text-[var(--text-xs)]" style={{ color: "var(--color-text-tertiary)" }}>{cat.slug} &middot; {cat.postCount || 0} posts</span>
                 </div>
-                <div className="flex gap-[var(--space-3)]">
-                  <button onClick={() => startEdit(cat)} className="font-[family-name:var(--font-mono)] text-[var(--text-xs)] cursor-pointer transition-colors hover:text-[var(--color-accent)]" style={{ color: "var(--color-text-tertiary)" }}>Edit</button>
-                  <button onClick={() => handleDelete(cat.id)} className="font-[family-name:var(--font-mono)] text-[var(--text-xs)] cursor-pointer transition-colors hover:text-[var(--color-error)]" style={{ color: "var(--color-text-tertiary)" }}>Delete</button>
+                <div className="flex flex-wrap gap-[var(--space-3)]">
+                  <button disabled={deletingId === cat.id} onClick={() => startEdit(cat)} className="font-[family-name:var(--font-mono)] text-[var(--text-xs)] cursor-pointer transition-colors hover:text-[var(--color-accent)] disabled:opacity-50 disabled:cursor-not-allowed" style={{ color: "var(--color-text-tertiary)" }}>Edit</button>
+                  <button disabled={deletingId === cat.id} onClick={() => handleDelete(cat.id)} className="font-[family-name:var(--font-mono)] text-[var(--text-xs)] cursor-pointer transition-colors hover:text-[var(--color-error)] disabled:opacity-50 disabled:cursor-not-allowed" style={{ color: "var(--color-text-tertiary)" }}>{deletingId === cat.id ? "Deleting..." : "Delete"}</button>
                 </div>
               </div>
             ))}

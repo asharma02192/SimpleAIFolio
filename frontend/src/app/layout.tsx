@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Bricolage_Grotesque, Onest, Fira_Code } from "next/font/google";
+import { fetchSettings, getSiteUrl } from "@/lib/config";
 import "./globals.css";
 
 const bricolage = Bricolage_Grotesque({
@@ -22,20 +23,34 @@ const firaCode = Fira_Code({
   weight: ["400", "500"],
 });
 
-export const metadata: Metadata = {
-  title: {
-    default: "Amit — Developer & Writer",
-    template: "%s | Amit",
-  },
-  description:
-    "Personal portfolio — skills, projects, and writing about AI tools, techniques, and agents.",
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://localhost:3000"),
-  openGraph: {
-    type: "website",
-    locale: "en_US",
-    siteName: "Amit — Developer & Writer",
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const settings = await fetchSettings();
+  const title = settings.siteConfig.title || "Amit";
+  const description = settings.siteConfig.description || settings.siteConfig.tagline;
+  const siteUrl = getSiteUrl();
+
+  return {
+    title: {
+      default: title,
+      template: `%s | ${title}`,
+    },
+    description,
+    metadataBase: new URL(siteUrl),
+    openGraph: {
+      type: "website",
+      locale: "en_US",
+      siteName: title,
+      title,
+      description,
+      url: siteUrl,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+    },
+  };
+}
 
 export default function RootLayout({
   children,

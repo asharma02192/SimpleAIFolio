@@ -1,8 +1,13 @@
 import Link from "next/link";
-import { siteConfig } from "@/lib/config";
+import type { SiteConfig } from "@/types";
 
-export default function Footer() {
+export default function Footer({
+  siteConfig,
+}: {
+  siteConfig: SiteConfig;
+}) {
   const year = new Date().getFullYear();
+  const brandLetter = siteConfig.title.trim().charAt(0).toUpperCase() || "A";
 
   return (
     <footer
@@ -24,7 +29,7 @@ export default function Footer() {
                   borderRadius: "var(--radius-sm)",
                 }}
               >
-                A
+                {brandLetter}
               </span>
               <span
                 className="font-[family-name:var(--font-display)] text-[1.125rem] font-700"

@@ -1,72 +1,95 @@
 import { Router } from "express";
 import prisma from "../utils/db";
 import { authMiddleware, AuthRequest } from "../middleware/auth";
+import { createRateLimiter } from "../middleware/rate-limit";
+import { getRequestLogMeta, logError, logWarn } from "../utils/logging";
 
-const router = Router();
+type AnalyticsPrisma = Pick<typeof prisma, "pageView" | "post" | "project">;
 
-// POST /api/analytics/track â€” public, record page view
-router.post("/track", async (req, res) => {
-  const { path, referrer } = req.body;
-  if (!path) {
-    res.status(400).json({ error: "Path required" });
-    return;
-  }
-
-  await prisma.pageView.create({
-    data: {
-      path,
-      referrer: referrer || null,
-      userAgent: req.headers["user-agent"] || null,
-    },
+export function createAnalyticsRouter({ prismaClient = prisma }: { prismaClient?: AnalyticsPrisma } = {}) {
+  const router = Router();
+  const analyticsRateLimit = createRateLimiter({
+    keyPrefix: "analytics-track",
+    maxRequests: 120,
+    windowMs: 60 * 1000,
+    message: "Too many analytics requests. Please try again later.",
   });
 
-  res.status(201).json({ tracked: true });
-});
+  // POST /api/analytics/track - public, record page view
+  router.post("/track", analyticsRateLimit, async (req, res) => {
+    const { path, referrer } = req.body;
+    if (!path) {
+      res.status(400).json({ error: "Path required" });
+      return;
+    }
 
-async function getAnalyticsSummary() {
-  const now = new Date();
-  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    try {
+      await prismaClient.pageView.create({
+        data: {
+          path,
+          referrer: referrer || null,
+          userAgent: req.headers["user-agent"] || null,
+        },
+      });
 
-  const [totalViews, recentViews, topPages, totalPosts, publishedPosts, totalProjects] =
-    await Promise.all([
-      prisma.pageView.count({ where: { createdAt: { gte: thirtyDaysAgo } } }),
-      prisma.pageView.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
-      prisma.pageView.groupBy({
-        by: ["path"],
-        where: { createdAt: { gte: thirtyDaysAgo } },
-        _count: { path: true },
-        orderBy: { _count: { path: "desc" } },
-        take: 10,
-      }),
-      prisma.post.count(),
-      prisma.post.count({ where: { status: "PUBLISHED" } }),
-      prisma.project.count(),
-    ]);
+      res.status(201).json({ tracked: true });
+    } catch (error) {
+      logError("Analytics tracking failed", {
+        ...getRequestLogMeta(req),
+        path: typeof path === "string" ? path : undefined,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      res.status(500).json({ error: "Analytics tracking failed" });
+    }
+  });
 
-  return {
-    totalViews,
-    recentViews,
-    topPages: topPages.map((p: { path: string; _count: { path: number } }) => ({
-      path: p.path,
-      views: p._count.path,
-    })),
-    totalPosts,
-    publishedPosts,
-    totalProjects,
-  };
+  async function getAnalyticsSummary() {
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    const [totalViews, recentViews, topPages, totalPosts, publishedPosts, totalProjects] =
+      await Promise.all([
+        prismaClient.pageView.count({ where: { createdAt: { gte: thirtyDaysAgo } } }),
+        prismaClient.pageView.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
+        prismaClient.pageView.groupBy({
+          by: ["path"],
+          where: { createdAt: { gte: thirtyDaysAgo } },
+          _count: { path: true },
+          orderBy: { _count: { path: "desc" } },
+          take: 10,
+        }),
+        prismaClient.post.count(),
+        prismaClient.post.count({ where: { status: "PUBLISHED" } }),
+        prismaClient.project.count(),
+      ]);
+
+    return {
+      totalViews,
+      recentViews,
+      topPages: topPages.map((p: { path: string; _count: { path: number } }) => ({
+        path: p.path,
+        views: p._count.path,
+      })),
+      totalPosts,
+      publishedPosts,
+      totalProjects,
+    };
+  }
+
+  // GET /api/analytics/pages - admin, compatibility endpoint
+  router.get("/pages", authMiddleware, async (_req: AuthRequest, res) => {
+    const summary = await getAnalyticsSummary();
+    res.json(summary.topPages);
+  });
+
+  // GET /api/analytics/dashboard - admin
+  router.get("/dashboard", authMiddleware, async (_req: AuthRequest, res) => {
+    const summary = await getAnalyticsSummary();
+    res.json(summary);
+  });
+
+  return router;
 }
 
-// GET /api/analytics/pages â€” admin, compatibility endpoint
-router.get("/pages", authMiddleware, async (_req: AuthRequest, res) => {
-  const summary = await getAnalyticsSummary();
-  res.json(summary.topPages);
-});
-
-// GET /api/analytics/dashboard â€” admin
-router.get("/dashboard", authMiddleware, async (_req: AuthRequest, res) => {
-  const summary = await getAnalyticsSummary();
-  res.json(summary);
-});
-
-export default router;
+export default createAnalyticsRouter();

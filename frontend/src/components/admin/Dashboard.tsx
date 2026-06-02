@@ -53,13 +53,13 @@ export default function AdminDashboard() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-[var(--space-8)]">
+      <div className="mb-[var(--space-8)] flex flex-col gap-[var(--space-4)] sm:flex-row sm:items-center sm:justify-between">
         <h1 className="font-[family-name:var(--font-display)] text-[var(--text-xl)] font-semibold" style={{ color: "var(--color-text)" }}>
           Dashboard
         </h1>
         <Link
           href="/admin/posts/new"
-          className="font-[family-name:var(--font-mono)] text-[var(--text-xs)] uppercase tracking-wider px-[var(--space-4)] py-[var(--space-2)] transition-opacity hover:opacity-90"
+          className="inline-flex min-h-[40px] items-center justify-center self-start px-[var(--space-4)] py-[var(--space-2)] font-[family-name:var(--font-mono)] text-[var(--text-xs)] uppercase tracking-wider transition-opacity hover:opacity-90 sm:self-auto"
           style={{
             background: "var(--color-accent)",
             color: "var(--color-accent-on)",
@@ -119,10 +119,10 @@ export default function AdminDashboard() {
             {data.topPages.map((page) => (
               <div
                 key={page.path}
-                className="flex justify-between py-[var(--space-3)]"
+                className="flex flex-col gap-[var(--space-2)] py-[var(--space-3)] sm:flex-row sm:items-center sm:justify-between"
                 style={{ borderBottom: "1px solid var(--color-border)" }}
               >
-                <span className="text-[var(--text-sm)]" style={{ color: "var(--color-text)" }}>
+                <span className="break-all text-[var(--text-sm)]" style={{ color: "var(--color-text)" }}>
                   {page.path}
                 </span>
                 <span className="font-[family-name:var(--font-mono)] text-[var(--text-xs)]" style={{ color: "var(--color-text-tertiary)" }}>

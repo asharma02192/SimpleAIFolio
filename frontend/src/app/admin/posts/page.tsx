@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { AuthProvider, apiFetch } from "@/lib/auth";
+import { AuthProvider, apiFetch, logoutAdmin } from "@/lib/auth";
 import AdminSidebar from "@/components/admin/Sidebar";
 import { UIProvider, useUI } from "@/components/admin/Toast";
 
@@ -37,16 +37,16 @@ function PostsContent() {
   };
 
   return (
-    <div className="min-h-screen flex" style={{ background: "var(--color-bg)" }}>
-      <AdminSidebar onLogout={() => { localStorage.removeItem("admin_token"); window.location.href = "/admin"; }} />
-      <main className="flex-1 p-[var(--space-8)]">
-        <div className="flex items-center justify-between mb-[var(--space-8)]">
+    <div className="min-h-screen flex flex-col md:flex-row" style={{ background: "var(--color-bg)" }}>
+      <AdminSidebar onLogout={logoutAdmin} />
+      <main className="min-w-0 flex-1 overflow-x-hidden p-[var(--space-4)] sm:p-[var(--space-6)] md:p-[var(--space-8)]">
+        <div className="mb-[var(--space-8)] flex flex-col gap-[var(--space-4)] sm:flex-row sm:items-center sm:justify-between">
           <h1 className="font-[family-name:var(--font-display)] text-[var(--text-xl)] font-semibold" style={{ color: "var(--color-text)" }}>
             Posts
           </h1>
           <Link
             href="/admin/posts/new"
-            className="font-[family-name:var(--font-body)] text-[var(--text-sm)] font-500 px-5 py-2.5 transition-all duration-150 cursor-pointer hover:brightness-110"
+            className="inline-flex min-h-[40px] items-center justify-center self-start px-5 py-2.5 font-[family-name:var(--font-body)] text-[var(--text-sm)] font-500 transition-all duration-150 hover:brightness-110 sm:self-auto"
             style={{ background: "var(--color-accent)", color: "var(--color-accent-on)", borderRadius: "var(--radius-md)", minHeight: "40px" }}
           >
             New Post
@@ -73,11 +73,11 @@ function PostsContent() {
             {posts.map((post) => (
               <div
                 key={post.id}
-                className="flex items-center justify-between py-[var(--space-4)]"
+                className="flex flex-col gap-[var(--space-3)] py-[var(--space-4)] sm:flex-row sm:items-center sm:justify-between"
                 style={{ borderBottom: "1px solid var(--color-border)" }}
               >
-                <div className="flex-1">
-                  <div className="flex items-center gap-[var(--space-3)] mb-[var(--space-1)]">
+                <div className="min-w-0 flex-1">
+                  <div className="mb-[var(--space-1)] flex flex-wrap items-center gap-[var(--space-2)] sm:gap-[var(--space-3)]">
                     <span
                       className="font-[family-name:var(--font-mono)] text-[var(--text-xs)] uppercase tracking-wider px-[var(--space-2)] py-[0.125rem]"
                       style={{
@@ -94,11 +94,11 @@ function PostsContent() {
                       </span>
                     )}
                   </div>
-                  <h3 className="text-[var(--text-sm)] font-semibold" style={{ color: "var(--color-text)" }}>
+                  <h3 className="break-words text-[var(--text-sm)] font-semibold" style={{ color: "var(--color-text)" }}>
                     {post.title}
                   </h3>
                 </div>
-                <div className="flex gap-[var(--space-3)]">
+                <div className="flex flex-wrap gap-[var(--space-3)]">
                   <Link
                     href={`/admin/posts/${post.id}/edit`}
                     className="font-[family-name:var(--font-mono)] text-[var(--text-xs)] transition-colors hover:text-[var(--color-accent)]"

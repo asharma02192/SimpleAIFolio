@@ -1,7 +1,11 @@
-import { fetchSettings } from "@/lib/config";
+import type { PublicSettings } from "@/lib/config";
 
-export default async function SkillsSection() {
-  const { skillGroups } = await fetchSettings();
+export default function SkillsSection({
+  settings,
+}: {
+  settings: Pick<PublicSettings, "skillGroups">;
+}) {
+  const { skillGroups } = settings;
 
   return (
     <section className="py-[var(--space-16)] md:py-[var(--space-24)]" style={{ background: "var(--color-bg-elevated)" }}>

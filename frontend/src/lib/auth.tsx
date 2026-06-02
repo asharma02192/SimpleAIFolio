@@ -1,12 +1,17 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, useEffect } from "react";
+import { createContext, useCallback, useContext, useEffect, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 
 interface AuthContextType {
   token: string | null;
   login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
+  isAuthenticated: boolean;
+  isReady: boolean;
+}
+
+interface SessionSnapshot {
   isAuthenticated: boolean;
   isReady: boolean;
 }
@@ -14,21 +19,150 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+const SESSION_EVENT = "myplweb-admin-session";
+const SESSION_TOKEN = "session";
+
+let snapshot: SessionSnapshot = {
+  isAuthenticated: false,
+  isReady: false,
+};
+
+let pendingSessionRefresh: Promise<boolean> | null = null;
+let sessionChannel: BroadcastChannel | null = null;
+
+function canUseWindow() {
+  return typeof window !== "undefined";
+}
+
+function getSessionChannel() {
+  if (!canUseWindow() || typeof BroadcastChannel === "undefined") {
+    return null;
+  }
+
+  if (!sessionChannel) {
+    sessionChannel = new BroadcastChannel(SESSION_EVENT);
+  }
+
+  return sessionChannel;
+}
+
+function emitSessionChange() {
+  if (!canUseWindow()) return;
+  window.dispatchEvent(new Event(SESSION_EVENT));
+  getSessionChannel()?.postMessage({ type: "session-changed" });
+}
+
+function setSnapshot(next: SessionSnapshot) {
+  snapshot = next;
+  emitSessionChange();
+}
+
+function subscribeToSessionChanges(callback: () => void) {
+  if (!canUseWindow()) {
+    return () => {};
+  }
+
+  const onWindowEvent = () => callback();
+  const channel = getSessionChannel();
+  const onChannelMessage = () => callback();
+
+  window.addEventListener(SESSION_EVENT, onWindowEvent);
+  channel?.addEventListener("message", onChannelMessage);
+
+  return () => {
+    window.removeEventListener(SESSION_EVENT, onWindowEvent);
+    channel?.removeEventListener("message", onChannelMessage);
+  };
+}
+
+function getSnapshot() {
+  return snapshot;
+}
+
+function getServerSnapshot(): SessionSnapshot {
+  return { isAuthenticated: false, isReady: false };
+}
+
+export async function refreshAdminSession() {
+  if (!canUseWindow()) {
+    return false;
+  }
+
+  if (pendingSessionRefresh) {
+    return pendingSessionRefresh;
+  }
+
+  pendingSessionRefresh = (async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/auth/me`, {
+        credentials: "include",
+        cache: "no-store",
+      });
+
+      const isAuthenticated = res.ok;
+      setSnapshot({
+        isAuthenticated,
+        isReady: true,
+      });
+
+      return isAuthenticated;
+    } catch {
+      setSnapshot({
+        isAuthenticated: false,
+        isReady: true,
+      });
+      return false;
+    } finally {
+      pendingSessionRefresh = null;
+    }
+  })();
+
+  return pendingSessionRefresh;
+}
+
+export async function clearAdminSession(options?: { notifyBackend?: boolean; redirectToLogin?: boolean }) {
+  const { notifyBackend = true, redirectToLogin = false } = options || {};
+
+  if (notifyBackend) {
+    try {
+      await fetch(`${API_URL}/api/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch {
+      // Best-effort cookie cleanup.
+    }
+  }
+
+  setSnapshot({
+    isAuthenticated: false,
+    isReady: true,
+  });
+
+  if (redirectToLogin && canUseWindow()) {
+    window.location.href = "/admin";
+  }
+}
+
+export async function logoutAdmin() {
+  await clearAdminSession({ notifyBackend: true, redirectToLogin: true });
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [token, setToken] = useState<string | null>(null);
-  const [isReady, setIsReady] = useState(false);
+  const session = useSyncExternalStore(subscribeToSessionChanges, getSnapshot, getServerSnapshot);
   const router = useRouter();
 
   useEffect(() => {
-    setToken(localStorage.getItem("admin_token"));
-    setIsReady(true);
-  }, []);
+    if (!session.isReady) {
+      void refreshAdminSession();
+    }
+  }, [session.isReady]);
 
   const login = useCallback(async (email: string, password: string) => {
     const res = await fetch(`${API_URL}/api/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify({ email, password }),
     });
 
@@ -37,19 +171,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error(err.error || "Login failed");
     }
 
-    const data = await res.json();
-    localStorage.setItem("admin_token", data.token);
-    setToken(data.token);
+    setSnapshot({
+      isAuthenticated: true,
+      isReady: true,
+    });
   }, []);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem("admin_token");
-    setToken(null);
+  const logout = useCallback(async () => {
+    await clearAdminSession({ notifyBackend: true });
     router.push("/admin");
+    router.refresh();
   }, [router]);
 
   return (
-    <AuthContext.Provider value={{ token, login, logout, isAuthenticated: !!token, isReady }}>
+    <AuthContext.Provider
+      value={{
+        token: session.isAuthenticated ? SESSION_TOKEN : null,
+        login,
+        logout,
+        isAuthenticated: session.isAuthenticated,
+        isReady: session.isReady,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -61,23 +204,26 @@ export function useAuth() {
   return ctx;
 }
 
-export async function apiFetch(path: string, options?: RequestInit) {
-  const token = typeof window !== "undefined" ? localStorage.getItem("admin_token") : null;
-  const isFormData = typeof window !== "undefined" && options?.body instanceof FormData;
-  const headers: Record<string, string> = {
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...(isFormData ? {} : { "Content-Type": "application/json" }),
-    ...(options?.headers as Record<string, string> || {}),
-  };
+function mergeHeaders(options?: RequestInit) {
+  const merged = new Headers(options?.headers);
+  const isFormData = canUseWindow() && options?.body instanceof FormData;
 
+  if (!isFormData && !merged.has("Content-Type")) {
+    merged.set("Content-Type", "application/json");
+  }
+
+  return merged;
+}
+
+export async function apiFetch(path: string, options?: RequestInit) {
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
-    headers,
+    credentials: "include",
+    headers: mergeHeaders(options),
   });
 
   if (res.status === 401) {
-    localStorage.removeItem("admin_token");
-    window.location.href = "/admin";
+    await clearAdminSession({ notifyBackend: false, redirectToLogin: true });
     throw new Error("Unauthorized");
   }
 

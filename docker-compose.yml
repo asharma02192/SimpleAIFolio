@@ -24,7 +24,8 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql://myplweb:${DB_PASSWORD:-myplweb_secret}@db:5432/myplweb
-      JWT_SECRET: ${JWT_SECRET:-change-this-to-a-strong-random-string}
+      JWT_SECRET: ${JWT_SECRET:-local-dev-jwt-secret-change-before-production-2026}
+      ALLOW_INSECURE_JWT_SECRET: "true"
       PORT: 3001
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3200}
     volumes:
@@ -45,6 +46,7 @@ services:
     environment:
       API_INTERNAL_URL: http://backend:3001
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3201}
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3200}
     ports:
       - "3200:3000"
 

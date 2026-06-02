@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { AuthProvider, apiFetch } from "@/lib/auth";
-import { UIProvider, useUI } from "@/components/admin/Toast";
+import { AuthProvider, logoutAdmin } from "@/lib/auth";
+import { adminApiRequest, getAdminErrorMessage } from "@/lib/admin-api";
+import RichTextEditor from "@/components/admin/RichTextEditor";
+import { useUI } from "@/components/admin/Toast";
 import AdminSidebar from "@/components/admin/Sidebar";
 
 interface Category { id: string; name: string; slug: string; }
@@ -20,15 +21,16 @@ interface PostData {
   metaTitle: string;
   metaDescription: string;
   featuredImage: string;
+  ogImage: string;
 }
 
 export default function PostEditorContent({ postId }: { postId?: string }) {
   const { toast } = useUI();
-  const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<string | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
+  const [editorError, setEditorError] = useState<string | null>(null);
   const [form, setForm] = useState<PostData>({
     title: "",
     slug: "",
@@ -40,42 +42,60 @@ export default function PostEditorContent({ postId }: { postId?: string }) {
     metaTitle: "",
     metaDescription: "",
     featuredImage: "",
+    ogImage: "",
   });
 
   useEffect(() => {
-    apiFetch("/api/categories").then((r) => r.json()).then(setCategories).catch(console.error);
-    apiFetch("/api/tags").then((r) => r.json()).then(setTags).catch(console.error);
+    adminApiRequest<Category[]>("/api/categories")
+      .then(setCategories)
+      .catch((err) => {
+        console.error(err);
+        toast(getAdminErrorMessage(err, "Failed to load categories"), "error");
+      });
+    adminApiRequest<Tag[]>("/api/tags")
+      .then(setTags)
+      .catch((err) => {
+        console.error(err);
+        toast(getAdminErrorMessage(err, "Failed to load tags"), "error");
+      });
 
     if (postId) {
-      apiFetch(`/api/posts/admin/${postId}`)
-        .then((r) => r.json())
+      adminApiRequest<Record<string, unknown>>(`/api/posts/admin/${postId}`)
         .then((post) => {
           setForm({
-            title: post.title || "",
-            slug: post.slug || "",
-            excerpt: post.excerpt || "",
-            body: post.body || "",
-            categoryId: post.categoryId || "",
-            tagIds: post.tags?.map((t: Tag) => t.id) || [],
-            status: post.status || "DRAFT",
-            metaTitle: post.metaTitle || "",
-            metaDescription: post.metaDescription || "",
-            featuredImage: post.featuredImage || "",
+            title: (post.title as string) || "",
+            slug: (post.slug as string) || "",
+            excerpt: (post.excerpt as string) || "",
+            body: (post.body as string) || "",
+            categoryId: (post.categoryId as string) || "",
+            tagIds: Array.isArray(post.tags) ? (post.tags as Tag[]).map((t) => t.id) : [],
+            status: (post.status as "DRAFT" | "PUBLISHED") || "DRAFT",
+            metaTitle: (post.metaTitle as string) || "",
+            metaDescription: (post.metaDescription as string) || "",
+            featuredImage: (post.featuredImage as string) || "",
+            ogImage: (post.ogImage as string) || "",
           });
         })
-        .catch(console.error);
+        .catch((err) => {
+          console.error(err);
+          toast(getAdminErrorMessage(err, "Failed to load post"), "error");
+        });
     }
-  }, [postId]);
+  }, [postId, toast]);
 
   const generateSlug = (title: string) =>
     title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
   const save = useCallback(async (status?: "DRAFT" | "PUBLISHED") => {
+    if (saving) return;
+
     if (!form.title.trim()) {
+      setEditorError("Title is required");
       toast("Title is required", "error");
       return;
     }
     setSaving(true);
+    setEditorError(null);
     try {
       const payload: Record<string, unknown> = {
         title: form.title,
@@ -86,36 +106,31 @@ export default function PostEditorContent({ postId }: { postId?: string }) {
         tagIds: form.tagIds?.length ? form.tagIds : [],
         status: status || form.status,
         featuredImage: form.featuredImage || null,
+        ogImage: form.ogImage || null,
         metaTitle: form.metaTitle || null,
         metaDescription: form.metaDescription || null,
       };
 
       const url = postId ? `/api/posts/${postId}` : "/api/posts";
-      const method = postId ? "PUT" : "POST";
-
-      const res = await apiFetch(url, {
-        method,
+      const saved = await adminApiRequest<{ id?: string }>(url, {
+        method: postId ? "PUT" : "POST",
         body: JSON.stringify(payload),
       });
-
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || `Save failed (${res.status})`);
-      }
-
-      const saved = await res.json();
       setLastSaved(new Date().toLocaleTimeString());
       toast("Post saved", "success");
-      if (!postId) {
-        router.replace(`/admin/posts/${saved.id}/edit`);
+      if (!postId && saved.id) {
+        await new Promise((r) => setTimeout(r, 1000));
+        window.location.href = `/admin/posts/${saved.id}/edit`;
       }
     } catch (err) {
       console.error(err);
-      toast(err instanceof Error ? err.message : "Failed to save post", "error");
+      const message = getAdminErrorMessage(err, "Failed to save post");
+      setEditorError(message);
+      toast(message, "error");
     } finally {
       setSaving(false);
     }
-  }, [form, postId, router]);
+  }, [form, postId, saving, toast]);
 
   // Auto-save every 30s (only if there's a title and existing post)
   useEffect(() => {
@@ -131,15 +146,15 @@ export default function PostEditorContent({ postId }: { postId?: string }) {
 
   return (
     <AuthProvider>
-      <div className="min-h-screen flex" style={{ background: "var(--color-bg)" }}>
-        <AdminSidebar onLogout={() => { localStorage.removeItem("admin_token"); window.location.href = "/admin"; }} />
-        <main className="flex-1 overflow-auto">
+      <div className="min-h-screen flex flex-col md:flex-row" style={{ background: "var(--color-bg)" }}>
+        <AdminSidebar onLogout={logoutAdmin} />
+        <main className="min-w-0 flex-1 overflow-x-hidden">
           {/* Top bar */}
           <div
-            className="sticky top-0 z-10 flex items-center justify-between px-[var(--space-8)] py-[var(--space-3)]"
+            className="sticky top-[57px] z-20 flex flex-col items-start justify-between gap-[var(--space-3)] px-[var(--space-4)] py-[var(--space-3)] sm:flex-row sm:items-center sm:px-[var(--space-6)] md:top-0 md:px-[var(--space-8)]"
             style={{ background: "var(--color-bg-elevated)", borderBottom: "1px solid var(--color-border)" }}
           >
-            <div className="flex items-center gap-[var(--space-4)]">
+            <div className="flex flex-wrap items-center gap-[var(--space-2)] sm:gap-[var(--space-4)]">
               <Link
                 href="/admin/posts"
                 className="font-[family-name:var(--font-mono)] text-[var(--text-xs)]"
@@ -155,12 +170,17 @@ export default function PostEditorContent({ postId }: { postId?: string }) {
                   Saved {lastSaved}
                 </span>
               )}
+              {editorError && (
+                <span className="font-[family-name:var(--font-body)] text-[var(--text-sm)]" style={{ color: "var(--color-error)" }}>
+                  {editorError}
+                </span>
+              )}
             </div>
-            <div className="flex gap-[var(--space-3)]">
+            <div className="flex w-full flex-wrap gap-[var(--space-3)] sm:w-auto">
               <button
                 onClick={() => save("DRAFT")}
                 disabled={saving}
-                className="font-[family-name:var(--font-mono)] text-[var(--text-xs)] uppercase tracking-wider px-5 py-2.5 transition-opacity"
+                className="inline-flex min-h-[40px] flex-1 items-center justify-center px-5 py-2.5 font-[family-name:var(--font-mono)] text-[var(--text-xs)] uppercase tracking-wider transition-opacity sm:flex-none"
                 style={{ background: "var(--color-bg-muted)", color: "var(--color-text-secondary)", borderRadius: "var(--radius-md)", minHeight: "40px" }}
               >
                 {saving ? "Saving..." : "Save Draft"}
@@ -168,7 +188,7 @@ export default function PostEditorContent({ postId }: { postId?: string }) {
               <button
                 onClick={() => save("PUBLISHED")}
                 disabled={saving}
-                className="font-[family-name:var(--font-mono)] text-[var(--text-xs)] uppercase tracking-wider px-5 py-2.5 transition-opacity hover:opacity-90"
+                className="inline-flex min-h-[40px] flex-1 items-center justify-center px-5 py-2.5 font-[family-name:var(--font-mono)] text-[var(--text-xs)] uppercase tracking-wider transition-opacity hover:opacity-90 sm:flex-none"
                 style={{ background: "var(--color-accent)", color: "var(--color-accent-on)", borderRadius: "var(--radius-md)", minHeight: "40px" }}
               >
                 Publish
@@ -176,17 +196,19 @@ export default function PostEditorContent({ postId }: { postId?: string }) {
             </div>
           </div>
 
-          <div className="flex min-h-[calc(100vh-52px)]">
+          <div className="flex min-h-[calc(100vh-52px)] flex-col xl:flex-row">
             {/* Main editor */}
-            <div className="flex-1 p-[var(--space-8)] max-w-[80ch]">
+            <div className="min-w-0 flex-1 p-[var(--space-4)] sm:p-[var(--space-6)] md:p-[var(--space-8)] xl:max-w-[80ch]">
               {/* Title */}
               <input
                 type="text"
                 value={form.title}
                 onChange={(e) => {
-                  updateForm({ title: e.target.value });
-                  if (!postId && !form.slug) {
-                    updateForm({ slug: generateSlug(e.target.value) });
+                  const newTitle = e.target.value;
+                  if (editorError) setEditorError(null);
+                  updateForm({ title: newTitle });
+                  if (!postId) {
+                    updateForm({ slug: generateSlug(newTitle) });
                   }
                 }}
                 placeholder="Post title..."
@@ -195,7 +217,7 @@ export default function PostEditorContent({ postId }: { postId?: string }) {
               />
 
               {/* Slug */}
-              <div className="flex items-center gap-[var(--space-2)] mb-[var(--space-6)]">
+              <div className="mb-[var(--space-6)] flex flex-col gap-[var(--space-2)] sm:flex-row sm:items-center">
                 <span className="font-[family-name:var(--font-mono)] text-[var(--text-xs)]" style={{ color: "var(--color-text-tertiary)" }}>
                   Slug:
                 </span>
@@ -219,21 +241,18 @@ export default function PostEditorContent({ postId }: { postId?: string }) {
               />
 
               {/* Body */}
-              <textarea
-                value={form.body}
-                onChange={(e) => updateForm({ body: e.target.value })}
-                placeholder="Write your post content here... (HTML supported)"
-                rows={20}
-                className="w-full text-[var(--text-sm)] p-[var(--space-4)] resize-y outline-none font-[family-name:var(--font-mono)] focus:ring-2 focus:ring-[var(--color-accent)]/30 focus:border-[var(--color-accent)] transition-colors"
-                style={{ background: "var(--color-bg-subtle)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", color: "var(--color-text)", minHeight: "400px" }}
+              <RichTextEditor
+                content={form.body}
+                onChange={(html) => updateForm({ body: html })}
               />
             </div>
 
             {/* Sidebar panel */}
             <div
-              className="w-72 flex-shrink-0 p-[var(--space-6)] flex flex-col gap-[var(--space-6)]"
-              style={{ borderLeft: "1px solid var(--color-border)", background: "var(--color-bg-elevated)" }}
+              className="w-full flex-shrink-0 border-t p-[var(--space-4)] sm:p-[var(--space-6)] xl:w-72 xl:border-t-0 xl:border-l"
+              style={{ borderColor: "var(--color-border)", background: "var(--color-bg-elevated)" }}
             >
+              <div className="flex flex-col gap-[var(--space-6)]">
               {/* Category */}
               <div>
                 <label className="font-[family-name:var(--font-mono)] text-[var(--text-xs)] uppercase tracking-widest mb-[var(--space-2)] block" style={{ color: "var(--color-text-tertiary)" }}>
@@ -313,6 +332,20 @@ export default function PostEditorContent({ postId }: { postId?: string }) {
                   className="w-full text-[var(--text-sm)] p-[var(--space-2)] outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30 focus:border-[var(--color-accent)] transition-colors"
                   style={{ background: "var(--color-bg)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-sm)", color: "var(--color-text)" }}
                 />
+              </div>
+              <div>
+                <label className="font-[family-name:var(--font-mono)] text-[var(--text-xs)] uppercase tracking-widest mb-[var(--space-2)] block" style={{ color: "var(--color-text-tertiary)" }}>
+                  OG Image URL
+                </label>
+                <input
+                  type="text"
+                  value={form.ogImage}
+                  onChange={(e) => updateForm({ ogImage: e.target.value })}
+                  placeholder="/uploads/og-image.webp"
+                  className="w-full text-[var(--text-sm)] p-[var(--space-2)] outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30 focus:border-[var(--color-accent)] transition-colors"
+                  style={{ background: "var(--color-bg)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-sm)", color: "var(--color-text)" }}
+                />
+              </div>
               </div>
             </div>
           </div>

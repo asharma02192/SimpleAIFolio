@@ -1,18 +1,49 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 import PageWrapper from "@/components/PageWrapper";
-import { siteConfig, serverFetch } from "@/lib/config";
+import { fetchSettings, logPublicFetchError, serverFetch, toAbsoluteUrl } from "@/lib/config";
 import type { Project } from "@/types";
 
-export const metadata: Metadata = {
-  title: "Projects",
-  description: `Projects and work by ${siteConfig.authorName}.`,
-};
+export const revalidate = 60;
+
+export async function generateMetadata(): Promise<Metadata> {
+  const settings = await fetchSettings();
+
+  return {
+    title: "Projects",
+    description: `Projects and work by ${settings.siteConfig.authorName}.`,
+  };
+}
+
+function renderThumbnail(thumbnail?: string | null) {
+  const thumbnailUrl = toAbsoluteUrl(thumbnail);
+  if (!thumbnailUrl) return null;
+
+  return (
+    <div
+      className="w-full aspect-[16/9] mb-[var(--space-5)]"
+      style={{
+        backgroundImage: `url("${thumbnailUrl}")`,
+        backgroundPosition: "center",
+        backgroundSize: "cover",
+        borderRadius: "var(--radius-lg)",
+        backgroundColor: "var(--color-bg-muted)",
+      }}
+      aria-hidden="true"
+    />
+  );
+}
 
 export default async function ProjectsPage() {
+  await connection();
   let projects: Project[] = [];
+  let projectsError = false;
   try {
     projects = await serverFetch<Project[]>("/api/projects");
-  } catch { /* empty */ }
+  } catch (error) {
+    projectsError = true;
+    logPublicFetchError("failed to load projects page", error);
+  }
 
   const featured = projects.filter((p) => p.featured);
   const other = projects.filter((p) => !p.featured);
@@ -39,12 +70,19 @@ export default async function ProjectsPage() {
           </h1>
         </div>
 
-        {projects.length === 0 ? (
+        {projectsError ? (
           <p
             className="font-[family-name:var(--font-body)] text-[var(--text-base)]"
             style={{ color: "var(--color-text-tertiary)" }}
           >
-            No projects yet. Add projects from the admin dashboard.
+            Projects are temporarily unavailable. Please try again later.
+          </p>
+        ) : projects.length === 0 ? (
+          <p
+            className="font-[family-name:var(--font-body)] text-[var(--text-base)]"
+            style={{ color: "var(--color-text-tertiary)" }}
+          >
+            No public projects yet.
           </p>
         ) : (
           <>
@@ -60,6 +98,9 @@ export default async function ProjectsPage() {
                       borderRadius: "var(--radius-lg)",
                     }}
                   >
+                    <div className="md:col-span-12">
+                      {renderThumbnail(project.thumbnail)}
+                    </div>
                     {/* Number */}
                     <div className="md:col-span-1 flex items-start">
                       <span
@@ -162,6 +203,7 @@ export default async function ProjectsPage() {
                         borderRadius: "var(--radius-lg)",
                       }}
                     >
+                      {renderThumbnail(project.thumbnail)}
                       <h3
                         className="font-[family-name:var(--font-display)] text-[var(--text-lg)] font-semibold mb-[var(--space-3)]"
                         style={{ color: "var(--color-text)" }}

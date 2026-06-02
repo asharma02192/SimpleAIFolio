@@ -1,7 +1,10 @@
-import { fetchSettings } from "@/lib/config";
+import type { AnnouncementSettings } from "@/lib/config";
 
-export default async function AnnouncementBar() {
-  const { announcement } = await fetchSettings();
+export default function AnnouncementBar({
+  announcement,
+}: {
+  announcement: AnnouncementSettings;
+}) {
 
   if (!announcement?.enabled || !announcement.text) return null;
 
@@ -59,6 +62,16 @@ export default async function AnnouncementBar() {
         @keyframes announcement-shimmer {
           0% { left: -100%; }
           100% { left: 200%; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .announcement-bar-inner,
+          .announcement-dot,
+          .announcement-shimmer {
+            animation: none !important;
+          }
+          .announcement-shimmer {
+            display: none;
+          }
         }
       `}</style>
     </div>

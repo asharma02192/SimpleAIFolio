@@ -1,7 +1,10 @@
-import { fetchSettings } from "@/lib/config";
+import type { PublicSettings } from "@/lib/config";
 
-export default async function HeroSection() {
-  const settings = await fetchSettings();
+export default function HeroSection({
+  settings,
+}: {
+  settings: PublicSettings;
+}) {
   const { siteConfig: cfg, bioHero, heroStats } = settings;
 
   return (

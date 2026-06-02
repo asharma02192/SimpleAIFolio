@@ -1,20 +1,25 @@
+import { fetchSettings, type PublicSettings } from "@/lib/config";
 import AnnouncementBar from "@/components/AnnouncementBar";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
 
-export default function PageWrapper({
+export default async function PageWrapper({
   children,
+  settings,
 }: {
   children: React.ReactNode;
+  settings?: PublicSettings;
 }) {
+  const resolvedSettings = settings ?? await fetchSettings();
+
   return (
     <>
-      <AnnouncementBar />
-      <Navigation />
+      <AnnouncementBar announcement={resolvedSettings.announcement} />
+      <Navigation siteTitle={resolvedSettings.siteConfig.title} />
       <main id="main" className="flex-1">
         {children}
       </main>
-      <Footer />
+      <Footer siteConfig={resolvedSettings.siteConfig} />
     </>
   );
 }

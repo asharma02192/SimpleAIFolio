@@ -11,18 +11,21 @@ import projectRoutes from "./routes/projects";
 import mediaRoutes from "./routes/media";
 import analyticsRoutes from "./routes/analytics";
 import settingsRoutes from "./routes/settings";
+import { validateBackendEnv } from "./utils/env";
 
 dotenv.config();
+const env = validateBackendEnv();
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = env.port;
 
 // Middleware
+app.set("trust proxy", 1);
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" },
 }));
 app.use(cors({
-  origin: process.env.FRONTEND_URL || "http://localhost:3000",
+  origin: env.frontendUrl,
   credentials: true,
 }));
 app.use(morgan("dev"));

@@ -6,6 +6,7 @@ import { v4 as uuid } from "uuid";
 import fs from "fs";
 import { authMiddleware, AuthRequest } from "../middleware/auth";
 import { param } from "../utils/express";
+import { getRequestLogMeta, logError, logWarn } from "../utils/logging";
 
 const router = Router();
 
@@ -50,15 +51,24 @@ function uploadSingleImage(req: AuthRequest, res: Response, next: NextFunction) 
     }
 
     if (error instanceof multer.MulterError) {
+      logWarn("Media upload rejected by multer", {
+        ...getRequestLogMeta(req),
+        error: error.message,
+      });
       res.status(400).json({ error: error.message });
       return;
     }
 
     if (error instanceof Error) {
+      logWarn("Media upload rejected", {
+        ...getRequestLogMeta(req),
+        error: error.message,
+      });
       res.status(400).json({ error: error.message });
       return;
     }
 
+    logWarn("Media upload failed with unknown error", getRequestLogMeta(req));
     res.status(400).json({ error: "Upload failed" });
   });
 }
@@ -100,7 +110,11 @@ router.post("/upload", authMiddleware, uploadSingleImage, async (req: AuthReques
     removeIfExists(filePath);
     removeIfExists(webpPath);
     removeIfExists(thumbPath);
-    console.error("Image processing error:", err);
+    logError("Image processing failed", {
+      ...getRequestLogMeta(req),
+      file: req.file?.originalname,
+      error: err instanceof Error ? err.message : String(err),
+    });
     res.status(500).json({ error: "Image processing failed" });
   }
 });

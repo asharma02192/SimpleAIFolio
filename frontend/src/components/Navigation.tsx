@@ -3,11 +3,16 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { navLinks, siteConfig } from "@/lib/config";
+import { navLinks } from "@/lib/config";
 
-export default function Navigation() {
+export default function Navigation({
+  siteTitle,
+}: {
+  siteTitle: string;
+}) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const brandLetter = siteTitle.trim().charAt(0).toUpperCase() || "A";
 
   return (
     <header
@@ -31,9 +36,9 @@ export default function Navigation() {
               borderRadius: "var(--radius-sm)",
             }}
           >
-            A
+            {brandLetter}
           </span>
-          {siteConfig.title}
+          {siteTitle}
         </Link>
 
         {/* Desktop nav */}

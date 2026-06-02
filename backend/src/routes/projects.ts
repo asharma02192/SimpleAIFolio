@@ -21,7 +21,7 @@ router.get("/", async (_req, res) => {
 // POST /api/projects — admin
 router.post("/", authMiddleware, async (req: AuthRequest, res) => {
   try {
-    const { techStack, liveUrl, githubUrl, featured, order } = req.body;
+    const { techStack, liveUrl, githubUrl, featured, order, thumbnail } = req.body;
     const title = trimmedString(req.body.title);
     const description = trimmedString(req.body.description);
     if (!title || !description) {
@@ -35,6 +35,7 @@ router.post("/", authMiddleware, async (req: AuthRequest, res) => {
         techStack: techStack || [],
         liveUrl: liveUrl || null,
         githubUrl: githubUrl || null,
+        thumbnail: thumbnail || null,
         featured: featured || false,
         order: order || 0,
       },
