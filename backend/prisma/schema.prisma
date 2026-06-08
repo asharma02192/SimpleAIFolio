@@ -15,7 +15,8 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  posts Post[]
+  posts            Post[]
+  aiConversations  AiConversation[]
 
   @@map("users")
 }
@@ -41,6 +42,7 @@ model Post {
   category   Category? @relation(fields: [categoryId], references: [id])
   categoryId String?
   tags       Tag[]
+  aiDraftOutputs AiDraftOutput[]
 
   @@index([status, publishedAt])
   @@index([categoryId])
@@ -113,4 +115,153 @@ model Experience {
   updatedAt   DateTime @updatedAt
 
   @@map("experiences")
+}
+
+model AiConversation {
+  id        String   @id @default(uuid())
+  title     String
+  topic     String
+  status    String   @default("active")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId   String
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages AiMessage[]
+  brief    AiContentBrief?
+  draft    AiDraftOutput?
+  research AiResearchRun?
+  rewriteProposals AiRewriteProposal[]
+
+  @@index([userId, status])
+  @@index([updatedAt])
+  @@map("ai_conversations")
+}
+
+model AiMessage {
+  id           String   @id @default(uuid())
+  role         String
+  content      String
+  metadataJson String?
+  createdAt    DateTime @default(now())
+
+  conversationId String
+  conversation   AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@map("ai_messages")
+}
+
+model AiContentBrief {
+  id                    String   @id @default(uuid())
+  topic                 String
+  audience              String?
+  goal                  String?
+  tone                  String?
+  primaryKeyword        String?
+  secondaryKeywordsJson String?
+  wordCount             Int?
+  contentType           String?
+  cta                   String?
+  notes                 String?
+  approvedAt            DateTime?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  conversationId String         @unique
+  conversation   AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@map("ai_content_briefs")
+}
+
+model AiDraftOutput {
+  id                  String   @id @default(uuid())
+  title               String
+  slug                String
+  excerpt             String?
+  metaTitle           String?
+  metaDescription     String?
+  contentHtml         String
+  categorySuggestion  String?
+  tagsJson            String?
+  outlineJson         String?
+  faqJson             String?
+  ogImagePrompt       String?
+  seoScore            Int?
+  engagementScore     Int?
+  readabilityScore    Int?
+  recommendationsJson String?
+  verificationNotesJson String?
+  verificationFlagsJson String?
+  engagementInsightsJson String?
+  internalLinkSuggestionsJson String?
+  researchUsed        Boolean  @default(false)
+  status              String   @default("generated")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  conversationId String         @unique
+  conversation   AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  postId         String?
+  post           Post?          @relation(fields: [postId], references: [id], onDelete: SetNull)
+  rewriteProposals AiRewriteProposal[]
+
+  @@index([postId])
+  @@map("ai_draft_outputs")
+}
+
+model AiResearchRun {
+  id                           String   @id @default(uuid())
+  provider                     String
+  status                       String   @default("completed")
+  topicSummary                 String?
+  searchIntent                 String?
+  keywordIdeasJson             String?
+  relatedQuestionsJson         String?
+  competitorNotesJson          String?
+  contentGapsJson              String?
+  sourceNotesJson              String?
+  internalLinkOpportunitiesJson String?
+  riskFlagsJson                String?
+  createdAt                    DateTime @default(now())
+  updatedAt                    DateTime @updatedAt
+
+  conversationId String         @unique
+  conversation   AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@map("ai_research_runs")
+}
+
+model AiRewriteProposal {
+  id            String   @id @default(uuid())
+  action        String
+  label         String
+  summary       String?
+  targetSection String
+  originalText  String
+  proposedText  String
+  draftPatchJson String
+  status        String   @default("proposed")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  conversationId String
+  conversation   AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  draftOutputId  String
+  draftOutput    AiDraftOutput  @relation(fields: [draftOutputId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, status])
+  @@index([draftOutputId])
+  @@map("ai_rewrite_proposals")
+}
+
+model RateLimitBucket {
+  key       String   @id
+  count     Int      @default(0)
+  resetAt   DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([resetAt])
+  @@map("rate_limit_buckets")
 }

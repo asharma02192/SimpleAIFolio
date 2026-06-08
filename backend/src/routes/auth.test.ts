@@ -8,6 +8,7 @@ import { createTestApp } from "../test/test-app";
 
 const originalInstallSecret = process.env.INSTALL_SECRET;
 const originalJwtSecret = process.env.JWT_SECRET;
+const originalRateLimitStore = process.env.RATE_LIMIT_STORE;
 
 function getCookieHeader(response: SupertestResponse) {
   const header = response.headers["set-cookie"];
@@ -16,6 +17,7 @@ function getCookieHeader(response: SupertestResponse) {
 
 beforeEach(() => {
   process.env.JWT_SECRET = "phase5-test-secret";
+  process.env.RATE_LIMIT_STORE = "memory";
   delete process.env.INSTALL_SECRET;
 });
 
@@ -30,6 +32,12 @@ afterEach(() => {
     delete process.env.JWT_SECRET;
   } else {
     process.env.JWT_SECRET = originalJwtSecret;
+  }
+
+  if (originalRateLimitStore === undefined) {
+    delete process.env.RATE_LIMIT_STORE;
+  } else {
+    process.env.RATE_LIMIT_STORE = originalRateLimitStore;
   }
 });
 

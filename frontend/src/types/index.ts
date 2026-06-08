@@ -74,3 +74,148 @@ export interface PaginatedResponse<T> {
   perPage: number;
   totalPages: number;
 }
+
+export interface AiConversationListItem {
+  id: string;
+  title: string;
+  topic: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AiMessage {
+  id: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  metadata?: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface AiBrief {
+  topic: string;
+  audience: string;
+  goal: string;
+  tone: string;
+  primaryKeyword: string;
+  secondaryKeywords: string[];
+  wordCount: number | null;
+  contentType: string;
+  cta: string;
+  notes: string;
+  approvedAt?: string | null;
+}
+
+export interface AiOutlineItem {
+  heading: string;
+  points: string[];
+}
+
+export interface AiFaqItem {
+  question: string;
+  answer: string;
+}
+
+export interface AiDraftOutput {
+  title: string;
+  slug: string;
+  excerpt: string;
+  metaTitle: string;
+  metaDescription: string;
+  ogImagePrompt: string;
+  categorySuggestion: string;
+  tagSuggestions: string[];
+  outline: AiOutlineItem[];
+  contentHtml: string;
+  faq: AiFaqItem[];
+  seoScore: number;
+  engagementScore: number;
+  readabilityScore: number;
+  recommendations: string[];
+  verificationNotes: string[];
+  verificationFlags: AiVerificationFlag[];
+  engagementInsights: string[];
+  internalLinkSuggestions: AiInternalLinkSuggestion[];
+  researchUsed: boolean;
+  postId?: string | null;
+  status?: string;
+}
+
+export interface AiVerificationFlag {
+  claim: string;
+  status: "supported" | "general" | "needs_verification" | "risky";
+  sourceId?: string | null;
+  recommendation: string;
+}
+
+export interface AiInternalLinkSuggestion {
+  postId: string;
+  title: string;
+  slug: string;
+  anchorText: string;
+  reason: string;
+}
+
+export interface AiResearchSource {
+  id: string;
+  title: string;
+  url: string;
+  publisher: string;
+  publishedDate: string | null;
+  summary: string;
+  usefulness: "high" | "medium" | "low";
+  notes: string[];
+  approvalStatus: "approved" | "rejected" | "needs_review";
+  adminNotes: string;
+}
+
+export interface AiResearchRun {
+  provider: string;
+  status: string;
+  topicSummary: string;
+  searchIntent: string;
+  keywordIdeas: string[];
+  relatedQuestions: string[];
+  competitorNotes: string[];
+  contentGaps: string[];
+  sources: AiResearchSource[];
+  internalLinkSuggestions: AiInternalLinkSuggestion[];
+  riskFlags: string[];
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export type AiRewriteAction =
+  | "improve_intro"
+  | "stronger_title"
+  | "seo_focus"
+  | "more_human"
+  | "add_examples"
+  | "add_faq"
+  | "improve_cta"
+  | "shorten"
+  | "expand"
+  | "improve_readability";
+
+export interface AiRewriteProposal {
+  id?: string;
+  action: AiRewriteAction;
+  label: string;
+  summary: string;
+  target: "title" | "contentHtml" | "meta" | "faq" | "excerpt";
+  preview: string;
+  draftPatch: Partial<AiDraftOutput>;
+  status?: "proposed" | "applied" | "rejected";
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface AiConversationDetail extends AiConversationListItem {
+  messages: AiMessage[];
+  brief: AiBrief | null;
+  draft: AiDraftOutput | null;
+  research: AiResearchRun | null;
+  proposals: AiRewriteProposal[];
+  researchEnabled: boolean;
+  researchMessage: string | null;
+}

@@ -8,6 +8,8 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "test": "tsx --test src/**/*.test.ts",
+    "verify:research": "tsx src/scripts/verify-research.ts",
+    "test:research:live": "tsx src/scripts/verify-research.ts",
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio"

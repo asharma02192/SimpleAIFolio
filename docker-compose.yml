@@ -19,6 +19,8 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     restart: unless-stopped
+    env_file:
+      - ./backend/.env
     depends_on:
       db:
         condition: service_healthy
@@ -28,6 +30,10 @@ services:
       ALLOW_INSECURE_JWT_SECRET: "true"
       PORT: 3001
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3200}
+      RUN_SEED_ON_STARTUP: "true"
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@myplweb.com}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-admin123}
+      SEED_ADMIN_NAME: ${SEED_ADMIN_NAME:-Admin}
     volumes:
       - uploads:/app/uploads
     ports:

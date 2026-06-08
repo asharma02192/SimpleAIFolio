@@ -11,6 +11,7 @@ import projectRoutes from "./routes/projects";
 import mediaRoutes from "./routes/media";
 import analyticsRoutes from "./routes/analytics";
 import settingsRoutes from "./routes/settings";
+import adminAiRoutes from "./routes/admin-ai";
 import { validateBackendEnv } from "./utils/env";
 
 dotenv.config();
@@ -42,6 +43,7 @@ app.use("/api/tags", tagRoutes);
 app.use("/api/projects", projectRoutes);
 app.use("/api/media", mediaRoutes);
 app.use("/api/analytics", analyticsRoutes);
+app.use("/api/admin/ai", adminAiRoutes);
 app.use("/api", settingsRoutes);
 
 // Health check
