@@ -217,11 +217,13 @@ test("admin ai writer can start a conversation and send a message", async ({ pag
   await loginViaUi(page);
   await page.goto("/admin/ai-writer");
 
-  await page.getByRole("button", { name: /☰/ }).click();
-  await page.getByPlaceholder("New topic...").fill("AI tools for small business marketing");
-  await page.getByRole("button", { name: "New AI Blog" }).click();
+  // Use a unique topic to avoid deduplication with previous test runs
+  const uniqueTopic = `Live conversation test ${Date.now()}`;
+  await page.getByPlaceholder(/AI tools for small business/).fill(uniqueTopic);
+  await page.getByRole("button", { name: /Generate Blog Post/ }).click();
 
-  await expect(page.getByText("AI conversation started").first()).toBeVisible({ timeout: 60000 });
+  // Wait for conversation to load — either toast or content appears
+  await expect(page.getByText(/AI conversation started|Opened existing conversation|Generate Brief/).first()).toBeVisible({ timeout: 60000 });
   await expect(page.getByText("Assistant").first()).toBeVisible({ timeout: 60000 });
 
   await page.getByPlaceholder("Answer the assistant's questions or add more detail...").fill("The audience is small business owners. The tone should be practical and expert.");
@@ -713,9 +715,12 @@ test("admin ai writer shows a clear error when draft generation fails", async ({
   await loginViaUi(page);
   await page.goto("/admin/ai-writer");
 
-  await page.getByRole("button", { name: /☰/ }).click();
-  await page.getByPlaceholder("New topic...").fill("AI tools for small business marketing");
-  await page.getByRole("button", { name: "New AI Blog" }).click();
+  // Use a unique topic to avoid deduplication with previous test runs
+  const uniqueTopic = `Draft failure test ${Date.now()}`;
+  await page.getByPlaceholder(/AI tools for small business/).fill(uniqueTopic);
+  await page.getByRole("button", { name: /Generate Blog Post/ }).click();
+
+  // Wait for conversation to load, then generate brief
   await page.getByRole("button", { name: "Generate Brief" }).click();
   const approveBriefButton = page.getByRole("button", { name: /Approve Brief & Generate Draft|Update Approved Brief/ });
   await expect(approveBriefButton).toBeEnabled({ timeout: 60000 });

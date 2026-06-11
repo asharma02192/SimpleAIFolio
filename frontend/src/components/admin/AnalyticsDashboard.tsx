@@ -14,7 +14,7 @@ type WindowDays = 7 | 30 | 90;
 const surfaceStyle = {
   background: "var(--color-bg-elevated)",
   border: "1px solid var(--color-border)",
-  boxShadow: "0 1px 0 rgba(15, 23, 42, 0.04)",
+  boxShadow: "0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 0 rgba(15, 23, 42, 0.04)",
 };
 
 const insetSurfaceStyle = {
@@ -76,7 +76,7 @@ export default function AnalyticsDashboard() {
   }
 
   return (
-    <div className="space-y-[var(--space-6)]">
+    <div className="space-y-[var(--space-8)]">
       {/* Page Header */}
       <section className="rounded-[calc(var(--radius-lg)+4px)] p-[var(--space-6)] lg:p-[var(--space-7)]" style={surfaceStyle}>
         <div className="grid gap-[var(--space-6)] xl:grid-cols-[minmax(0,1.35fr),minmax(18rem,0.65fr)]">
@@ -129,14 +129,14 @@ export default function AnalyticsDashboard() {
       </section>
 
       {/* Tab Bar */}
-      <div className="-mb-[1px] overflow-x-auto" style={{ WebkitOverflowScrolling: "touch" }}>
+      <div className="-mb-[1px] overflow-x-auto rounded-[calc(var(--radius-lg)+2px)]" style={{ ...surfaceStyle, WebkitOverflowScrolling: "touch" }}>
         <div className="flex flex-nowrap gap-0 border-b" style={{ borderColor: "var(--color-border)" }}>
           {TABS.map((tab) => (
             <button
               key={tab.id}
               type="button"
               onClick={() => setActiveTab(tab.id)}
-              className="whitespace-nowrap px-[var(--space-4)] py-[var(--space-3)] text-[var(--text-sm)] font-medium transition-colors"
+              className="whitespace-nowrap px-[var(--space-5)] py-[var(--space-4)] text-[var(--text-sm)] font-medium transition-colors"
               style={{
                 color: activeTab === tab.id ? "var(--color-text)" : "var(--color-text-tertiary)",
                 borderBottom: activeTab === tab.id ? "2px solid var(--color-accent)" : "2px solid transparent",
@@ -151,15 +151,15 @@ export default function AnalyticsDashboard() {
 
       {/* Tab Content */}
       {activeTab === "overview" && (
-        <div className="space-y-[var(--space-6)]">
-          <div className="grid grid-cols-1 gap-[var(--space-4)] md:grid-cols-2 2xl:grid-cols-4">
+        <div className="space-y-[var(--space-8)]">
+          <div className="grid grid-cols-1 gap-[var(--space-5)] md:grid-cols-2 2xl:grid-cols-4">
             {[
               { label: "Total Views", value: data.totalViews.toLocaleString(), sub: `${data.recentViews} in last 7 days` },
               { label: "Total Posts", value: data.totalPosts.toLocaleString(), sub: `${data.publishedPosts} published` },
               { label: "Top Page", value: data.topPages[0]?.path || "—", sub: data.topPages[0] ? `${data.topPages[0].views} views` : "No data yet" },
               { label: "Projects", value: data.totalProjects.toLocaleString(), sub: "Public project inventory" },
             ].map((m) => (
-              <div key={m.label} className="rounded-[calc(var(--radius-md)+2px)] p-[var(--space-4)]" style={insetSurfaceStyle}>
+              <div key={m.label} className="rounded-[calc(var(--radius-md)+2px)] p-[var(--space-5)]" style={insetSurfaceStyle}>
                 <p
                   className="font-[family-name:var(--font-mono)] text-[0.625rem] uppercase tracking-[0.22em]"
                   style={{ color: "var(--color-text-tertiary)" }}
@@ -187,17 +187,20 @@ export default function AnalyticsDashboard() {
               Public routes with the strongest view count.
             </p>
             {data.topPages.length ? (
-              <div className="mt-[var(--space-5)] space-y-[var(--space-2)]">
-                {data.topPages.map((p) => (
+              <div className="mt-[var(--space-5)] space-y-[var(--space-3)]">
+                {data.topPages.map((p, i) => (
                   <div
                     key={p.path}
-                    className="flex items-center justify-between gap-[var(--space-3)] rounded-[var(--radius-md)] px-[var(--space-3)] py-[var(--space-3)] text-[var(--text-sm)]"
+                    className="flex items-center justify-between gap-[var(--space-4)] rounded-[var(--radius-md)] px-[var(--space-4)] py-[var(--space-3)] text-[var(--text-sm)]"
                     style={insetSurfaceStyle}
                   >
-                    <span className="truncate pr-[var(--space-4)]" style={{ color: "var(--color-text-secondary)" }}>
-                      <Link href={p.path} className="hover:underline" style={{ color: "var(--color-accent)" }}>{p.path}</Link>
-                    </span>
-                    <span style={{ color: "var(--color-text)", fontWeight: 600 }}>{p.views}</span>
+                    <div className="flex min-w-0 items-center gap-[var(--space-3)]">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[var(--text-xs)] font-semibold" style={{ background: i === 0 ? "var(--color-accent)" : "var(--color-bg-elevated)", color: i === 0 ? "var(--color-accent-on)" : "var(--color-text-tertiary)" }}>
+                        {i + 1}
+                      </span>
+                      <Link href={p.path} className="truncate hover:underline" style={{ color: "var(--color-accent)" }}>{p.path}</Link>
+                    </div>
+                    <span className="shrink-0 font-semibold tabular-nums" style={{ color: "var(--color-text)" }}>{p.views.toLocaleString()}</span>
                   </div>
                 ))}
               </div>
@@ -209,14 +212,14 @@ export default function AnalyticsDashboard() {
       )}
 
       {activeTab === "posts" && (
-        <div className="space-y-[var(--space-6)]">
-          <div className="grid grid-cols-1 gap-[var(--space-4)] md:grid-cols-3">
+        <div className="space-y-[var(--space-8)]">
+          <div className="grid grid-cols-1 gap-[var(--space-5)] md:grid-cols-3">
             {[
               { label: "Total Posts", value: data.totalPosts.toLocaleString() },
               { label: "Published", value: data.publishedPosts.toLocaleString() },
               { label: "Drafts", value: (data.totalPosts - data.publishedPosts).toLocaleString() },
             ].map((m) => (
-              <div key={m.label} className="rounded-[calc(var(--radius-md)+2px)] p-[var(--space-4)]" style={insetSurfaceStyle}>
+              <div key={m.label} className="rounded-[calc(var(--radius-md)+2px)] p-[var(--space-5)]" style={insetSurfaceStyle}>
                 <p className="font-[family-name:var(--font-mono)] text-[0.625rem] uppercase tracking-[0.22em]" style={{ color: "var(--color-text-tertiary)" }}>{m.label}</p>
                 <p className="mt-[var(--space-3)] font-[family-name:var(--font-display)] text-[1.5rem] font-semibold leading-none" style={{ color: "var(--color-text)" }}>{m.value}</p>
               </div>
@@ -229,10 +232,10 @@ export default function AnalyticsDashboard() {
             <p className="mt-[var(--space-1)] text-[var(--text-sm)]" style={{ color: "var(--color-text-secondary)" }}>
               View counts by published post. More detailed per-post analytics coming soon.
             </p>
-            <div className="mt-[var(--space-5)] rounded-[calc(var(--radius-md)+2px)] p-[var(--space-6)]" style={insetSurfaceStyle}>
-              <div className="flex flex-col items-center gap-[var(--space-2)] py-[var(--space-4)]">
-                <span className="text-2xl">📊</span>
-                <p className="text-[var(--text-sm)] font-medium" style={{ color: "var(--color-text-secondary)" }}>
+            <div className="mt-[var(--space-5)] rounded-[calc(var(--radius-md)+2px)] p-[var(--space-8)]" style={insetSurfaceStyle}>
+              <div className="flex flex-col items-center gap-[var(--space-3)] py-[var(--space-4)]">
+                <span className="text-3xl">📊</span>
+                <p className="max-w-[36ch] text-center text-[var(--text-sm)] font-medium" style={{ color: "var(--color-text-secondary)" }}>
                   Per-post analytics will appear here as your site collects more traffic data.
                 </p>
                 <Link
@@ -249,13 +252,13 @@ export default function AnalyticsDashboard() {
       )}
 
       {activeTab === "traffic" && (
-        <div className="space-y-[var(--space-6)]">
-          <div className="grid grid-cols-1 gap-[var(--space-4)] md:grid-cols-2">
+        <div className="space-y-[var(--space-8)]">
+          <div className="grid grid-cols-1 gap-[var(--space-5)] md:grid-cols-2">
             {[
               { label: `Views (${formatWindowLabel(windowDays)})`, value: data.totalViews.toLocaleString() },
               { label: "Recent (7d)", value: data.recentViews.toLocaleString() },
             ].map((m) => (
-              <div key={m.label} className="rounded-[calc(var(--radius-md)+2px)] p-[var(--space-4)]" style={insetSurfaceStyle}>
+              <div key={m.label} className="rounded-[calc(var(--radius-md)+2px)] p-[var(--space-5)]" style={insetSurfaceStyle}>
                 <p className="font-[family-name:var(--font-mono)] text-[0.625rem] uppercase tracking-[0.22em]" style={{ color: "var(--color-text-tertiary)" }}>{m.label}</p>
                 <p className="mt-[var(--space-3)] font-[family-name:var(--font-display)] text-[1.5rem] font-semibold leading-none" style={{ color: "var(--color-text)" }}>{m.value}</p>
               </div>
@@ -268,10 +271,10 @@ export default function AnalyticsDashboard() {
             <p className="mt-[var(--space-1)] text-[var(--text-sm)]" style={{ color: "var(--color-text-secondary)" }}>
               Page views by day. Charts will be added as more data is collected.
             </p>
-            <div className="mt-[var(--space-5)] rounded-[calc(var(--radius-md)+2px)] p-[var(--space-6)]" style={insetSurfaceStyle}>
-              <div className="flex flex-col items-center gap-[var(--space-2)] py-[var(--space-4)]">
-                <span className="text-2xl">📈</span>
-                <p className="text-[var(--text-sm)] font-medium" style={{ color: "var(--color-text-secondary)" }}>
+            <div className="mt-[var(--space-5)] rounded-[calc(var(--radius-md)+2px)] p-[var(--space-8)]" style={insetSurfaceStyle}>
+              <div className="flex flex-col items-center gap-[var(--space-3)] py-[var(--space-4)]">
+                <span className="text-3xl">📈</span>
+                <p className="max-w-[36ch] text-center text-[var(--text-sm)] font-medium" style={{ color: "var(--color-text-secondary)" }}>
                   Daily traffic charts will appear as your site collects more visitor data.
                 </p>
               </div>
@@ -288,10 +291,10 @@ export default function AnalyticsDashboard() {
           <p className="mt-[var(--space-1)] text-[var(--text-sm)]" style={{ color: "var(--color-text-secondary)" }}>
             Where your visitors come from. Referrer tracking will be enabled as traffic grows.
           </p>
-          <div className="mt-[var(--space-5)] rounded-[calc(var(--radius-md)+2px)] p-[var(--space-6)]" style={insetSurfaceStyle}>
-            <div className="flex flex-col items-center gap-[var(--space-2)] py-[var(--space-4)]">
-              <span className="text-2xl">🔗</span>
-              <p className="text-[var(--text-sm)] font-medium" style={{ color: "var(--color-text-secondary)" }}>
+          <div className="mt-[var(--space-5)] rounded-[calc(var(--radius-md)+2px)] p-[var(--space-8)]" style={insetSurfaceStyle}>
+            <div className="flex flex-col items-center gap-[var(--space-3)] py-[var(--space-4)]">
+              <span className="text-3xl">🔗</span>
+              <p className="max-w-[36ch] text-center text-[var(--text-sm)] font-medium" style={{ color: "var(--color-text-secondary)" }}>
                 Referrer data will appear here once your site starts receiving traffic from external sources.
               </p>
             </div>

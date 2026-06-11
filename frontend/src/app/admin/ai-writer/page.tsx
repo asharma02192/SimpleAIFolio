@@ -41,7 +41,7 @@ const inputStyle = {
 const panelShellStyle = {
   background: "var(--color-bg-elevated)",
   border: "1px solid var(--color-border)",
-  boxShadow: "0 1px 0 rgba(15, 23, 42, 0.04)",
+  boxShadow: "0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 0 rgba(15, 23, 42, 0.04)",
 };
 
 const panelInsetStyle = {
@@ -260,7 +260,7 @@ const STEP_META: Array<{ label: string; description: string }> = [
 function ChevronRight({ open }: { open: boolean }) {
   return (
     <span
-      className="inline-block text-[0.625rem] transition-transform"
+      className="inline-block text-[0.75rem] transition-transform"
       style={{ transform: open ? "rotate(90deg)" : "rotate(0deg)", color: "var(--color-text-tertiary)" }}
     >
       ▸
@@ -329,9 +329,8 @@ function WriterContent() {
       setListTotal(response.total || 0);
       setListHasMore(response.hasMore || false);
       setListPage(page);
-      if (!append && items.length > 0 && !selectedId) {
-        setSelectedId(items[0].id);
-      }
+      // Always start fresh — don't auto-select previous conversations
+      // User explicitly opens the drawer to revisit old conversations
     } catch (error) {
       const message = getAdminErrorMessage(error, "Failed to load conversations.");
       setPageError(message);
@@ -739,7 +738,7 @@ function WriterContent() {
       <AdminSidebar onLogout={logoutAdmin} />
       <main id="main" className="flex-1 px-[var(--space-5)] py-[var(--space-6)] lg:px-[var(--space-8)]">
         {/* ── Page header ── */}
-        <section className="mb-[var(--space-6)]">
+        <section className="mb-[var(--space-8)]">
           <div className="flex items-start justify-between gap-[var(--space-4)]">
             <div>
               <p
@@ -780,7 +779,7 @@ function WriterContent() {
         </section>
 
         {/* ── Step progress indicator ── */}
-        <nav aria-label="Wizard progress" className="mb-[var(--space-6)]">
+        <nav aria-label="Wizard progress" className="mb-[var(--space-8)]">
           <ol className="flex items-start gap-0">
             {([1, 2, 3] as const).map((step, i) => {
               const isComplete = step === 1 ? stepCompletion.step1 : step === 2 ? stepCompletion.step2 : stepCompletion.step3;
@@ -1013,9 +1012,9 @@ function WriterContent() {
 
               {/* ═══════════ STEP 1: CREATE ═══════════ */}
               {currentStep === 1 && (
-                <section className="rounded-[calc(var(--radius-lg)+2px)] p-[var(--space-5)] lg:p-[var(--space-6)]" style={panelShellStyle}>
+                <section className="rounded-[calc(var(--radius-lg)+2px)] p-[var(--space-6)] lg:p-[var(--space-8)]" style={panelShellStyle}>
                   {detail ? (
-                    <div className="flex flex-col gap-[var(--space-4)]">
+                    <div className="flex flex-col gap-[var(--space-6)]">
                       <div>
                         <h2 className="font-[family-name:var(--font-display)] text-[clamp(1.25rem,2vw,1.75rem)] font-semibold leading-tight" style={{ color: "var(--color-text)" }}>
                           {detail.title}
@@ -1025,8 +1024,8 @@ function WriterContent() {
 
                       {/* Chat messages */}
                       {(detail.messages.length > 0 || busy === "message" || busy === "brief") && (
-                        <div className="max-h-[52vh] overflow-y-auto rounded-[var(--radius-md)] p-[var(--space-3)]" style={{ background: "var(--color-bg)" }}>
-                          <div className="flex flex-col gap-[var(--space-3)]">
+                        <div className="max-h-[52vh] overflow-y-auto rounded-[var(--radius-md)] p-[var(--space-4)]" style={{ background: "var(--color-bg)" }}>
+                          <div className="flex flex-col gap-[var(--space-4)]">
                             {detail.messages.map((message) => (
                               <div
                                 key={message.id}
@@ -1071,7 +1070,7 @@ function WriterContent() {
                       )}
 
                       {/* Message input + actions */}
-                      <div className="flex flex-col gap-[var(--space-3)]">
+                      <div className="flex flex-col gap-[var(--space-4)]">
                         <textarea
                           value={messageInput}
                           onChange={(event) => setMessageInput(event.target.value)}
@@ -1116,10 +1115,42 @@ function WriterContent() {
                       </div>
                     </div>
                   ) : (
-                    <div className="py-[var(--space-8)] text-center">
-                      <p className="text-[var(--text-base)]" style={{ color: "var(--color-text-secondary)" }}>
-                        Start a new AI Blog from the sidebar, or select an existing conversation.
-                      </p>
+                    <div className="flex flex-col items-center gap-[var(--space-5)] py-[var(--space-10)]">
+                      <div className="flex h-14 w-14 items-center justify-center rounded-full" style={{ background: "color-mix(in oklch, var(--color-accent-lightest) 40%, var(--color-bg) 60%)" }}>
+                        <span className="text-2xl">✨</span>
+                      </div>
+                      <div className="text-center">
+                        <h2 className="font-[family-name:var(--font-display)] text-[clamp(1.25rem,2.5vw,1.5rem)] font-semibold" style={{ color: "var(--color-text)" }}>
+                          What should we write about?
+                        </h2>
+                        <p className="mt-[var(--space-2)] max-w-[48ch] text-[var(--text-sm)] leading-relaxed" style={{ color: "var(--color-text-secondary)" }}>
+                          Describe your blog topic and the AI will generate a brief, research, and full draft.
+                        </p>
+                      </div>
+                      <div className="flex w-full max-w-[36rem] flex-col gap-[var(--space-3)]">
+                        <textarea
+                          value={topicInput}
+                          onChange={(event) => setTopicInput(event.target.value)}
+                          rows={3}
+                          placeholder="e.g. AI tools for small business marketing..."
+                          className="w-full px-[var(--space-4)] py-[var(--space-3)] text-[var(--text-base)] outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-colors"
+                          style={{ ...inputStyle, minHeight: "5rem" }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => void createConversation()}
+                          disabled={busy !== null || !topicInput.trim()}
+                          className="inline-flex min-h-[44px] items-center justify-center rounded-[var(--radius-md)] px-6 py-3 text-[var(--text-base)] font-600 transition-all duration-150 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+                          style={{ background: "var(--color-accent)", color: "var(--color-accent-on)" }}
+                        >
+                          {busy === "create" ? "Starting..." : "Generate Blog Post →"}
+                        </button>
+                      </div>
+                      {conversations.length > 0 && (
+                        <p className="text-[var(--text-xs)]" style={{ color: "var(--color-text-tertiary)" }}>
+                          Or open ☰ to continue an existing conversation
+                        </p>
+                      )}
                     </div>
                   )}
                 </section>
@@ -1127,17 +1158,17 @@ function WriterContent() {
 
               {/* ═══════════ STEP 2: BRIEF ═══════════ */}
               {currentStep === 2 && (
-                <section className="rounded-[calc(var(--radius-lg)+2px)] p-[var(--space-5)] lg:p-[var(--space-6)]" style={panelShellStyle}>
+                <section className="rounded-[calc(var(--radius-lg)+2px)] p-[var(--space-6)] lg:p-[var(--space-8)]" style={panelShellStyle}>
                   {detail?.brief ? (
-                    <div className="flex flex-col gap-[var(--space-5)]">
+                    <div className="flex flex-col gap-[var(--space-6)]">
 
                       {/* ── Brief summary card ── */}
-                      <div className="rounded-[calc(var(--radius-md)+2px)] px-[var(--space-4)] py-[var(--space-4)]" style={panelInsetStyle}>
+                      <div className="rounded-[calc(var(--radius-md)+2px)] px-[var(--space-5)] py-[var(--space-5)]" style={panelInsetStyle}>
                         <p className="font-[family-name:var(--font-display)] text-[var(--text-base)] font-semibold" style={{ color: "var(--color-text)" }}>Content Brief</p>
                         <p className="mt-[var(--space-1)] text-[var(--text-xs)]" style={{ color: "var(--color-text-tertiary)" }}>
                           Review the AI-generated brief. Edit advanced fields if needed, then approve.
                         </p>
-                        <div className="mt-[var(--space-4)] grid grid-cols-1 gap-[var(--space-3)] sm:grid-cols-2">
+                        <div className="mt-[var(--space-5)] grid grid-cols-1 gap-[var(--space-4)] sm:grid-cols-2">
                           {[
                             { label: "Topic", value: briefForm.topic },
                             { label: "Audience", value: briefForm.audience || "—" },
@@ -1182,11 +1213,11 @@ function WriterContent() {
                       </p>
 
                       {/* ── Collapsible: Advanced Settings ── */}
-                      <div>
+                      <div className="pt-[var(--space-2)]" style={{ borderTop: "1px solid var(--color-border)" }}>
                         <button
                           type="button"
                           onClick={() => setShowAdvancedBrief(!showAdvancedBrief)}
-                          className="flex items-center gap-[var(--space-2)] text-[var(--text-sm)] font-semibold"
+                          className="flex items-center gap-[var(--space-2)] py-[var(--space-2)] text-[var(--text-sm)] font-semibold"
                           style={{ color: "var(--color-text-secondary)" }}
                         >
                           <ChevronRight open={showAdvancedBrief} />
@@ -1253,11 +1284,11 @@ function WriterContent() {
                       </div>
 
                       {/* ── Collapsible: AI Usage ── */}
-                      <div>
+                      <div className="pt-[var(--space-2)]" style={{ borderTop: "1px solid var(--color-border)" }}>
                         <button
                           type="button"
                           onClick={() => setShowAiUsage(!showAiUsage)}
-                          className="flex items-center gap-[var(--space-2)] text-[var(--text-sm)] font-semibold"
+                          className="flex items-center gap-[var(--space-2)] py-[var(--space-2)] text-[var(--text-sm)] font-semibold"
                           style={{ color: "var(--color-text-secondary)" }}
                         >
                           <ChevronRight open={showAiUsage} />
@@ -1305,11 +1336,11 @@ function WriterContent() {
                       </div>
 
                       {/* ── Collapsible: Run Research ── */}
-                      <div>
+                      <div className="pt-[var(--space-2)]" style={{ borderTop: "1px solid var(--color-border)" }}>
                         <button
                           type="button"
                           onClick={() => setShowResearchPanel(!showResearchPanel)}
-                          className="flex items-center gap-[var(--space-2)] text-[var(--text-sm)] font-semibold"
+                          className="flex items-center gap-[var(--space-2)] py-[var(--space-2)] text-[var(--text-sm)] font-semibold"
                           style={{ color: "var(--color-text-secondary)" }}
                         >
                           <ChevronRight open={showResearchPanel} />
@@ -1503,15 +1534,17 @@ function WriterContent() {
                       </div>
                     </div>
                   ) : detail ? (
-                    <div className="py-[var(--space-6)] text-center">
+                    <div className="flex flex-col items-center gap-[var(--space-4)] py-[var(--space-10)]">
+                      <span className="text-2xl">📝</span>
                       <p className="text-[var(--text-base)]" style={{ color: "var(--color-text-secondary)" }}>
                         Go back to Step 1 and generate a brief first.
                       </p>
                     </div>
                   ) : (
-                    <div className="py-[var(--space-6)] text-center">
+                    <div className="flex flex-col items-center gap-[var(--space-4)] py-[var(--space-10)]">
+                      <span className="text-2xl">✨</span>
                       <p className="text-[var(--text-base)]" style={{ color: "var(--color-text-secondary)" }}>
-                        Select or create a conversation from the sidebar.
+                        Start a new blog from Step 1 to begin.
                       </p>
                     </div>
                   )}
@@ -1520,9 +1553,9 @@ function WriterContent() {
 
               {/* ═══════════ STEP 3: DRAFT ═══════════ */}
               {currentStep === 3 && (
-                <section className="rounded-[calc(var(--radius-lg)+2px)] p-[var(--space-5)] lg:p-[var(--space-6)]" style={panelShellStyle}>
+                <section className="rounded-[calc(var(--radius-lg)+2px)] p-[var(--space-6)] lg:p-[var(--space-8)]" style={panelShellStyle}>
                   {detail ? (
-                    <div className="flex flex-col gap-[var(--space-4)]">
+                    <div className="flex flex-col gap-[var(--space-6)]">
 
                       {/* Generate draft (if not yet generated) */}
                       {!draft && (
@@ -1538,13 +1571,13 @@ function WriterContent() {
                       )}
 
                       {draft ? (
-                        <div className="flex flex-col gap-[var(--space-4)]">
+                        <div className="flex flex-col gap-[var(--space-5)]">
                           {/* Draft header */}
                           <div>
                             <h3 className="font-[family-name:var(--font-display)] text-[var(--text-lg)] font-600" style={{ color: "var(--color-text)" }}>{draft.title}</h3>
                             <p className="mt-[var(--space-1)] break-all text-[var(--text-xs)]" style={{ color: "var(--color-text-tertiary)" }}>{draft.slug}</p>
                           </div>
-                          <div className="rounded-[var(--radius-md)] p-[var(--space-3)]" style={{ background: "var(--color-bg)" }}>
+                          <div className="rounded-[var(--radius-md)] p-[var(--space-4)]" style={{ background: "var(--color-bg)" }}>
                             <p className="text-[var(--text-sm)] font-semibold" style={{ color: "var(--color-text)" }}>{draft.metaTitle}</p>
                             <p className="mt-[var(--space-1)] text-[var(--text-xs)]" style={{ color: "var(--color-text-secondary)" }}>{draft.metaDescription}</p>
                           </div>
@@ -1579,18 +1612,18 @@ function WriterContent() {
                           )}
 
                           {/* HTML content preview */}
-                          <div className="prose max-h-[28rem] overflow-y-auto rounded-[var(--radius-md)] p-[var(--space-3)]" style={{ background: "var(--color-bg)" }} dangerouslySetInnerHTML={{ __html: draft.contentHtml }} />
+                          <div className="prose max-h-[32rem] overflow-y-auto rounded-[var(--radius-md)] p-[var(--space-4)]" style={{ background: "var(--color-bg)" }} dangerouslySetInnerHTML={{ __html: draft.contentHtml }} />
                           {includeReferences && referencePreviewHtml && (
                             <div className="prose rounded-[var(--radius-md)] p-[var(--space-3)]" style={{ background: "var(--color-bg)" }} dangerouslySetInnerHTML={{ __html: referencePreviewHtml }} />
                           )}
 
                           {/* ── Collapsible: Review Flags ── */}
                           {draft.verificationFlags.length > 0 && (
-                            <div>
+                            <div className="pt-[var(--space-2)]" style={{ borderTop: "1px solid var(--color-border)" }}>
                               <button
                                 type="button"
                                 onClick={() => setShowReviewFlags(!showReviewFlags)}
-                                className="flex items-center gap-[var(--space-2)] text-[var(--text-sm)] font-semibold"
+                                className="flex items-center gap-[var(--space-2)] py-[var(--space-2)] text-[var(--text-sm)] font-semibold"
                                 style={{ color: riskyFlags.length > 0 ? "oklch(50% 0.1 25)" : "var(--color-text-secondary)" }}
                               >
                                 <ChevronRight open={showReviewFlags} />
@@ -1662,11 +1695,11 @@ function WriterContent() {
 
                           {/* ── Collapsible: Internal Link Suggestions ── */}
                           {draft.internalLinkSuggestions.length > 0 && (
-                            <div>
+                            <div className="pt-[var(--space-2)]" style={{ borderTop: "1px solid var(--color-border)" }}>
                               <button
                                 type="button"
                                 onClick={() => setShowInternalLinks(!showInternalLinks)}
-                                className="flex items-center gap-[var(--space-2)] text-[var(--text-sm)] font-semibold"
+                                className="flex items-center gap-[var(--space-2)] py-[var(--space-2)] text-[var(--text-sm)] font-semibold"
                                 style={{ color: "var(--color-text-secondary)" }}
                               >
                                 <ChevronRight open={showInternalLinks} />
@@ -1701,11 +1734,11 @@ function WriterContent() {
                           )}
 
                           {/* ── Collapsible: Improve This Draft (Rewrite) ── */}
-                          <div>
+                          <div className="pt-[var(--space-2)]" style={{ borderTop: "1px solid var(--color-border)" }}>
                             <button
                               type="button"
                               onClick={() => setShowRewriteActions(!showRewriteActions)}
-                              className="flex items-center gap-[var(--space-2)] text-[var(--text-sm)] font-semibold"
+                              className="flex items-center gap-[var(--space-2)] py-[var(--space-2)] text-[var(--text-sm)] font-semibold"
                               style={{ color: "var(--color-text-secondary)" }}
                             >
                               <ChevronRight open={showRewriteActions} />
