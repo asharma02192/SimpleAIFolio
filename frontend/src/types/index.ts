@@ -80,8 +80,17 @@ export interface AiConversationListItem {
   title: string;
   topic: string;
   status: string;
+  archivedAt?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface AiConversationListResponse {
+  items: AiConversationListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
 }
 
 export interface AiMessage {
@@ -137,6 +146,7 @@ export interface AiDraftOutput {
   engagementInsights: string[];
   internalLinkSuggestions: AiInternalLinkSuggestion[];
   researchUsed: boolean;
+  referencesEnabled?: boolean;
   postId?: string | null;
   status?: string;
 }
@@ -146,6 +156,8 @@ export interface AiVerificationFlag {
   status: "supported" | "general" | "needs_verification" | "risky";
   sourceId?: string | null;
   recommendation: string;
+  reviewStatus?: "pending" | "accepted" | "soften" | "remove";
+  reviewNotes?: string;
 }
 
 export interface AiInternalLinkSuggestion {
@@ -167,6 +179,7 @@ export interface AiResearchSource {
   notes: string[];
   approvalStatus: "approved" | "rejected" | "needs_review";
   adminNotes: string;
+  includeInReferences?: boolean;
 }
 
 export interface AiResearchRun {
@@ -210,12 +223,125 @@ export interface AiRewriteProposal {
   updatedAt?: string;
 }
 
+export interface AiUsageEvent {
+  id: string;
+  operation: string;
+  provider: string;
+  model: string | null;
+  latencyMs: number | null;
+  promptTokens: number | null;
+  completionTokens: number | null;
+  totalTokens: number | null;
+  estimatedCostUsd: number | null;
+  success: boolean;
+  errorMessage: string | null;
+  metadata?: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface AiUsageSummary {
+  totalCalls: number;
+  totalTokens: number;
+  estimatedCostUsd: number;
+  failures: number;
+  avgLatencyMs: number;
+}
+
+export interface AiOpsDashboard {
+  windowDays: number;
+  totalCalls: number;
+  failures: number;
+  successRate: number;
+  totalTokens: number;
+  estimatedCostUsd: number;
+  previousPeriodCostUsd: number;
+  avgLatencyMs: number;
+  totalConversations: number;
+  archivedConversations: number;
+  alerts: Array<{
+    level: "info" | "warning" | "critical";
+    code: string;
+    title: string;
+    message: string;
+  }>;
+  dailyUsage: Array<{
+    date: string;
+    calls: number;
+    failures: number;
+    totalTokens: number;
+    estimatedCostUsd: number;
+  }>;
+  providerBreakdown: Array<{
+    provider: string;
+    calls: number;
+    failures: number;
+    totalTokens: number;
+    estimatedCostUsd: number;
+    avgLatencyMs: number;
+  }>;
+  modelBreakdown: Array<{
+    provider: string;
+    model: string;
+    calls: number;
+    failures: number;
+    totalTokens: number;
+    estimatedCostUsd: number;
+    avgLatencyMs: number;
+  }>;
+  topProviders: Array<{
+    provider: string;
+    calls: number;
+    estimatedCostUsd: number;
+  }>;
+  topModels: Array<{
+    provider: string;
+    model: string;
+    calls: number;
+    estimatedCostUsd: number;
+  }>;
+  topOperations: Array<{
+    operation: string;
+    calls: number;
+  }>;
+  recentFailures: Array<{
+    id: string;
+    operation: string;
+    provider: string;
+    errorMessage: string;
+    createdAt: string;
+    conversationId: string | null;
+    conversationLabel: string | null;
+  }>;
+}
+
+export interface AiAlertSettings {
+  webhookEnabled: boolean;
+  telegramEnabled: boolean;
+  minLevel: "info" | "warning" | "critical";
+  cooldownMs: number;
+  dailyDigestEnabled: boolean;
+  webhookConfigured: boolean;
+  telegramConfigured: boolean;
+}
+
+export interface AnalyticsDashboardData {
+  totalViews: number;
+  recentViews: number;
+  topPages: { path: string; views: number }[];
+  totalPosts: number;
+  publishedPosts: number;
+  totalProjects: number;
+  aiOps: AiOpsDashboard;
+}
+
 export interface AiConversationDetail extends AiConversationListItem {
   messages: AiMessage[];
   brief: AiBrief | null;
   draft: AiDraftOutput | null;
   research: AiResearchRun | null;
   proposals: AiRewriteProposal[];
+  usageEvents: AiUsageEvent[];
+  usageSummary: AiUsageSummary;
   researchEnabled: boolean;
   researchMessage: string | null;
 }

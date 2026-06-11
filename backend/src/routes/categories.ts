@@ -2,6 +2,7 @@ import { Router } from "express";
 import prisma from "../utils/db";
 import { isPrismaErrorCode, param, trimmedString } from "../utils/express";
 import { authMiddleware, AuthRequest } from "../middleware/auth";
+import { triggerFrontendRevalidation } from "../services/revalidate";
 
 type CategoriesPrisma = {
   category: any;
@@ -42,6 +43,7 @@ export function createCategoriesRouter({ prismaClient = prisma }: { prismaClient
       const category = await prismaClient.category.create({
         data: { name, slug, description: description || null },
       });
+      await triggerFrontendRevalidation({ type: "taxonomy" });
       res.status(201).json(category);
     } catch (error) {
       console.error("Create category error:", error);
@@ -64,6 +66,7 @@ export function createCategoriesRouter({ prismaClient = prisma }: { prismaClient
           ...(description !== undefined && { description }),
         },
       });
+      await triggerFrontendRevalidation({ type: "taxonomy" });
       res.json(category);
     } catch (error) {
       console.error("Update category error:", error);
@@ -82,6 +85,7 @@ export function createCategoriesRouter({ prismaClient = prisma }: { prismaClient
   router.delete("/:id", authMiddleware, async (req: AuthRequest, res) => {
     try {
       await prismaClient.category.delete({ where: { id: param(req, "id") } });
+      await triggerFrontendRevalidation({ type: "taxonomy" });
       res.status(204).send();
     } catch (error) {
       console.error("Delete category error:", error);

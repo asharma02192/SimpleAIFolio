@@ -3,6 +3,7 @@ import prisma from "../utils/db";
 import { isPrismaErrorCode, param, trimmedString } from "../utils/express";
 import { authMiddleware, AuthRequest, getAuthToken, verifyAuthToken } from "../middleware/auth";
 import { getRequestLogMeta, logError, logWarn } from "../utils/logging";
+import { triggerFrontendRevalidation } from "../services/revalidate";
 
 type PostPrisma = { post: any };
 
@@ -168,6 +169,13 @@ export function createPostsRouter({ prismaClient = prisma }: { prismaClient?: Po
         },
       });
 
+      if (post.status === "PUBLISHED") {
+        await triggerFrontendRevalidation({
+          type: "post",
+          slug: post.slug,
+        });
+      }
+
       res.status(201).json(post);
     } catch (err) {
       console.error("Create post error:", err);
@@ -221,6 +229,16 @@ export function createPostsRouter({ prismaClient = prisma }: { prismaClient?: Po
         include: { category: true, tags: true },
       });
 
+      const wasPublic = existing.status === "PUBLISHED" && Boolean(existing.publishedAt);
+      const isPublic = post.status === "PUBLISHED" && Boolean(post.publishedAt);
+      if (wasPublic || isPublic) {
+        await triggerFrontendRevalidation({
+          type: "post",
+          slug: post.slug,
+          previousSlug: existing.slug,
+        });
+      }
+
       res.json(post);
     } catch (err) {
       console.error("Update post error:", err);
@@ -239,7 +257,20 @@ export function createPostsRouter({ prismaClient = prisma }: { prismaClient?: Po
   // DELETE /api/posts/:id - admin
   router.delete("/:id", authMiddleware, async (req: AuthRequest, res) => {
     try {
+      const existing = await prismaClient.post.findUnique({ where: { id: param(req, "id") } });
+      if (!existing) {
+        res.status(404).json({ error: "Post not found" });
+        return;
+      }
+
       await prismaClient.post.delete({ where: { id: param(req, "id") } });
+
+      if (existing.status === "PUBLISHED" && existing.publishedAt) {
+        await triggerFrontendRevalidation({
+          type: "post",
+          previousSlug: existing.slug,
+        });
+      }
       res.status(204).send();
     } catch (err) {
       console.error("Delete post error:", err);

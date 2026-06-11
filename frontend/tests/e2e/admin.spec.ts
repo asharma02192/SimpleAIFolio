@@ -72,7 +72,7 @@ test("admin login works and posts page loads after login", async ({ page }) => {
   await page.getByLabel("Email").fill(process.env.E2E_ADMIN_EMAIL || "admin@myplweb.com");
   await page.getByLabel("Password").fill(process.env.E2E_ADMIN_PASSWORD || "admin123");
   await page.getByRole("button", { name: "Sign In" }).click();
-  await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+  await expect(page.getByText("Dashboard", { exact: true })).toBeVisible();
   await page.goto("/admin/posts");
   await expect(page.getByRole("heading", { name: "Posts" })).toBeVisible();
 });
@@ -236,6 +236,9 @@ test("admin ai writer shows the research status area", async ({ page }) => {
   await page.getByPlaceholder("Example: AI tools for small business marketing").fill("AI tools for small business marketing");
   await page.getByRole("button", { name: "New AI Blog" }).click();
 
+  // Navigate to Research tab
+  await page.getByRole("button", { name: "Research", exact: true }).click();
+
   const researchButton = page.getByRole("button", { name: "Start Research" });
   const disabledMessage = page.locator("main").getByText(/live research is disabled/i).first();
 
@@ -306,11 +309,19 @@ test("admin ai writer supports source approval and references gating", async ({ 
       riskFlags: ["Check freshness before citing any fast-moving stats."],
     },
     proposals: [],
+    usageEvents: [],
+    usageSummary: {
+      totalCalls: 0,
+      totalTokens: 0,
+      estimatedCostUsd: 0,
+      failures: 0,
+      avgLatencyMs: 0,
+    },
     researchEnabled: true,
     researchMessage: null,
   };
 
-  await page.route("**/api/admin/ai/conversations", async (route) => {
+  await page.route(/\/api\/admin\/ai\/conversations(?:\?.*)?$/, async (route) => {
     if (route.request().method() !== "GET") {
       await route.fallback();
       return;
@@ -318,16 +329,22 @@ test("admin ai writer supports source approval and references gating", async ({ 
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify([
-        {
-          id: conversationId,
-          title: currentDetail.title,
-          topic: currentDetail.topic,
-          status: currentDetail.status,
-          createdAt: currentDetail.createdAt,
-          updatedAt: currentDetail.updatedAt,
-        },
-      ]),
+      body: JSON.stringify({
+        items: [
+          {
+            id: conversationId,
+            title: currentDetail.title,
+            topic: currentDetail.topic,
+            status: currentDetail.status,
+            createdAt: currentDetail.createdAt,
+            updatedAt: currentDetail.updatedAt,
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 25,
+        hasMore: false,
+      }),
     });
   });
 
@@ -407,20 +424,30 @@ test("admin ai writer supports source approval and references gating", async ({ 
   });
 
   await page.goto("/admin/ai-writer");
+  await page.getByRole("button", { name: /Source Review Conversation/i }).click();
+
+  // Research tab: approve sources
+  await page.getByRole("button", { name: "Research", exact: true }).click();
   await expect(page.locator("main").getByText("Approved Candidate")).toBeVisible();
   await expect(page.locator("main").getByText(/no sources have been approved yet/i).first()).toBeVisible();
 
-  await page.locator('div:has-text("Approved Candidate") select').first().selectOption("approved");
+  await page.locator('label:has-text("Source State") select').first().selectOption("approved");
   await page.locator('label:has-text("Admin Notes") textarea').first().fill("Approved for references.");
   await page.getByRole("button", { name: "Save Source Review" }).click();
-  await expect(page.locator('div:has-text("Approved Candidate") select').first()).toHaveValue("approved");
+  await expect(page.locator('label:has-text("Source State") select').first()).toHaveValue("approved");
 
+  // Chat tab: generate draft
+  await page.getByRole("button", { name: "Chat", exact: true }).click();
   await page.getByRole("button", { name: "Generate Draft" }).click();
 
+  // Auto-switches to Draft tab
   await expect(page.getByRole("heading", { name: "Draft Preview" })).toBeVisible({ timeout: 60000 });
+
+  // Review tab: verification flags and references
+  await page.getByRole("button", { name: "Review", exact: true }).click();
   await expect(page.locator("main").getByText("Verification Flags").first()).toBeVisible();
   await expect(page.getByText("Include approved references when saving")).toBeVisible();
-  await expect(page.getByRole("checkbox")).toBeEnabled();
+  await expect(page.getByRole("checkbox", { name: /Include approved references/i })).toBeEnabled();
 });
 
 test("admin ai writer can reject a rewrite proposal without changing the draft", async ({ page }) => {
@@ -479,11 +506,19 @@ test("admin ai writer can reject a rewrite proposal without changing the draft",
     },
     research: null,
     proposals: [],
+    usageEvents: [],
+    usageSummary: {
+      totalCalls: 0,
+      totalTokens: 0,
+      estimatedCostUsd: 0,
+      failures: 0,
+      avgLatencyMs: 0,
+    },
     researchEnabled: false,
     researchMessage: "Live research is disabled.",
   };
 
-  await page.route("**/api/admin/ai/conversations", async (route) => {
+  await page.route(/\/api\/admin\/ai\/conversations(?:\?.*)?$/, async (route) => {
     if (route.request().method() !== "GET") {
       await route.fallback();
       return;
@@ -492,16 +527,22 @@ test("admin ai writer can reject a rewrite proposal without changing the draft",
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify([
-        {
-          id: conversationId,
-          title: currentDetail.title,
-          topic: currentDetail.topic,
-          status: currentDetail.status,
-          createdAt: currentDetail.createdAt,
-          updatedAt: currentDetail.updatedAt,
-        },
-      ]),
+      body: JSON.stringify({
+        items: [
+          {
+            id: conversationId,
+            title: currentDetail.title,
+            topic: currentDetail.topic,
+            status: currentDetail.status,
+            createdAt: currentDetail.createdAt,
+            updatedAt: currentDetail.updatedAt,
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 25,
+        hasMore: false,
+      }),
     });
   });
 
@@ -560,14 +601,20 @@ test("admin ai writer can reject a rewrite proposal without changing the draft",
   });
 
   await page.goto("/admin/ai-writer");
+  await page.getByRole("button", { name: /Rewrite Test/i }).click();
   await expect(page.getByRole("heading", { name: "Draft Preview" })).toBeVisible({ timeout: 60000 });
   await expect(page.locator("main").getByText("Original Draft Title").first()).toBeVisible();
 
+  // Navigate to Rewrite tab for rewrite actions
+  await page.getByRole("button", { name: "Rewrite", exact: true }).click();
   await page.getByRole("button", { name: "Improve intro" }).click();
   await expect(page.getByRole("button", { name: "Reject Proposal" })).toBeVisible();
   await page.getByRole("button", { name: "Reject Proposal" }).click();
 
   await expect(page.locator("main").getByText("rejected").first()).toBeVisible();
+
+  // Switch to Draft tab to verify draft unchanged
+  await page.getByRole("button", { name: "Draft", exact: true }).click();
   await expect(page.locator("main").getByText("Original Draft Title").first()).toBeVisible();
   await expect(page.locator("main").getByText("Improved intro.")).not.toBeVisible();
 });
@@ -579,7 +626,9 @@ test("admin ai writer shows a clear error when draft generation fails", async ({
   await page.getByPlaceholder("Example: AI tools for small business marketing").fill("AI tools for small business marketing");
   await page.getByRole("button", { name: "New AI Blog" }).click();
   await page.getByRole("button", { name: "Generate Brief" }).click();
-  await page.getByRole("button", { name: /Save Brief & Approve|Update Approved Brief/ }).click();
+  const approveBriefButton = page.getByRole("button", { name: /Save Brief & Approve|Update Approved Brief/ });
+  await expect(approveBriefButton).toBeEnabled({ timeout: 60000 });
+  await approveBriefButton.click();
 
   await page.route("**/api/admin/ai/conversations/*/draft", async (route) => {
     await route.fulfill({
@@ -650,11 +699,19 @@ test("admin ai writer can propose and apply a rewrite after draft generation", a
     },
     research: null,
     proposals: [],
+    usageEvents: [],
+    usageSummary: {
+      totalCalls: 0,
+      totalTokens: 0,
+      estimatedCostUsd: 0,
+      failures: 0,
+      avgLatencyMs: 0,
+    },
     researchEnabled: false,
     researchMessage: "Live research is disabled.",
   };
 
-  await page.route("**/api/admin/ai/conversations", async (route) => {
+  await page.route(/\/api\/admin\/ai\/conversations(?:\?.*)?$/, async (route) => {
     if (route.request().method() !== "GET") {
       await route.fallback();
       return;
@@ -663,16 +720,22 @@ test("admin ai writer can propose and apply a rewrite after draft generation", a
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify([
-        {
-          id: conversationId,
-          title: currentDetail.title,
-          topic: currentDetail.topic,
-          status: currentDetail.status,
-          createdAt: currentDetail.createdAt,
-          updatedAt: currentDetail.updatedAt,
-        },
-      ]),
+      body: JSON.stringify({
+        items: [
+          {
+            id: conversationId,
+            title: currentDetail.title,
+            topic: currentDetail.topic,
+            status: currentDetail.status,
+            createdAt: currentDetail.createdAt,
+            updatedAt: currentDetail.updatedAt,
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 25,
+        hasMore: false,
+      }),
     });
   });
 
@@ -737,8 +800,11 @@ test("admin ai writer can propose and apply a rewrite after draft generation", a
   });
 
   await page.goto("/admin/ai-writer");
+  await page.getByRole("button", { name: /Rewrite Apply Test/i }).click();
   await expect(page.getByRole("heading", { name: "Draft Preview" })).toBeVisible();
 
+  // Navigate to Rewrite tab
+  await page.getByRole("button", { name: "Rewrite", exact: true }).click();
   await page.getByRole("button", { name: "Improve intro" }).click();
   await expect(page.getByRole("button", { name: "Apply Rewrite" })).toBeVisible();
   await page.getByRole("button", { name: "Apply Rewrite" }).click();
@@ -803,11 +869,19 @@ test("admin ai writer can save a generated draft into the post editor", async ({
     },
     research: null,
     proposals: [],
+    usageEvents: [],
+    usageSummary: {
+      totalCalls: 0,
+      totalTokens: 0,
+      estimatedCostUsd: 0,
+      failures: 0,
+      avgLatencyMs: 0,
+    },
     researchEnabled: false,
     researchMessage: "Live research is disabled.",
   };
 
-  await page.route("**/api/admin/ai/conversations", async (route) => {
+  await page.route(/\/api\/admin\/ai\/conversations(?:\?.*)?$/, async (route) => {
     if (route.request().method() !== "GET") {
       await route.fallback();
       return;
@@ -816,16 +890,22 @@ test("admin ai writer can save a generated draft into the post editor", async ({
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify([
-        {
-          id: conversationId,
-          title: currentDetail.title,
-          topic: currentDetail.topic,
-          status: currentDetail.status,
-          createdAt: currentDetail.createdAt,
-          updatedAt: currentDetail.updatedAt,
-        },
-      ]),
+      body: JSON.stringify({
+        items: [
+          {
+            id: conversationId,
+            title: currentDetail.title,
+            topic: currentDetail.topic,
+            status: currentDetail.status,
+            createdAt: currentDetail.createdAt,
+            updatedAt: currentDetail.updatedAt,
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 25,
+        hasMore: false,
+      }),
     });
   });
 
@@ -853,6 +933,7 @@ test("admin ai writer can save a generated draft into the post editor", async ({
   });
 
   await page.goto("/admin/ai-writer");
+  await page.getByRole("button", { name: /Save Draft Test/i }).click();
   await expect(page.getByRole("heading", { name: "Draft Preview" })).toBeVisible();
 
   await page.getByRole("button", { name: "Save as Draft" }).click();

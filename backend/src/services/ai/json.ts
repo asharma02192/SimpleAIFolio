@@ -1,4 +1,4 @@
-import type { AiChatMessage, AiChatProvider } from "./provider";
+import type { AiChatMessage, AiChatProvider, AiCompletionResult } from "./provider";
 
 function extractJsonCandidate(raw: string) {
   const trimmed = raw.trim();
@@ -35,18 +35,21 @@ export async function requestStructuredJson<T>({
   provider,
   messages,
   validate,
+  onAttempt,
 }: {
   provider: AiChatProvider;
   messages: AiChatMessage[];
   validate: (value: unknown) => value is T;
+  onAttempt?: (result: AiCompletionResult, attempt: number) => void | Promise<void>;
 }): Promise<T> {
   let lastError: unknown = null;
   let attemptMessages = messages;
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
-      const raw = await provider.complete(attemptMessages);
-      const parsed = parseAiJson<unknown>(raw);
+      const result = await provider.complete(attemptMessages);
+      await onAttempt?.(result, attempt + 1);
+      const parsed = parseAiJson<unknown>(result.text);
       if (!validate(parsed)) {
         throw new Error("Structured AI response did not match the expected schema.");
       }

@@ -122,6 +122,7 @@ model AiConversation {
   title     String
   topic     String
   status    String   @default("active")
+  archivedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -132,8 +133,10 @@ model AiConversation {
   draft    AiDraftOutput?
   research AiResearchRun?
   rewriteProposals AiRewriteProposal[]
+  usageEvents AiUsageEvent[]
 
   @@index([userId, status])
+  @@index([userId, archivedAt, updatedAt])
   @@index([updatedAt])
   @@map("ai_conversations")
 }
@@ -196,6 +199,7 @@ model AiDraftOutput {
   engagementInsightsJson String?
   internalLinkSuggestionsJson String?
   researchUsed        Boolean  @default(false)
+  referencesEnabled   Boolean  @default(false)
   status              String   @default("generated")
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
@@ -253,6 +257,29 @@ model AiRewriteProposal {
   @@index([conversationId, status])
   @@index([draftOutputId])
   @@map("ai_rewrite_proposals")
+}
+
+model AiUsageEvent {
+  id               String   @id @default(uuid())
+  operation        String
+  provider         String
+  model            String?
+  latencyMs        Int?
+  promptTokens     Int?
+  completionTokens Int?
+  totalTokens      Int?
+  estimatedCostUsd Float?
+  success          Boolean  @default(true)
+  errorMessage     String?
+  metadataJson     String?
+  createdAt        DateTime @default(now())
+
+  conversationId String?
+  conversation   AiConversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+
+  @@index([conversationId, createdAt])
+  @@index([provider, operation, createdAt])
+  @@map("ai_usage_events")
 }
 
 model RateLimitBucket {

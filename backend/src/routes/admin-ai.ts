@@ -6,6 +6,7 @@ import { getRequestLogMeta, logError, logInfo } from "../utils/logging";
 import { isPrismaErrorCode, param, trimmedString } from "../utils/express";
 import {
   computeReadingTime,
+  type AiTelemetryEvent,
   createBlogStudioAiService,
   slugify,
   stripHtml,
@@ -22,7 +23,12 @@ import {
 } from "../services/ai/blog-studio";
 import { getAiProviderConfig } from "../services/ai/provider";
 import { sanitizeGeneratedHtml, toSafeUrl } from "../services/ai/html";
-import { createResearchService, type ResearchService } from "../services/ai/research";
+import { notifyAiOpsForUsageEvent } from "../services/ops-alerts";
+import {
+  createResearchServiceWithOptions,
+  type ResearchService,
+  type ResearchTelemetryEvent,
+} from "../services/ai/research";
 
 type AdminAiPrisma = {
   aiConversation: any;
@@ -31,10 +37,12 @@ type AdminAiPrisma = {
   aiDraftOutput: any;
   aiResearchRun: any;
   aiRewriteProposal: any;
+  aiUsageEvent: any;
   post: any;
   category: any;
   tag: any;
   pageView: any;
+  siteSetting?: any;
 };
 
 const MAX_TOPIC_LENGTH = 240;
@@ -42,8 +50,11 @@ const MAX_MESSAGE_LENGTH = 4000;
 const MAX_NOTES_LENGTH = 5000;
 const MAX_REWRITE_PREVIEW_LENGTH = 16_000;
 const MAX_SOURCE_ADMIN_NOTES_LENGTH = 500;
+const MAX_VERIFICATION_REVIEW_NOTES = 240;
 const SOURCELESS_RESEARCH_WARNING =
   "Research is available, but no sources have been approved yet. The draft will use research notes only as directional guidance.";
+const DEFAULT_CONVERSATION_PAGE_SIZE = 25;
+const MAX_CONVERSATION_PAGE_SIZE = 100;
 
 const ALLOWED_REWRITE_ACTIONS = new Set<AiRewriteAction>([
   "improve_intro",
@@ -100,6 +111,18 @@ function normalizeSourceApprovalStatus(value: unknown): AiResearchApprovalStatus
   }
 }
 
+function normalizeVerificationReviewStatus(value: unknown) {
+  switch (value) {
+    case "accepted":
+    case "soften":
+    case "remove":
+      return value;
+    case "pending":
+    default:
+      return "pending";
+  }
+}
+
 function toBriefPayload(row: any): AiBriefData | null {
   if (!row) return null;
 
@@ -138,10 +161,15 @@ function toDraftPayload(row: any): AiDraftData | null {
     readabilityScore: row.readabilityScore ?? 0,
     recommendations: safeJsonParse<string[]>(row.recommendationsJson, []),
     verificationNotes: safeJsonParse<string[]>(row.verificationNotesJson, []),
-    verificationFlags: safeJsonParse(row.verificationFlagsJson, []),
+    verificationFlags: safeJsonParse(row.verificationFlagsJson, []).map((flag: any) => ({
+      ...flag,
+      reviewStatus: normalizeVerificationReviewStatus(flag?.reviewStatus),
+      reviewNotes: typeof flag?.reviewNotes === "string" ? flag.reviewNotes : "",
+    })),
     engagementInsights: safeJsonParse<string[]>(row.engagementInsightsJson, []),
     internalLinkSuggestions: safeJsonParse(row.internalLinkSuggestionsJson, []),
     researchUsed: Boolean(row.researchUsed),
+    referencesEnabled: Boolean(row.referencesEnabled),
     postId: row.postId || null,
     status: row.status,
   };
@@ -170,6 +198,7 @@ function toResearchPayload(row: any): AiResearchData | null {
       notes: Array.isArray(source.notes) ? source.notes : [],
       approvalStatus: normalizeSourceApprovalStatus(source.approvalStatus),
       adminNotes: source.adminNotes || "",
+      includeInReferences: source.includeInReferences !== false,
     })),
     internalLinkSuggestions: safeJsonParse<AiInternalLinkSuggestion[]>(row.internalLinkOpportunitiesJson, []),
     riskFlags: safeJsonParse<string[]>(row.riskFlagsJson, []),
@@ -195,11 +224,57 @@ function toRewriteProposalPayload(row: any): AiRewriteProposal {
 }
 
 function toConversationPayload(conversation: any, options?: { researchEnabled?: boolean; researchMessage?: string | null }) {
+  const usageEvents = Array.isArray(conversation.usageEvents)
+    ? conversation.usageEvents.map((event: any) => ({
+        id: event.id,
+        operation: event.operation,
+        provider: event.provider,
+        model: event.model || null,
+        latencyMs: event.latencyMs ?? null,
+        promptTokens: event.promptTokens ?? null,
+        completionTokens: event.completionTokens ?? null,
+        totalTokens: event.totalTokens ?? null,
+        estimatedCostUsd: event.estimatedCostUsd ?? null,
+        success: Boolean(event.success),
+        errorMessage: event.errorMessage || null,
+        metadata: safeJsonParse<Record<string, unknown> | null>(event.metadataJson, null),
+        createdAt: event.createdAt,
+      }))
+    : [];
+
+  let totalLatency = 0;
+  const usageSummary = {
+    totalCalls: 0,
+    totalTokens: 0,
+    estimatedCostUsd: 0,
+    failures: 0,
+    avgLatencyMs: 0,
+  };
+
+  for (const event of usageEvents as Array<{
+    latencyMs: number | null;
+    totalTokens: number | null;
+    estimatedCostUsd: number | null;
+    success: boolean;
+  }>) {
+    totalLatency += event.latencyMs || 0;
+    usageSummary.totalCalls += 1;
+    usageSummary.totalTokens += event.totalTokens || 0;
+    usageSummary.estimatedCostUsd = Number(
+      (usageSummary.estimatedCostUsd + (event.estimatedCostUsd || 0)).toFixed(6)
+    );
+    usageSummary.failures += event.success ? 0 : 1;
+  }
+
+  usageSummary.avgLatencyMs =
+    usageSummary.totalCalls > 0 ? Math.round(totalLatency / usageSummary.totalCalls) : 0;
+
   return {
     id: conversation.id,
     title: conversation.title,
     topic: conversation.topic,
     status: conversation.status,
+    archivedAt: conversation.archivedAt || null,
     createdAt: conversation.createdAt,
     updatedAt: conversation.updatedAt,
     messages: Array.isArray(conversation.messages)
@@ -217,6 +292,8 @@ function toConversationPayload(conversation: any, options?: { researchEnabled?: 
     proposals: Array.isArray(conversation.rewriteProposals)
       ? conversation.rewriteProposals.map((proposal: any) => toRewriteProposalPayload(proposal))
       : [],
+    usageEvents,
+    usageSummary,
     researchEnabled: options?.researchEnabled ?? false,
     researchMessage: options?.researchMessage ?? null,
   };
@@ -237,6 +314,10 @@ async function loadConversationForUser(prismaClient: AdminAiPrisma, conversation
       research: true,
       rewriteProposals: {
         orderBy: { createdAt: "desc" },
+      },
+      usageEvents: {
+        orderBy: { createdAt: "desc" },
+        take: 10,
       },
     },
   });
@@ -275,6 +356,69 @@ async function touchConversation(prismaClient: AdminAiPrisma, conversationId: st
       updatedAt: new Date().toISOString(),
     },
   });
+}
+
+async function recordUsageEvent(
+  prismaClient: AdminAiPrisma,
+  conversationId: string | null,
+  event: AiTelemetryEvent | ResearchTelemetryEvent,
+  extra?: Record<string, unknown>,
+  success = true,
+  errorMessage?: string | null
+) {
+  const created = await prismaClient.aiUsageEvent.create({
+    data: {
+      conversationId,
+      operation: event.operation,
+      provider: event.result.provider,
+      model: event.result.model,
+      latencyMs: event.result.latencyMs,
+      promptTokens: event.result.usage?.promptTokens ?? null,
+      completionTokens: event.result.usage?.completionTokens ?? null,
+      totalTokens: event.result.usage?.totalTokens ?? null,
+      estimatedCostUsd: event.result.usage?.estimatedCostUsd ?? null,
+      success,
+      errorMessage: errorMessage || null,
+      metadataJson: JSON.stringify({
+        attempt: event.attempt,
+        finishReason: event.result.rawFinishReason || null,
+        ...(extra || {}),
+      }),
+    },
+  }).catch(() => undefined);
+
+  if (created) {
+    void notifyAiOpsForUsageEvent({
+      prismaClient,
+      event: created,
+    });
+  }
+}
+
+async function recordFailedOperation(
+  prismaClient: AdminAiPrisma,
+  conversationId: string | null,
+  provider: string,
+  operation: string,
+  errorMessage: string
+) {
+  const created = await prismaClient.aiUsageEvent.create({
+    data: {
+      conversationId,
+      operation,
+      provider,
+      success: false,
+      errorMessage,
+      metadataJson: JSON.stringify({ failed: true }),
+    },
+  }).catch(() => undefined);
+
+  if (created) {
+    void notifyAiOpsForUsageEvent({
+      prismaClient,
+      event: created,
+    });
+  }
 }
 
 async function createUniquePostSlug(prismaClient: AdminAiPrisma, preferredSlug: string, fallbackTitle: string) {
@@ -400,6 +544,15 @@ function buildDraftPatchUpdate(patch: Partial<AiDraftData>) {
   };
 }
 
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function mergeResearchSources(existingSources: AiResearchSource[], newSources: AiResearchSource[]) {
   return newSources.map((source) => {
     const existing =
@@ -412,11 +565,13 @@ function mergeResearchSources(existingSources: AiResearchSource[], newSources: A
           ...source,
           approvalStatus: normalizeSourceApprovalStatus(existing.approvalStatus),
           adminNotes: coerceString(existing.adminNotes, MAX_SOURCE_ADMIN_NOTES_LENGTH),
+          includeInReferences: existing.includeInReferences !== false,
         }
       : {
           ...source,
           approvalStatus: normalizeSourceApprovalStatus(source.approvalStatus),
           adminNotes: coerceString(source.adminNotes, MAX_SOURCE_ADMIN_NOTES_LENGTH),
+          includeInReferences: source.includeInReferences !== false,
         };
   });
 }
@@ -454,9 +609,32 @@ function prepareResearchForGeneration(research: AiResearchData | null) {
   };
 }
 
+function getSourceWarnings(source: AiResearchSource) {
+  const warnings: string[] = [];
+
+  if (source.usefulness === "low") {
+    warnings.push("Low usefulness for final editorial references.");
+  }
+
+  if (!source.publishedDate) {
+    warnings.push("Publication date is unclear. Verify freshness before citing.");
+  } else {
+    const ageMs = Date.now() - new Date(source.publishedDate).getTime();
+    if (Number.isFinite(ageMs) && ageMs > 730 * 24 * 60 * 60 * 1000) {
+      warnings.push("Source may be stale. Review whether the information is still current.");
+    }
+  }
+
+  if (toSafeUrl(source.url) === "#") {
+    warnings.push("Unsafe or invalid source URL. It will be excluded from references.");
+  }
+
+  return warnings;
+}
+
 function buildReferencesHtml(sources: AiResearchSource[]) {
   const approvedLinks = sources
-    .filter((source) => source.approvalStatus === "approved")
+    .filter((source) => source.approvalStatus === "approved" && source.includeInReferences !== false)
     .map((source) => ({
       title: source.title,
       url: toSafeUrl(source.url),
@@ -470,11 +648,36 @@ function buildReferencesHtml(sources: AiResearchSource[]) {
   const items = approvedLinks
     .map(
       (source) =>
-        `<li><a href="${source.url}" target="_blank" rel="noopener noreferrer">${source.title.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</a></li>`
+        `<li><a href="${source.url}" target="_blank" rel="noopener noreferrer">${escapeHtml(source.title)}</a></li>`
     )
     .join("");
 
   return `<h2>References</h2><ul>${items}</ul>`;
+}
+
+function applyInternalLinkSuggestionToHtml(contentHtml: string, suggestion: AiInternalLinkSuggestion) {
+  const safeSlug = suggestion.slug.trim().replace(/^\/+/, "");
+  const anchorText = suggestion.anchorText.trim() || suggestion.title.trim();
+  if (!safeSlug || !anchorText) {
+    return contentHtml;
+  }
+
+  const href = `/blog/${safeSlug}`;
+  const escapedAnchor = escapeHtml(anchorText);
+  const linkHtml = `<a href="${href}">${escapedAnchor}</a>`;
+
+  if (contentHtml.includes(linkHtml) || contentHtml.includes(`href="${href}"`)) {
+    return contentHtml;
+  }
+
+  const pattern = new RegExp(anchorText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+  if (pattern.test(contentHtml)) {
+    return contentHtml.replace(pattern, linkHtml);
+  }
+
+  return `${contentHtml}<p><strong>Related reading:</strong> <a href="${href}">${escapeHtml(
+    suggestion.title
+  )}</a></p>`;
 }
 
 function tokenize(value: string) {
@@ -585,8 +788,8 @@ function aiUnavailableResponse(res: any, aiService: BlogStudioAiService) {
 
 export function createAdminAiRouter({
   prismaClient = prisma as unknown as AdminAiPrisma,
-  aiService = createBlogStudioAiService(),
-  researchService = createResearchService(),
+  aiService,
+  researchService,
 }: {
   prismaClient?: AdminAiPrisma;
   aiService?: BlogStudioAiService;
@@ -600,29 +803,65 @@ export function createAdminAiRouter({
     windowMs: aiConfig.rateLimitWindowMs,
     message: "Too many AI requests. Please slow down and try again shortly.",
   });
-  const researchMeta = {
-    researchEnabled: researchService.isEnabled(),
-    researchMessage: researchService.getUnavailableReason(),
-  };
+  const getAiService = (capture?: (event: AiTelemetryEvent) => void | Promise<void>) =>
+    aiService || createBlogStudioAiService({ config: aiConfig, onTelemetry: capture });
+  const getResearchService = (capture?: (event: ResearchTelemetryEvent) => void | Promise<void>) =>
+    researchService || createResearchServiceWithOptions({ config: aiConfig, onTelemetry: capture });
+  const getResearchMeta = (service: ResearchService) => ({
+    researchEnabled: service.isEnabled(),
+    researchMessage: service.getUnavailableReason(),
+  });
 
   router.use(authMiddleware);
 
   router.get("/conversations", async (req: AuthRequest, res) => {
     try {
-      const conversations = await prismaClient.aiConversation.findMany({
-        where: { userId: req.userId! },
-        orderBy: { updatedAt: "desc" },
-        select: {
-          id: true,
-          title: true,
-          topic: true,
-          status: true,
-          createdAt: true,
-          updatedAt: true,
-        },
-      });
+      const filter = String(req.query.filter || "active");
+      const search = coerceString(req.query.search, 120).toLowerCase();
+      const page = Math.max(1, Number.parseInt(String(req.query.page || "1"), 10) || 1);
+      const pageSize = Math.min(
+        MAX_CONVERSATION_PAGE_SIZE,
+        Math.max(1, Number.parseInt(String(req.query.pageSize || DEFAULT_CONVERSATION_PAGE_SIZE), 10) || DEFAULT_CONVERSATION_PAGE_SIZE)
+      );
+      const where = {
+        userId: req.userId!,
+        ...(filter === "archived" ? { archivedAt: { not: null } } : filter === "all" ? {} : { archivedAt: null }),
+        ...(search
+          ? {
+              OR: [
+                { title: { contains: search, mode: "insensitive" } },
+                { topic: { contains: search, mode: "insensitive" } },
+              ],
+            }
+          : {}),
+      };
+      const start = (page - 1) * pageSize;
+      const [total, conversations] = await Promise.all([
+        prismaClient.aiConversation.count({ where }),
+        prismaClient.aiConversation.findMany({
+          where,
+          orderBy: { updatedAt: "desc" },
+          skip: start,
+          take: pageSize,
+          select: {
+            id: true,
+            title: true,
+            topic: true,
+            status: true,
+            archivedAt: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        }),
+      ]);
 
-      res.json(conversations);
+      res.json({
+        items: conversations,
+        total,
+        page,
+        pageSize,
+        hasMore: start + conversations.length < total,
+      });
     } catch (error) {
       logError("AI conversation list failed", {
         ...getRequestLogMeta(req),
@@ -640,8 +879,14 @@ export function createAdminAiRouter({
       return;
     }
 
-    if (!aiService.isAvailable()) {
-      aiUnavailableResponse(res, aiService);
+    const usageEvents: AiTelemetryEvent[] = [];
+    const routeAiService = getAiService((event) => {
+      usageEvents.push(event);
+    });
+    const researchMeta = getResearchMeta(getResearchService());
+
+    if (!routeAiService.isAvailable()) {
+      aiUnavailableResponse(res, routeAiService);
       return;
     }
 
@@ -657,7 +902,7 @@ export function createAdminAiRouter({
 
       await appendConversationMessage(prismaClient, conversation.id, "user", topic, { type: "topic" });
 
-      const assistantReply = await aiService.startConversation({
+      const assistantReply = await routeAiService.startConversation({
         topic,
         messages: [{ role: "user", content: topic }],
       });
@@ -667,10 +912,22 @@ export function createAdminAiRouter({
       });
 
       await touchConversation(prismaClient, conversation.id, "active");
+      await Promise.all(
+        usageEvents.map((event) =>
+          recordUsageEvent(prismaClient, conversation.id, event, { topicLength: topic.length })
+        )
+      );
 
       const detail = await loadConversationForUser(prismaClient, conversation.id, req.userId!);
       res.status(201).json(toConversationPayload(detail, researchMeta));
     } catch (error) {
+      await recordFailedOperation(
+        prismaClient,
+        null,
+        aiConfig.provider,
+        "conversation_start",
+        error instanceof Error ? error.message : "Failed to start AI conversation"
+      );
       logError("AI conversation creation failed", {
         ...getRequestLogMeta(req),
         userId: req.userId,
@@ -688,7 +945,7 @@ export function createAdminAiRouter({
         return;
       }
 
-      res.json(toConversationPayload(conversation, researchMeta));
+      res.json(toConversationPayload(conversation, getResearchMeta(getResearchService())));
     } catch (error) {
       logError("AI conversation lookup failed", {
         ...getRequestLogMeta(req),
@@ -700,6 +957,57 @@ export function createAdminAiRouter({
     }
   });
 
+  router.post("/conversations/:id/archive", async (req: AuthRequest, res) => {
+    try {
+      const conversation = await loadConversationForUser(prismaClient, param(req, "id"), req.userId!);
+      if (!conversation) {
+        res.status(404).json({ error: "AI conversation not found" });
+        return;
+      }
+
+      const archivedAt = coerceBoolean(req.body?.archived) === false ? null : new Date().toISOString();
+      await prismaClient.aiConversation.update({
+        where: { id: conversation.id },
+        data: { archivedAt },
+      });
+
+      const detail = await loadConversationForUser(prismaClient, conversation.id, req.userId!);
+      res.json(toConversationPayload(detail, getResearchMeta(getResearchService())));
+    } catch (error) {
+      logError("AI conversation archive update failed", {
+        ...getRequestLogMeta(req),
+        userId: req.userId,
+        conversationId: param(req, "id"),
+        error: error instanceof Error ? error.message : String(error),
+      });
+      res.status(500).json({ error: "Failed to update AI conversation archive state" });
+    }
+  });
+
+  router.delete("/conversations/:id", async (req: AuthRequest, res) => {
+    try {
+      const conversation = await loadConversationForUser(prismaClient, param(req, "id"), req.userId!);
+      if (!conversation) {
+        res.status(404).json({ error: "AI conversation not found" });
+        return;
+      }
+
+      await prismaClient.aiConversation.delete({
+        where: { id: conversation.id },
+      });
+
+      res.status(204).send();
+    } catch (error) {
+      logError("AI conversation delete failed", {
+        ...getRequestLogMeta(req),
+        userId: req.userId,
+        conversationId: param(req, "id"),
+        error: error instanceof Error ? error.message : String(error),
+      });
+      res.status(500).json({ error: "Failed to delete AI conversation" });
+    }
+  });
+
   router.post("/conversations/:id/message", aiRateLimit, async (req: AuthRequest, res) => {
     const message = trimmedString(req.body?.message).slice(0, MAX_MESSAGE_LENGTH);
     if (!message) {
@@ -707,8 +1015,14 @@ export function createAdminAiRouter({
       return;
     }
 
-    if (!aiService.isAvailable()) {
-      aiUnavailableResponse(res, aiService);
+    const usageEvents: AiTelemetryEvent[] = [];
+    const routeAiService = getAiService((event) => {
+      usageEvents.push(event);
+    });
+    const researchMeta = getResearchMeta(getResearchService());
+
+    if (!routeAiService.isAvailable()) {
+      aiUnavailableResponse(res, routeAiService);
       return;
     }
 
@@ -721,7 +1035,7 @@ export function createAdminAiRouter({
 
       await appendConversationMessage(prismaClient, conversation.id, "user", message);
 
-      const assistantReply = await aiService.replyInConversation({
+      const assistantReply = await routeAiService.replyInConversation({
         topic: conversation.topic,
         messages: [...toMessageInputs(conversation.messages), { role: "user", content: message }],
         brief: toBriefPayload(conversation.brief),
@@ -731,10 +1045,22 @@ export function createAdminAiRouter({
         type: "clarification",
       });
       await touchConversation(prismaClient, conversation.id, conversation.status || "active");
+      await Promise.all(
+        usageEvents.map((event) =>
+          recordUsageEvent(prismaClient, conversation.id, event, { messageLength: message.length })
+        )
+      );
 
       const detail = await loadConversationForUser(prismaClient, conversation.id, req.userId!);
       res.json(toConversationPayload(detail, researchMeta));
     } catch (error) {
+      await recordFailedOperation(
+        prismaClient,
+        param(req, "id"),
+        aiConfig.provider,
+        "conversation_reply",
+        error instanceof Error ? error.message : "Failed to send AI message"
+      );
       logError("AI conversation message failed", {
         ...getRequestLogMeta(req),
         userId: req.userId,
@@ -750,8 +1076,14 @@ export function createAdminAiRouter({
   });
 
   router.post("/conversations/:id/brief", aiRateLimit, async (req: AuthRequest, res) => {
-    if (!aiService.isAvailable()) {
-      aiUnavailableResponse(res, aiService);
+    const usageEvents: AiTelemetryEvent[] = [];
+    const routeAiService = getAiService((event) => {
+      usageEvents.push(event);
+    });
+    const researchMeta = getResearchMeta(getResearchService());
+
+    if (!routeAiService.isAvailable()) {
+      aiUnavailableResponse(res, routeAiService);
       return;
     }
 
@@ -762,7 +1094,7 @@ export function createAdminAiRouter({
         return;
       }
 
-      const brief = await aiService.generateBrief({
+      const brief = await routeAiService.generateBrief({
         topic: conversation.topic,
         messages: toMessageInputs(conversation.messages),
       });
@@ -805,10 +1137,25 @@ export function createAdminAiRouter({
         { type: "brief-generated" }
       );
       await touchConversation(prismaClient, conversation.id, "brief_ready");
+      await Promise.all(
+        usageEvents.map((event) =>
+          recordUsageEvent(prismaClient, conversation.id, event, {
+            primaryKeyword: brief.primaryKeyword,
+            contentType: brief.contentType,
+          })
+        )
+      );
 
       const detail = await loadConversationForUser(prismaClient, conversation.id, req.userId!);
       res.json(toConversationPayload(detail, researchMeta));
     } catch (error) {
+      await recordFailedOperation(
+        prismaClient,
+        param(req, "id"),
+        aiConfig.provider,
+        "brief_generate",
+        error instanceof Error ? error.message : "Failed to generate AI brief"
+      );
       logError("AI brief generation failed", {
         ...getRequestLogMeta(req),
         userId: req.userId,
@@ -825,6 +1172,7 @@ export function createAdminAiRouter({
 
   router.put("/conversations/:id/brief", async (req: AuthRequest, res) => {
     try {
+      const researchMeta = getResearchMeta(getResearchService());
       const conversation = await loadConversationForUser(prismaClient, param(req, "id"), req.userId!);
       if (!conversation) {
         res.status(404).json({ error: "AI conversation not found" });
@@ -889,6 +1237,11 @@ export function createAdminAiRouter({
   });
 
   router.post("/conversations/:id/research", aiRateLimit, async (req: AuthRequest, res) => {
+    const usageEvents: ResearchTelemetryEvent[] = [];
+    const routeResearchService = getResearchService((event) => {
+      usageEvents.push(event);
+    });
+    const researchMeta = getResearchMeta(routeResearchService);
     try {
       const conversation = await loadConversationForUser(prismaClient, param(req, "id"), req.userId!);
       if (!conversation) {
@@ -899,7 +1252,7 @@ export function createAdminAiRouter({
       const brief = toBriefPayload(conversation.brief);
       const existingResearch = toResearchPayload(conversation.research);
       const internalLinkSuggestions = await getInternalLinkSuggestions(prismaClient, brief?.primaryKeyword || conversation.topic, brief);
-      const research = await researchService.runResearch({
+      const research = await routeResearchService.runResearch({
         topic: conversation.topic,
         brief,
         messages: toMessageInputs(conversation.messages),
@@ -933,10 +1286,25 @@ export function createAdminAiRouter({
           : "Research is ready. Review the sources, approve the ones you trust, and then generate the draft.",
         { type: "research", provider: mergedResearch.provider, status: mergedResearch.status }
       );
+      await Promise.all(
+        usageEvents.map((event) =>
+          recordUsageEvent(prismaClient, conversation.id, event, {
+            sourceCount: mergedResearch.sources.length,
+            status: mergedResearch.status,
+          })
+        )
+      );
 
       const detail = await loadConversationForUser(prismaClient, conversation.id, req.userId!);
       res.json(toConversationPayload(detail, researchMeta));
     } catch (error) {
+      await recordFailedOperation(
+        prismaClient,
+        param(req, "id"),
+        routeResearchService.providerName,
+        "research_synthesis",
+        error instanceof Error ? error.message : "Failed to run topic research"
+      );
       logError("AI research failed", {
         ...getRequestLogMeta(req),
         userId: req.userId,
@@ -947,7 +1315,7 @@ export function createAdminAiRouter({
         .upsert({
           where: { conversationId: param(req, "id") },
           update: {
-            provider: researchService.providerName,
+            provider: routeResearchService.providerName,
             status: "failed",
             topicSummary: null,
             searchIntent: null,
@@ -961,7 +1329,7 @@ export function createAdminAiRouter({
           },
           create: {
             conversationId: param(req, "id"),
-            provider: researchService.providerName,
+            provider: routeResearchService.providerName,
             status: "failed",
             keywordIdeasJson: JSON.stringify([]),
             relatedQuestionsJson: JSON.stringify([]),
@@ -979,6 +1347,7 @@ export function createAdminAiRouter({
 
   router.put("/conversations/:id/research", async (req: AuthRequest, res) => {
     try {
+      const researchMeta = getResearchMeta(getResearchService());
       const conversation = await loadConversationForUser(prismaClient, param(req, "id"), req.userId!);
       if (!conversation) {
         res.status(404).json({ error: "AI conversation not found" });
@@ -1007,6 +1376,7 @@ export function createAdminAiRouter({
           ...source,
           approvalStatus: normalizeSourceApprovalStatus(update.approvalStatus),
           adminNotes: coerceString(update.adminNotes, MAX_SOURCE_ADMIN_NOTES_LENGTH),
+          includeInReferences: update.includeInReferences !== false,
         };
       });
 
@@ -1031,8 +1401,14 @@ export function createAdminAiRouter({
   });
 
   router.post("/conversations/:id/draft", aiRateLimit, async (req: AuthRequest, res) => {
-    if (!aiService.isAvailable()) {
-      aiUnavailableResponse(res, aiService);
+    const usageEvents: AiTelemetryEvent[] = [];
+    const routeAiService = getAiService((event) => {
+      usageEvents.push(event);
+    });
+    const researchMeta = getResearchMeta(getResearchService());
+
+    if (!routeAiService.isAvailable()) {
+      aiUnavailableResponse(res, routeAiService);
       return;
     }
 
@@ -1053,7 +1429,7 @@ export function createAdminAiRouter({
       const research = prepareResearchForGeneration(storedResearch);
       const historicalContext = await getHistoricalEngagementContext(prismaClient);
 
-      const draft = await aiService.generateDraft({
+      const draft = await routeAiService.generateDraft({
         topic: conversation.topic,
         brief,
         messages: toMessageInputs(conversation.messages),
@@ -1097,6 +1473,7 @@ export function createAdminAiRouter({
           ),
           internalLinkSuggestionsJson: JSON.stringify(internalLinkSuggestions),
           researchUsed: Boolean(draft.researchUsed || (research && research.sources.length > 0 && research.status === "completed")),
+          referencesEnabled: false,
           status: "generated",
         },
         create: {
@@ -1125,6 +1502,7 @@ export function createAdminAiRouter({
           ),
           internalLinkSuggestionsJson: JSON.stringify(internalLinkSuggestions),
           researchUsed: Boolean(draft.researchUsed || (research && research.sources.length > 0 && research.status === "completed")),
+          referencesEnabled: false,
           status: "generated",
         },
       });
@@ -1147,10 +1525,25 @@ export function createAdminAiRouter({
         { type: "draft-generated" }
       );
       await touchConversation(prismaClient, conversation.id, "draft_ready", draft.title);
+      await Promise.all(
+        usageEvents.map((event) =>
+          recordUsageEvent(prismaClient, conversation.id, event, {
+            draftSlug: draft.slug,
+            researchUsed: draft.researchUsed,
+          })
+        )
+      );
 
       const detail = await loadConversationForUser(prismaClient, conversation.id, req.userId!);
       res.json(toConversationPayload(detail, researchMeta));
     } catch (error) {
+      await recordFailedOperation(
+        prismaClient,
+        param(req, "id"),
+        aiConfig.provider,
+        "draft_generate",
+        error instanceof Error ? error.message : "Failed to generate AI draft"
+      );
       logError("AI draft generation failed", {
         ...getRequestLogMeta(req),
         userId: req.userId,
@@ -1166,8 +1559,14 @@ export function createAdminAiRouter({
   });
 
   router.post("/conversations/:id/analyze", aiRateLimit, async (req: AuthRequest, res) => {
-    if (!aiService.isAvailable()) {
-      aiUnavailableResponse(res, aiService);
+    const usageEvents: AiTelemetryEvent[] = [];
+    const routeAiService = getAiService((event) => {
+      usageEvents.push(event);
+    });
+    const researchMeta = getResearchMeta(getResearchService());
+
+    if (!routeAiService.isAvailable()) {
+      aiUnavailableResponse(res, routeAiService);
       return;
     }
 
@@ -1188,7 +1587,7 @@ export function createAdminAiRouter({
       const research = prepareResearchForGeneration(toResearchPayload(conversation.research));
       const historicalContext = await getHistoricalEngagementContext(prismaClient);
 
-      const analysis = await aiService.analyzeDraft({
+      const analysis = await routeAiService.analyzeDraft({
         topic: conversation.topic,
         brief,
         draft,
@@ -1226,10 +1625,25 @@ export function createAdminAiRouter({
         { type: "draft-analyzed" }
       );
       await touchConversation(prismaClient, conversation.id, "draft_ready");
+      await Promise.all(
+        usageEvents.map((event) =>
+          recordUsageEvent(prismaClient, conversation.id, event, {
+            seoScore: analysis.seoScore,
+            engagementScore: analysis.engagementScore,
+          })
+        )
+      );
 
       const detail = await loadConversationForUser(prismaClient, conversation.id, req.userId!);
       res.json(toConversationPayload(detail, researchMeta));
     } catch (error) {
+      await recordFailedOperation(
+        prismaClient,
+        param(req, "id"),
+        aiConfig.provider,
+        "draft_analyze",
+        error instanceof Error ? error.message : "Failed to analyze AI draft"
+      );
       logError("AI draft analysis failed", {
         ...getRequestLogMeta(req),
         userId: req.userId,
@@ -1240,6 +1654,108 @@ export function createAdminAiRouter({
     }
   });
 
+  router.put("/conversations/:id/draft-review", async (req: AuthRequest, res) => {
+    try {
+      const conversation = await loadConversationForUser(prismaClient, param(req, "id"), req.userId!);
+      if (!conversation) {
+        res.status(404).json({ error: "AI conversation not found" });
+        return;
+      }
+
+      const draft = toDraftPayload(conversation.draft);
+      if (!draft) {
+        res.status(400).json({ error: "Generate a draft before updating review notes." });
+        return;
+      }
+
+      const nextFlags = Array.isArray(req.body?.verificationFlags)
+        ? req.body.verificationFlags.map((flag: any) => ({
+            claim: coerceString(flag?.claim, 400),
+            status: ["supported", "general", "needs_verification", "risky"].includes(flag?.status)
+              ? flag.status
+              : "needs_verification",
+            sourceId: typeof flag?.sourceId === "string" ? coerceString(flag.sourceId, 120) : null,
+            recommendation: coerceString(flag?.recommendation, 320),
+            reviewStatus: normalizeVerificationReviewStatus(flag?.reviewStatus),
+            reviewNotes: coerceString(flag?.reviewNotes, MAX_VERIFICATION_REVIEW_NOTES),
+          })).filter((flag: any) => flag.claim && flag.recommendation)
+        : draft.verificationFlags;
+
+      await prismaClient.aiDraftOutput.update({
+        where: { conversationId: conversation.id },
+        data: {
+          verificationFlagsJson: JSON.stringify(nextFlags),
+        },
+      });
+
+      const detail = await loadConversationForUser(prismaClient, conversation.id, req.userId!);
+      res.json(toConversationPayload(detail, getResearchMeta(getResearchService())));
+    } catch (error) {
+      logError("AI draft review update failed", {
+        ...getRequestLogMeta(req),
+        userId: req.userId,
+        conversationId: param(req, "id"),
+        error: error instanceof Error ? error.message : String(error),
+      });
+      res.status(500).json({ error: "Failed to update draft review notes" });
+    }
+  });
+
+  router.post("/conversations/:id/internal-link", async (req: AuthRequest, res) => {
+    try {
+      const conversation = await loadConversationForUser(prismaClient, param(req, "id"), req.userId!);
+      if (!conversation) {
+        res.status(404).json({ error: "AI conversation not found" });
+        return;
+      }
+
+      const draft = toDraftPayload(conversation.draft);
+      if (!draft) {
+        res.status(400).json({ error: "Generate a draft before applying internal links." });
+        return;
+      }
+
+      const suggestionIndex = Number(req.body?.suggestionIndex);
+      if (!Number.isInteger(suggestionIndex) || suggestionIndex < 0) {
+        res.status(400).json({ error: "A valid internal link suggestion is required." });
+        return;
+      }
+
+      const suggestion = (draft.internalLinkSuggestions || [])[suggestionIndex];
+      if (!suggestion) {
+        res.status(404).json({ error: "Internal link suggestion not found." });
+        return;
+      }
+
+      const nextHtml = applyInternalLinkSuggestionToHtml(draft.contentHtml, suggestion);
+      await prismaClient.aiDraftOutput.update({
+        where: { conversationId: conversation.id },
+        data: {
+          contentHtml: sanitizeGeneratedHtml(nextHtml),
+        },
+      });
+
+      await appendConversationMessage(
+        prismaClient,
+        conversation.id,
+        "assistant",
+        `Applied the internal link suggestion for "${suggestion.title}".`,
+        { type: "internal-link-applied", slug: suggestion.slug }
+      );
+
+      const detail = await loadConversationForUser(prismaClient, conversation.id, req.userId!);
+      res.json(toConversationPayload(detail, getResearchMeta(getResearchService())));
+    } catch (error) {
+      logError("AI internal link apply failed", {
+        ...getRequestLogMeta(req),
+        userId: req.userId,
+        conversationId: param(req, "id"),
+        error: error instanceof Error ? error.message : String(error),
+      });
+      res.status(500).json({ error: "Failed to apply internal link suggestion" });
+    }
+  });
+
   router.post("/conversations/:id/rewrite", aiRateLimit, async (req: AuthRequest, res) => {
     const action = parseRewriteAction(req.body?.action);
     if (!action) {
@@ -1247,8 +1763,13 @@ export function createAdminAiRouter({
       return;
     }
 
-    if (!aiService.isAvailable()) {
-      aiUnavailableResponse(res, aiService);
+    const usageEvents: AiTelemetryEvent[] = [];
+    const routeAiService = getAiService((event) => {
+      usageEvents.push(event);
+    });
+
+    if (!routeAiService.isAvailable()) {
+      aiUnavailableResponse(res, routeAiService);
       return;
     }
 
@@ -1268,7 +1789,7 @@ export function createAdminAiRouter({
       const brief = toBriefPayload(conversation.brief);
       const research = prepareResearchForGeneration(toResearchPayload(conversation.research));
       const historicalContext = await getHistoricalEngagementContext(prismaClient);
-      const proposal = await aiService.rewriteDraft({
+      const proposal = await routeAiService.rewriteDraft({
         topic: conversation.topic,
         brief,
         draft,
@@ -1293,11 +1814,26 @@ export function createAdminAiRouter({
           status: "proposed",
         },
       });
+      await Promise.all(
+        usageEvents.map((event) =>
+          recordUsageEvent(prismaClient, conversation.id, event, {
+            action,
+            target: proposal.target,
+          })
+        )
+      );
 
       res.json({
         proposal: toRewriteProposalPayload(created),
       });
     } catch (error) {
+      await recordFailedOperation(
+        prismaClient,
+        param(req, "id"),
+        aiConfig.provider,
+        "draft_rewrite",
+        error instanceof Error ? error.message : "Failed to generate rewrite proposal"
+      );
       logError("AI rewrite failed", {
         ...getRequestLogMeta(req),
         userId: req.userId,
@@ -1311,6 +1847,7 @@ export function createAdminAiRouter({
 
   router.post("/conversations/:id/rewrite/:proposalId/apply", aiRateLimit, async (req: AuthRequest, res) => {
     try {
+      const researchMeta = getResearchMeta(getResearchService());
       const conversation = await loadConversationForUser(prismaClient, param(req, "id"), req.userId!);
       if (!conversation) {
         res.status(404).json({ error: "AI conversation not found" });
@@ -1384,6 +1921,7 @@ export function createAdminAiRouter({
 
   router.post("/conversations/:id/rewrite/:proposalId/reject", async (req: AuthRequest, res) => {
     try {
+      const researchMeta = getResearchMeta(getResearchService());
       const conversation = await loadConversationForUser(prismaClient, param(req, "id"), req.userId!);
       if (!conversation) {
         res.status(404).json({ error: "AI conversation not found" });
@@ -1482,6 +2020,7 @@ export function createAdminAiRouter({
           slug: uniqueSlug,
           status: "saved",
           contentHtml,
+          referencesEnabled: includeReferences,
         },
       });
 

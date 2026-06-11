@@ -2,6 +2,7 @@ import { Router } from "express";
 import prisma from "../utils/db";
 import { isPrismaErrorCode, param, trimmedString } from "../utils/express";
 import { authMiddleware, AuthRequest } from "../middleware/auth";
+import { triggerFrontendRevalidation } from "../services/revalidate";
 
 type ProjectsPrisma = {
   project: any;
@@ -45,6 +46,7 @@ export function createProjectsRouter({ prismaClient = prisma }: { prismaClient?:
           order: order || 0,
         },
       });
+      await triggerFrontendRevalidation({ type: "project" });
       res.status(201).json(project);
     } catch (error) {
       console.error("Create project error:", error);
@@ -68,6 +70,7 @@ export function createProjectsRouter({ prismaClient = prisma }: { prismaClient?:
           ...(thumbnail !== undefined && { thumbnail: thumbnail || null }),
         },
       });
+      await triggerFrontendRevalidation({ type: "project" });
       res.json(project);
     } catch (error) {
       console.error("Update project error:", error);
@@ -82,6 +85,7 @@ export function createProjectsRouter({ prismaClient = prisma }: { prismaClient?:
   router.delete("/:id", authMiddleware, async (req: AuthRequest, res) => {
     try {
       await prismaClient.project.delete({ where: { id: param(req, "id") } });
+      await triggerFrontendRevalidation({ type: "project" });
       res.status(204).send();
     } catch (error) {
       console.error("Delete project error:", error);

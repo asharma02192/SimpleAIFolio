@@ -22,6 +22,7 @@ type ConversationState = {
   topic: string;
   title: string;
   status: string;
+  archivedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -42,6 +43,7 @@ function createFixture() {
     drafts: new Map<string, any>(),
     researches: new Map<string, any>(),
     proposals: [] as any[],
+    usageEvents: [] as any[],
     posts: [
       {
         id: "published-1",
@@ -88,15 +90,52 @@ function createFixture() {
       rewriteProposals: state.proposals
         .filter((proposal) => proposal.conversationId === conversation.id)
         .sort((left, right) => String(right.createdAt).localeCompare(String(left.createdAt))),
+      usageEvents: state.usageEvents
+        .filter((event) => event.conversationId === conversation.id)
+        .sort((left, right) => String(right.createdAt).localeCompare(String(left.createdAt))),
     };
+  }
+
+  function matchesConversationWhere(conversation: ConversationState, where: any) {
+    if (conversation.userId !== where.userId) return false;
+
+    if (where?.archivedAt?.not === null && !conversation.archivedAt) {
+      return false;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(where || {}, "archivedAt") && where.archivedAt === null && conversation.archivedAt) {
+      return false;
+    }
+
+    if (Array.isArray(where?.OR) && where.OR.length > 0) {
+      const matchesSearch = where.OR.some((entry: any) => {
+        const titleContains = entry?.title?.contains;
+        const topicContains = entry?.topic?.contains;
+        return (
+          (typeof titleContains === "string" &&
+            conversation.title.toLowerCase().includes(String(titleContains).toLowerCase())) ||
+          (typeof topicContains === "string" &&
+            conversation.topic.toLowerCase().includes(String(topicContains).toLowerCase()))
+        );
+      });
+
+      if (!matchesSearch) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   const prismaClient = {
     aiConversation: {
-      findMany: async ({ where }: any) =>
+      findMany: async ({ where, skip, take }: any) =>
         state.conversations
-          .filter((conversation) => conversation.userId === where.userId)
-          .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)),
+          .filter((conversation) => matchesConversationWhere(conversation, where))
+          .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+          .slice(skip || 0, typeof take === "number" ? (skip || 0) + take : undefined),
+      count: async ({ where }: any) =>
+        state.conversations.filter((conversation) => matchesConversationWhere(conversation, where)).length,
       create: async ({ data }: any) => {
         const record = {
           id: `conversation-${state.conversations.length + 1}`,
@@ -122,6 +161,18 @@ function createFixture() {
         Object.assign(conversation, data);
         if (!data.updatedAt) conversation.updatedAt = now();
         return conversation;
+      },
+      delete: async ({ where }: any) => {
+        const index = state.conversations.findIndex((entry) => entry.id === where.id);
+        if (index < 0) throw new Error("Conversation not found");
+        const [deleted] = state.conversations.splice(index, 1);
+        state.messages = state.messages.filter((message) => message.conversationId !== where.id);
+        state.proposals = state.proposals.filter((proposal) => proposal.conversationId !== where.id);
+        state.usageEvents = state.usageEvents.filter((event) => event.conversationId !== where.id);
+        state.briefs.delete(where.id);
+        state.drafts.delete(where.id);
+        state.researches.delete(where.id);
+        return deleted;
       },
     },
     aiMessage: {
@@ -212,6 +263,17 @@ function createFixture() {
           }
         }
         return { count };
+      },
+    },
+    aiUsageEvent: {
+      create: async ({ data }: any) => {
+        const record = {
+          id: `usage-${state.usageEvents.length + 1}`,
+          ...data,
+          createdAt: now(),
+        };
+        state.usageEvents.push(record);
+        return record;
       },
     },
     post: {
@@ -527,6 +589,68 @@ test("source approval state is saved on the research record", async () => {
   assert.equal(savedSources[0].adminNotes, "Looks credible.");
 });
 
+test("conversation archive state is saved and list filters respect archived status", async () => {
+  const fixture = createFixture();
+  const activeConversation = fixture.seedConversation({ topic: "Active conversation", title: "Active conversation" });
+  const archivedConversation = fixture.seedConversation({
+    topic: "Archived conversation",
+    title: "Archived conversation",
+    archivedAt: now(),
+  } as any);
+
+  const app = createTestApp("/api/admin/ai", createAdminAiRouter({ prismaClient: fixture.prismaClient as any }));
+
+  const archiveResponse = await request(app)
+    .post(`/api/admin/ai/conversations/${activeConversation.id}/archive`)
+    .set("Authorization", `Bearer ${createToken()}`)
+    .send({ archived: true });
+
+  assert.equal(archiveResponse.status, 200);
+  assert.ok(fixture.state.conversations.find((item) => item.id === activeConversation.id)?.archivedAt);
+
+  const activeList = await request(app)
+    .get("/api/admin/ai/conversations?filter=active")
+    .set("Authorization", `Bearer ${createToken()}`);
+  assert.equal(activeList.status, 200);
+  assert.equal(activeList.body.items.some((item: any) => item.id === activeConversation.id), false);
+  assert.equal(activeList.body.items.some((item: any) => item.id === archivedConversation.id), false);
+
+  const archivedList = await request(app)
+    .get("/api/admin/ai/conversations?filter=archived")
+    .set("Authorization", `Bearer ${createToken()}`);
+  assert.equal(archivedList.status, 200);
+  assert.equal(archivedList.body.items.some((item: any) => item.id === activeConversation.id), true);
+  assert.equal(archivedList.body.items.some((item: any) => item.id === archivedConversation.id), true);
+});
+
+test("conversation list pagination and search are handled server-side", async () => {
+  const fixture = createFixture();
+  fixture.seedConversation({ title: "Alpha SEO", topic: "Alpha SEO", updatedAt: "2026-06-09T10:03:00.000Z" });
+  fixture.seedConversation({ title: "Beta AI", topic: "Beta AI", updatedAt: "2026-06-09T10:02:00.000Z" });
+  fixture.seedConversation({ title: "Gamma SEO", topic: "Gamma SEO", updatedAt: "2026-06-09T10:01:00.000Z" });
+
+  const app = createTestApp("/api/admin/ai", createAdminAiRouter({ prismaClient: fixture.prismaClient as any }));
+
+  const searchResponse = await request(app)
+    .get("/api/admin/ai/conversations?filter=active&search=seo&page=1&pageSize=1")
+    .set("Authorization", `Bearer ${createToken()}`);
+
+  assert.equal(searchResponse.status, 200);
+  assert.equal(searchResponse.body.total, 2);
+  assert.equal(searchResponse.body.items.length, 1);
+  assert.equal(searchResponse.body.items[0].title, "Alpha SEO");
+  assert.equal(searchResponse.body.hasMore, true);
+
+  const secondPage = await request(app)
+    .get("/api/admin/ai/conversations?filter=active&search=seo&page=2&pageSize=1")
+    .set("Authorization", `Bearer ${createToken()}`);
+
+  assert.equal(secondPage.status, 200);
+  assert.equal(secondPage.body.items.length, 1);
+  assert.equal(secondPage.body.items[0].title, "Gamma SEO");
+  assert.equal(secondPage.body.hasMore, false);
+});
+
 test("research failure does not break the conversation state", async () => {
   const fixture = createFixture();
   const conversation = fixture.seedConversation();
@@ -704,6 +828,76 @@ test("rewrite proposals are stored server-side and applied by proposal id", asyn
   assert.equal(applyResponse.status, 200);
   assert.equal(fixture.state.drafts.get(conversation.id).contentHtml, "<p>Improved intro.</p>");
   assert.equal(fixture.state.proposals[0].status, "applied");
+});
+
+test("draft review notes and internal link suggestions are applied server-side", async () => {
+  const fixture = createFixture();
+  const conversation = fixture.seedConversation();
+  fixture.state.drafts.set(conversation.id, {
+    id: "draft-1",
+    conversationId: conversation.id,
+    title: "Draft title",
+    slug: "draft-title",
+    excerpt: "Excerpt",
+    metaTitle: "Meta title",
+    metaDescription: "Meta description",
+    contentHtml: "<p>See our published guide for implementation details.</p>",
+    faqJson: JSON.stringify([]),
+    recommendationsJson: JSON.stringify([]),
+    verificationNotesJson: JSON.stringify([]),
+    verificationFlagsJson: JSON.stringify([
+      {
+        claim: "Docker-based AI workflows need verification gates.",
+        status: "needs_verification",
+        recommendation: "Confirm the exact gates in the product flow.",
+      },
+    ]),
+    engagementInsightsJson: JSON.stringify([]),
+    internalLinkSuggestionsJson: JSON.stringify([
+      {
+        postId: "published-1",
+        title: "Published Guide",
+        slug: "published-guide",
+        anchorText: "published guide",
+        reason: "Relevant implementation reference",
+      },
+    ]),
+    researchUsed: false,
+    status: "generated",
+  });
+
+  const app = createTestApp("/api/admin/ai", createAdminAiRouter({ prismaClient: fixture.prismaClient as any }));
+
+  const reviewResponse = await request(app)
+    .put(`/api/admin/ai/conversations/${conversation.id}/draft-review`)
+    .set("Authorization", `Bearer ${createToken()}`)
+    .send({
+      verificationFlags: [
+        {
+          claim: "Docker-based AI workflows need verification gates.",
+          status: "needs_verification",
+          recommendation: "Confirm the exact gates in the product flow.",
+          reviewStatus: "accepted",
+          reviewNotes: "Confirmed in the current admin flow.",
+        },
+      ],
+    });
+
+  assert.equal(reviewResponse.status, 200);
+  const savedFlags = JSON.parse(fixture.state.drafts.get(conversation.id).verificationFlagsJson);
+  assert.equal(savedFlags[0].reviewStatus, "accepted");
+  assert.equal(savedFlags[0].reviewNotes, "Confirmed in the current admin flow.");
+
+  const internalLinkResponse = await request(app)
+    .post(`/api/admin/ai/conversations/${conversation.id}/internal-link`)
+    .set("Authorization", `Bearer ${createToken()}`)
+    .send({ suggestionIndex: 0 });
+
+  assert.equal(internalLinkResponse.status, 200);
+  assert.match(
+    fixture.state.drafts.get(conversation.id).contentHtml,
+    /<a[^>]+href="\/blog\/published-guide"[^>]*>published guide<\/a>/i
+  );
 });
 
 test("rejecting or applying an invalid rewrite proposal is safe", async () => {

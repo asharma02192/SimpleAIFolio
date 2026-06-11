@@ -2,6 +2,7 @@ import { Router } from "express";
 import prisma from "../utils/db";
 import { isPrismaErrorCode, param, trimmedString } from "../utils/express";
 import { authMiddleware, AuthRequest } from "../middleware/auth";
+import { triggerFrontendRevalidation } from "../services/revalidate";
 
 type TagsPrisma = {
   tag: any;
@@ -39,6 +40,7 @@ export function createTagsRouter({ prismaClient = prisma }: { prismaClient?: Tag
       }
 
       const tag = await prismaClient.tag.create({ data: { name, slug } });
+      await triggerFrontendRevalidation({ type: "taxonomy" });
       res.status(201).json(tag);
     } catch (error) {
       console.error("Create tag error:", error);
@@ -57,6 +59,7 @@ export function createTagsRouter({ prismaClient = prisma }: { prismaClient?: Tag
         where: { id: param(req, "id") },
         data: { ...(name && { name }), ...(slug && { slug }) },
       });
+      await triggerFrontendRevalidation({ type: "taxonomy" });
       res.json(tag);
     } catch (error) {
       console.error("Update tag error:", error);
@@ -75,6 +78,7 @@ export function createTagsRouter({ prismaClient = prisma }: { prismaClient?: Tag
   router.delete("/:id", authMiddleware, async (req: AuthRequest, res) => {
     try {
       await prismaClient.tag.delete({ where: { id: param(req, "id") } });
+      await triggerFrontendRevalidation({ type: "taxonomy" });
       res.status(204).send();
     } catch (error) {
       console.error("Delete tag error:", error);

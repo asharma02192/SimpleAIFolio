@@ -16,6 +16,8 @@ Backend:
 - `JWT_SECRET`
 - `PORT`
 - `FRONTEND_URL`
+- `FRONTEND_INTERNAL_URL` (optional but recommended for backend-triggered frontend revalidation in Docker/multi-service setups)
+- `REVALIDATE_SECRET` (required if you want explicit frontend cache invalidation after publish/settings/project changes)
 - `ALLOW_INSECURE_JWT_SECRET` (optional local-only override for Docker dev)
 - `INSTALL_SECRET` (optional, only if one-time setup should be enabled)
 - `AI_PROVIDER`
@@ -26,6 +28,19 @@ Backend:
 - `AI_MAX_TOKENS` (optional)
 - `AI_RATE_LIMIT_WINDOW_MS` (optional)
 - `AI_RATE_LIMIT_MAX` (optional)
+- `AI_ALERT_WEBHOOK_URL` (optional, enables outbound AI ops alerts to a webhook)
+- `TELEGRAM_BOT_TOKEN` (optional, enables Telegram delivery for AI ops alerts)
+- `TELEGRAM_CHAT_ID` (optional, required with `TELEGRAM_BOT_TOKEN`)
+- `AI_ALERT_MIN_LEVEL` (optional, `info`, `warning`, or `critical`)
+- `AI_ALERT_COOLDOWN_MS` (optional)
+- `AI_ALERT_FAILURE_THRESHOLD` (optional)
+- `AI_ALERT_HIGH_LATENCY_MS` (optional)
+- `AI_ALERT_LATENCY_THRESHOLD` (optional)
+- `AI_ALERT_LOOKBACK_MS` (optional)
+- `AI_ALERT_COST_LOOKBACK_MS` (optional)
+- `AI_ALERT_COST_SPIKE_MULTIPLIER` (optional)
+- `AI_ALERT_COST_SPIKE_MIN_USD` (optional)
+- `AI_ALERT_COST_SPIKE_MIN_DELTA_USD` (optional)
 - `RATE_LIMIT_STORE` (optional, `memory` to force local in-memory limiting; otherwise the backend uses the database store when available)
 - `RESEARCH_PROVIDER` (optional, supported: `disabled`, `exa`, `mock`)
 - `RESEARCH_API_KEY` (optional)
@@ -34,6 +49,7 @@ Frontend:
 - `NEXT_PUBLIC_API_URL`
 - `NEXT_PUBLIC_SITE_URL`
 - `API_INTERNAL_URL`
+- `REVALIDATE_SECRET` (server-side only; must match backend when using the revalidation route)
 
 Use:
 - `backend/.env.example`
@@ -42,6 +58,7 @@ Use:
 Docker Compose notes:
 - The backend container loads AI and research settings from `backend/.env`.
 - Compose-level URL overrides such as `FRONTEND_URL`, `NEXT_PUBLIC_API_URL`, and `NEXT_PUBLIC_SITE_URL` still come from the repo root shell environment or a repo-root `.env` file if you need to override the local Docker defaults.
+- Backend-triggered frontend revalidation uses `FRONTEND_INTERNAL_URL` plus a shared `REVALIDATE_SECRET`.
 - Valid research provider values are `disabled`, `mock`, and `exa`.
 
 ## Quick Start
@@ -116,8 +133,10 @@ Optional test env overrides:
 - `INSTALL_SECRET` should only be set when intentionally enabling the one-time setup flow.
 - Login, setup, and analytics tracking now have basic rate limiting.
 - AI Blog Studio is admin-only and runs from backend routes under `/api/admin/ai`.
+- Publishing and major CMS updates can now trigger explicit frontend revalidation instead of waiting for the normal public cache window.
 - Do not expose AI secrets in frontend env vars. Use backend-only `AI_*` configuration.
 - For local Docker development, the bundled stack uses `AI_PROVIDER=mock` so the AI writer can be exercised without a live external model.
 - Research is also backend-only. Keep `RESEARCH_PROVIDER=disabled` unless a server-side provider such as `exa` is configured with `RESEARCH_API_KEY`.
 - AI Blog Studio source approval is admin-only. Only approved sources can be included in the optional References block when saving an AI draft into the CMS.
 - Rewrite proposals are stored and applied server-side by proposal ID; the browser does not directly overwrite stored draft content.
+- Optional AI ops alerts can be enabled with `AI_ALERT_WEBHOOK_URL` and/or Telegram via `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`. Destinations stay off by default even when credentials are configured; enable them manually from `Admin > Analytics`. Severity level, cooldown window, and daily digest can also be adjusted from the same admin screen. The backend sends cooldown-protected alerts for repeated provider failures, sustained latency, and cost spikes without exposing any secrets to the browser.

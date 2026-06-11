@@ -2,6 +2,7 @@ import { Router } from "express";
 import prisma from "../utils/db";
 import { isPrismaErrorCode, param, trimmedString } from "../utils/express";
 import { authMiddleware, AuthRequest } from "../middleware/auth";
+import { triggerFrontendRevalidation } from "../services/revalidate";
 
 const router = Router();
 
@@ -11,6 +12,9 @@ router.get("/settings", async (_req, res) => {
     const rows = await prisma.siteSetting.findMany();
     const settings: Record<string, unknown> = {};
     for (const row of rows) {
+      if (row.key.startsWith("internal_")) {
+        continue;
+      }
       try {
         settings[row.key] = JSON.parse(row.value);
       } catch {
@@ -27,7 +31,9 @@ router.get("/settings", async (_req, res) => {
 // PUT /api/settings — admin, bulk update
 router.put("/settings", authMiddleware, async (req: AuthRequest, res) => {
   try {
-    const updates = req.body as Record<string, unknown>;
+    const updates = Object.fromEntries(
+      Object.entries(req.body as Record<string, unknown>).filter(([key]) => !key.startsWith("internal_"))
+    );
     const operations = Object.entries(updates).map(([key, value]) =>
       prisma.siteSetting.upsert({
         where: { key },
@@ -36,6 +42,7 @@ router.put("/settings", authMiddleware, async (req: AuthRequest, res) => {
       })
     );
     await prisma.$transaction(operations);
+    await triggerFrontendRevalidation({ type: "settings" });
     res.json({ success: true });
   } catch (err) {
     console.error("Update settings error:", err);
@@ -72,6 +79,7 @@ router.post("/experience", authMiddleware, async (req: AuthRequest, res) => {
         order: order || 0,
       },
     });
+    await triggerFrontendRevalidation({ type: "experience" });
     res.status(201).json(exp);
   } catch (err) {
     console.error("Create experience error:", err);
@@ -92,6 +100,7 @@ router.put("/experience/:id", authMiddleware, async (req: AuthRequest, res) => {
         ...(order !== undefined && { order }),
       },
     });
+    await triggerFrontendRevalidation({ type: "experience" });
     res.json(exp);
   } catch (err) {
     console.error("Update experience error:", err);
@@ -107,6 +116,7 @@ router.put("/experience/:id", authMiddleware, async (req: AuthRequest, res) => {
 router.delete("/experience/:id", authMiddleware, async (req: AuthRequest, res) => {
   try {
     await prisma.experience.delete({ where: { id: param(req, "id") } });
+    await triggerFrontendRevalidation({ type: "experience" });
     res.status(204).send();
   } catch (err) {
     console.error("Delete experience error:", err);

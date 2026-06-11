@@ -7,7 +7,13 @@ import type {
 } from "./blog-studio";
 import { buildResearchSynthesisMessages } from "./prompts";
 import { requestStructuredJson } from "./json";
-import { createAiChatProvider, getAiProviderConfig, type AiProviderConfig, type ResearchProviderName } from "./provider";
+import {
+  createAiChatProvider,
+  getAiProviderConfig,
+  type AiCompletionResult,
+  type AiProviderConfig,
+  type ResearchProviderName,
+} from "./provider";
 
 const MAX_RESEARCH_QUERY_LENGTH = 240;
 const MAX_RESEARCH_SOURCES = 6;
@@ -43,6 +49,12 @@ export interface ResearchService {
     messages: AiConversationMessageInput[];
     internalLinkSuggestions: AiInternalLinkSuggestion[];
   }): Promise<AiResearchData>;
+}
+
+export interface ResearchTelemetryEvent {
+  operation: "research_synthesis";
+  result: AiCompletionResult;
+  attempt: number;
 }
 
 interface SearchProvider {
@@ -119,6 +131,7 @@ function normalizeSource(source: unknown, index: number, fallback?: Partial<RawR
         ? record.approvalStatus
         : "needs_review",
     adminNotes: clip(typeof record.adminNotes === "string" ? record.adminNotes : "", 500),
+    includeInReferences: record.includeInReferences !== false,
   };
 }
 
@@ -394,6 +407,16 @@ function isResearchShape(value: unknown): value is ResearchSynthesisShape {
 }
 
 export function createResearchService(config = getAiProviderConfig()): ResearchService {
+  return createResearchServiceWithOptions({ config });
+}
+
+export function createResearchServiceWithOptions({
+  config = getAiProviderConfig(),
+  onTelemetry,
+}: {
+  config?: AiProviderConfig;
+  onTelemetry?: (event: ResearchTelemetryEvent) => void | Promise<void>;
+} = {}): ResearchService {
   const searchProvider = createSearchProvider(config);
   const aiProvider = createAiChatProvider(config);
 
@@ -439,6 +462,9 @@ export function createResearchService(config = getAiProviderConfig()): ResearchS
           internalLinkSuggestions,
         }),
         validate: isResearchShape,
+        onAttempt: async (result, attempt) => {
+          await onTelemetry?.({ operation: "research_synthesis", result, attempt });
+        },
       });
 
       return normalizeResearch(synthesized, searchProvider.providerName, rawSources, internalLinkSuggestions);

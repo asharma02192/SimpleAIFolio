@@ -10,6 +10,7 @@ import {
 import {
   createAiChatProvider,
   getAiProviderConfig,
+  type AiCompletionResult,
   type AiChatProvider,
   type AiProviderConfig,
 } from "./provider";
@@ -40,6 +41,7 @@ export interface AiResearchSource {
   notes: string[];
   approvalStatus: AiResearchApprovalStatus;
   adminNotes: string;
+  includeInReferences?: boolean;
 }
 
 export interface AiResearchData {
@@ -87,6 +89,8 @@ export interface AiVerificationFlag {
   status: "supported" | "general" | "needs_verification" | "risky";
   sourceId?: string | null;
   recommendation: string;
+  reviewStatus?: "pending" | "accepted" | "soften" | "remove";
+  reviewNotes?: string;
 }
 
 export interface AiDraftData {
@@ -110,6 +114,7 @@ export interface AiDraftData {
   engagementInsights: string[];
   internalLinkSuggestions: AiInternalLinkSuggestion[];
   researchUsed: boolean;
+  referencesEnabled?: boolean;
   postId?: string | null;
   status?: string;
 }
@@ -192,6 +197,18 @@ export interface BlogStudioAiService {
   }): Promise<AiRewriteProposal>;
 }
 
+export interface AiTelemetryEvent {
+  operation:
+    | "conversation_start"
+    | "conversation_reply"
+    | "brief_generate"
+    | "draft_generate"
+    | "draft_analyze"
+    | "draft_rewrite";
+  result: AiCompletionResult;
+  attempt: number;
+}
+
 const MAX_TOPIC_LENGTH = 240;
 const MAX_MESSAGE_LENGTH = 4000;
 const MAX_HTML_LENGTH = 120_000;
@@ -241,6 +258,18 @@ function normalizeResearchApprovalStatus(value: unknown): AiResearchApprovalStat
       return value;
     default:
       return "needs_review";
+  }
+}
+
+function normalizeVerificationReviewStatus(value: unknown): AiVerificationFlag["reviewStatus"] {
+  switch (value) {
+    case "accepted":
+    case "soften":
+    case "remove":
+      return value;
+    case "pending":
+    default:
+      return "pending";
   }
 }
 
@@ -337,6 +366,8 @@ function normalizeVerificationFlags(value: unknown): AiVerificationFlag[] {
         status,
         sourceId: typeof record.sourceId === "string" ? clamp(record.sourceId, 120) : null,
         recommendation: clamp(typeof record.recommendation === "string" ? record.recommendation : "", 320),
+        reviewStatus: normalizeVerificationReviewStatus(record.reviewStatus),
+        reviewNotes: clamp(typeof record.reviewNotes === "string" ? record.reviewNotes : "", 240),
       };
     })
     .filter((item) => item.claim && item.recommendation)
@@ -702,9 +733,11 @@ function createMockService(config: AiProviderConfig): BlogStudioAiService {
 export function createBlogStudioAiService({
   config = getAiProviderConfig(),
   provider = createAiChatProvider(config),
+  onTelemetry,
 }: {
   config?: AiProviderConfig;
   provider?: AiChatProvider;
+  onTelemetry?: (event: AiTelemetryEvent) => void | Promise<void>;
 } = {}): BlogStudioAiService {
   if (config.provider === "mock") {
     return createMockService(config);
@@ -720,7 +753,7 @@ export function createBlogStudioAiService({
       return unavailableReason;
     },
     async startConversation({ topic, messages }) {
-      return provider.complete(
+      const result = await provider.complete(
         buildClarificationMessages({
           topic: clamp(topic, MAX_TOPIC_LENGTH),
           messages: messages.map((message) => ({
@@ -729,9 +762,11 @@ export function createBlogStudioAiService({
           })),
         })
       );
+      await onTelemetry?.({ operation: "conversation_start", result, attempt: 1 });
+      return result.text;
     },
     async replyInConversation({ topic, messages }) {
-      return provider.complete(
+      const result = await provider.complete(
         buildClarificationMessages({
           topic: clamp(topic, MAX_TOPIC_LENGTH),
           messages: messages.map((message) => ({
@@ -740,6 +775,8 @@ export function createBlogStudioAiService({
           })),
         })
       );
+      await onTelemetry?.({ operation: "conversation_reply", result, attempt: 1 });
+      return result.text;
     },
     async generateBrief(input) {
       const parsed = await requestStructuredJson({
@@ -752,6 +789,9 @@ export function createBlogStudioAiService({
           })),
         }),
         validate: isBriefShape,
+        onAttempt: async (result, attempt) => {
+          await onTelemetry?.({ operation: "brief_generate", result, attempt });
+        },
       });
 
       return normalizeBrief(parsed, input.topic);
@@ -770,6 +810,9 @@ export function createBlogStudioAiService({
           research: input.research,
         }),
         validate: isDraftShape,
+        onAttempt: async (result, attempt) => {
+          await onTelemetry?.({ operation: "draft_generate", result, attempt });
+        },
       });
 
       return normalizeDraft(parsed, input.topic);
@@ -785,6 +828,9 @@ export function createBlogStudioAiService({
           research: input.research as unknown as Record<string, unknown> | null | undefined,
         }),
         validate: isAnalysisShape,
+        onAttempt: async (result, attempt) => {
+          await onTelemetry?.({ operation: "draft_analyze", result, attempt });
+        },
       });
 
       return normalizeAnalysis(parsed);
@@ -802,6 +848,9 @@ export function createBlogStudioAiService({
           research: input.research,
         }),
         validate: isRewriteShape,
+        onAttempt: async (result, attempt) => {
+          await onTelemetry?.({ operation: "draft_rewrite", result, attempt });
+        },
       });
 
       return normalizeRewriteProposal(parsed, input.action);

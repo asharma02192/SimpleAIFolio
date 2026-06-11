@@ -32,7 +32,7 @@ async function requestAdminToken() {
 export async function loginViaUi(page: Page) {
   await page.goto("/admin");
 
-  if (await page.getByRole("heading", { name: "Dashboard" }).isVisible().catch(() => false)) {
+  if (await page.getByText("Dashboard", { exact: true }).isVisible().catch(() => false)) {
     return;
   }
 
@@ -48,7 +48,7 @@ export async function loginViaUi(page: Page) {
   ]);
 
   await page.goto("/admin");
-  await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+  await expect(page.getByText("Operational visibility", { exact: false })).toBeVisible();
 }
 
 export async function fetchAdminToken(request: APIRequestContext) {
