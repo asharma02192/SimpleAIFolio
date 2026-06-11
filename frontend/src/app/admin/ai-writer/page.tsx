@@ -415,6 +415,19 @@ function WriterContent() {
   const createConversation = async () => {
     const topic = topicInput.trim();
     if (!topic) return;
+
+    // Reuse existing conversation with the same topic instead of creating duplicates
+    const existing = conversations.find(
+      (c) => c.topic.toLowerCase() === topic.toLowerCase()
+    );
+    if (existing) {
+      setTopicInput("");
+      setSelectedId(existing.id);
+      setMobileSidebarOpen(false);
+      toast("Opened existing conversation", "success");
+      return;
+    }
+
     const next = await runAction("create", () =>
       adminApiRequest<AiConversationDetail>("/api/admin/ai/conversations", {
         method: "POST",
@@ -856,8 +869,8 @@ function WriterContent() {
                 />
                 {/* Drawer panel */}
                 <aside
-                  className="relative z-50 flex w-[20rem] max-w-[85vw] flex-col overflow-y-auto"
-                  style={{ background: "var(--color-bg-elevated)", borderRight: "1px solid var(--color-border)" }}
+                  className="relative z-50 ml-auto flex w-[20rem] max-w-[85vw] flex-col overflow-y-auto"
+                  style={{ background: "var(--color-bg-elevated)", borderLeft: "1px solid var(--color-border)" }}
                 >
                   <div className="flex items-center justify-between px-[var(--space-4)] py-[var(--space-3)]" style={{ borderBottom: "1px solid var(--color-border)" }}>
                     <h2 className="font-[family-name:var(--font-display)] text-[var(--text-base)] font-semibold" style={{ color: "var(--color-text)" }}>Conversations</h2>
