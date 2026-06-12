@@ -249,39 +249,40 @@ export default function AdminDashboard() {
         <Metric label="Avg Latency" value={`${ai.avgLatencyMs}ms`} sub={`${ai.totalConversations} conversations`} />
       </div>
 
-      {/* ──────────────── TAB BAR ──────────────── */}
-      <div
-        className="flex gap-[2px] rounded-[var(--radius-lg)] p-[var(--space-1)]"
-        style={{
-          background: "var(--color-bg-elevated)",
-          border: "1px solid var(--color-border)",
-          boxShadow: surface.boxShadow,
-        }}
-      >
-        {TABS.map((tab) => {
-          const active = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className="min-w-0 flex-1 cursor-pointer whitespace-nowrap rounded-[var(--radius-md)] px-[var(--space-4)] py-[var(--space-2.5)] text-[var(--text-sm)] font-semibold transition-all duration-200"
-              style={{
-                color: active ? "var(--color-bg-elevated)" : "var(--color-text-secondary)",
-                background: active ? "var(--color-accent)" : "transparent",
-              }}
-            >
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
+      {/* ──────────────── TAB SECTION (unified card) ──────────────── */}
+      <div className="flex flex-col rounded-[var(--radius-lg)] overflow-hidden" style={surface}>
+        {/* Tab bar */}
+        <div
+          className="flex gap-[2px] p-[var(--space-1)]"
+          style={{ borderBottom: "1px solid var(--color-border)" }}
+        >
+          {TABS.map((tab) => {
+            const active = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className="min-w-0 flex-1 cursor-pointer whitespace-nowrap rounded-[var(--radius-md)] px-[var(--space-4)] py-[var(--space-2.5)] text-[var(--text-sm)] font-semibold transition-all duration-200"
+                style={{
+                  color: active ? "var(--color-bg-elevated)" : "var(--color-text-secondary)",
+                  background: active ? "var(--color-accent)" : "transparent",
+                }}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Tab content */}
+        <div className="flex flex-col gap-[var(--space-6)] p-[var(--space-6)]">
 
       {/* ══════════════ TAB: OVERVIEW ══════════════ */}
       {activeTab === "overview" && (
-        <div className="grid gap-[var(--space-6)] lg:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)]">
+        <div className="grid gap-[var(--space-6)] lg:grid-cols-2">
           {/* Top Pages */}
-          <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-lg)] p-[var(--space-6)]" style={surface}>
+          <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-md)] p-[var(--space-5)]" style={inset}>
             <div>
               <Label>Top Pages</Label>
               <h2 className="mt-[var(--space-2)] font-[family-name:var(--font-display)] text-[var(--text-lg)] font-semibold" style={{ color: "var(--color-text)" }}>
@@ -316,7 +317,7 @@ export default function AdminDashboard() {
           </section>
 
           {/* Daily Usage */}
-          <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-lg)] p-[var(--space-6)]" style={surface}>
+          <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-md)] p-[var(--space-5)]" style={inset}>
             <div>
               <Label>Daily Usage</Label>
               <h2 className="mt-[var(--space-2)] font-[family-name:var(--font-display)] text-[var(--text-lg)] font-semibold" style={{ color: "var(--color-text)" }}>
@@ -391,7 +392,7 @@ export default function AdminDashboard() {
 
           {/* Alerts & Failures */}
           <div className="grid gap-[var(--space-6)] lg:grid-cols-2">
-            <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-lg)] p-[var(--space-6)]" style={surface}>
+            <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-md)] p-[var(--space-5)]" style={inset}>
               <div>
                 <Label>Alerts</Label>
                 <h2 className="mt-[var(--space-2)] font-[family-name:var(--font-display)] text-[var(--text-lg)] font-semibold" style={{ color: "var(--color-text)" }}>
@@ -418,7 +419,7 @@ export default function AdminDashboard() {
               )}
             </section>
 
-            <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-lg)] p-[var(--space-6)]" style={surface}>
+            <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-md)] p-[var(--space-5)]" style={inset}>
               <div>
                 <Label>Recent Failures</Label>
                 <h2 className="mt-[var(--space-2)] font-[family-name:var(--font-display)] text-[var(--text-lg)] font-semibold" style={{ color: "var(--color-text)" }}>
@@ -449,7 +450,7 @@ export default function AdminDashboard() {
           {/* Providers, Operations, Models */}
           <div className="grid gap-[var(--space-6)] lg:grid-cols-3">
             {ai.topProviders.length > 0 && (
-              <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-lg)] p-[var(--space-6)]" style={surface}>
+              <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-md)] p-[var(--space-5)]" style={inset}>
                 <div>
                   <Label>Top Providers</Label>
                 </div>
@@ -465,7 +466,7 @@ export default function AdminDashboard() {
             )}
 
             {ai.topOperations.length > 0 && (
-              <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-lg)] p-[var(--space-6)]" style={surface}>
+              <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-md)] p-[var(--space-5)]" style={inset}>
                 <div>
                   <Label>Top Operations</Label>
                 </div>
@@ -488,7 +489,7 @@ export default function AdminDashboard() {
             )}
 
             {ai.topModels.length > 0 && (
-              <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-lg)] p-[var(--space-6)]" style={surface}>
+              <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-md)] p-[var(--space-5)]" style={inset}>
                 <div>
                   <Label>Top Models</Label>
                 </div>
@@ -509,7 +510,7 @@ export default function AdminDashboard() {
       {/* ══════════════ TAB: ALERTS ══════════════ */}
       {activeTab === "alerts" && alertSettings && (
         <div className="flex flex-col gap-[var(--space-6)]">
-          <section className="flex flex-col gap-[var(--space-6)] rounded-[var(--radius-lg)] p-[var(--space-6)]" style={surface}>
+          <section className="flex flex-col gap-[var(--space-6)] rounded-[var(--radius-md)] p-[var(--space-5)]" style={inset}>
             {/* Section header */}
             <div className="flex flex-col gap-[var(--space-1)] lg:flex-row lg:items-center lg:justify-between lg:gap-0">
               <div>
@@ -652,7 +653,7 @@ export default function AdminDashboard() {
         <div className="flex flex-col gap-[var(--space-6)]">
           <div className="grid gap-[var(--space-6)] lg:grid-cols-2">
             {/* Provider breakdown */}
-            <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-lg)] p-[var(--space-6)]" style={surface}>
+            <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-md)] p-[var(--space-5)]" style={inset}>
               <div>
                 <Label>Provider Breakdown</Label>
                 <h2 className="mt-[var(--space-2)] font-[family-name:var(--font-display)] text-[var(--text-lg)] font-semibold" style={{ color: "var(--color-text)" }}>
@@ -688,7 +689,7 @@ export default function AdminDashboard() {
             </section>
 
             {/* Model breakdown */}
-            <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-lg)] p-[var(--space-6)]" style={surface}>
+            <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-md)] p-[var(--space-5)]" style={inset}>
               <div>
                 <Label>Model Breakdown</Label>
                 <h2 className="mt-[var(--space-2)] font-[family-name:var(--font-display)] text-[var(--text-lg)] font-semibold" style={{ color: "var(--color-text)" }}>
@@ -726,6 +727,9 @@ export default function AdminDashboard() {
           </div>
         </div>
       )}
+
+        </div>{/* end tab content */}
+      </div>{/* end tab section card */}
     </div>
   );
 }
