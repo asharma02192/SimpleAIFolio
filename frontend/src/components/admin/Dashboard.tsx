@@ -228,7 +228,7 @@ export default function AdminDashboard() {
           </Link>
           <Link
             href="/admin/ai-writer"
-            className="inline-flex min-h-[36px] items-center justify-center rounded-[var(--radius-md)] px-[var(--space-4)] py-[var(--space-2)] text-[var(--text-sm)] font-medium transition-opacity hover:opacity-90"
+            className="inline-flex h-[36px] items-center justify-center rounded-[var(--radius-md)] px-[var(--space-4)] font-[family-name:var(--font-mono)] text-[0.65rem] uppercase tracking-[0.14em] font-medium transition-opacity hover:opacity-90"
             style={inset}
           >
             AI Writer
@@ -297,18 +297,17 @@ export default function AdminDashboard() {
                   const maxViews = data.topPages[0]?.views ?? 1;
                   const barWidth = Math.max(4, (p.views / maxViews) * 100);
                   return (
-                    <li key={p.path} className="flex items-center gap-[var(--space-3)] rounded-[var(--radius-md)] px-[var(--space-4)] py-[var(--space-3)] text-[var(--text-sm)]" style={inset}>
+                    <li key={p.path} className="flex items-center gap-[var(--space-3)] rounded-[var(--radius-md)] px-[var(--space-4)] py-[var(--space-2)] text-[var(--text-sm)]" style={inset}>
                       <span
-                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[var(--text-xs)] font-semibold"
+                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[0.625rem] font-bold"
                         style={{ background: i === 0 ? "var(--color-accent)" : "var(--color-bg-muted)", color: i === 0 ? "var(--color-accent-on)" : "var(--color-text-tertiary)" }}
                       >
                         {i + 1}
                       </span>
-                      <div className="flex min-w-0 flex-1 flex-col gap-[3px]">
-                        <Link href={p.path} className="truncate font-medium hover:underline" style={{ color: "var(--color-accent)" }}>{p.path}</Link>
-                        <div className="h-[3px] rounded-full" style={{ width: `${barWidth}%`, background: i === 0 ? "var(--color-accent)" : "var(--color-border-strong)", maxWidth: "100%" }} />
-                      </div>
-                      <span className="shrink-0 font-semibold tabular-nums" style={{ color: "var(--color-text)" }}>{p.views.toLocaleString()}</span>
+                      <span className="min-w-0 flex-1 truncate font-medium" style={{ color: "var(--color-accent)" }}>
+                        <Link href={p.path} className="hover:underline">{p.path}</Link>
+                      </span>
+                      <span className="shrink-0 font-semibold tabular-nums text-[var(--text-xs)]" style={{ color: "var(--color-text-secondary)" }}>{p.views.toLocaleString()}</span>
                     </li>
                   );
                 })}
@@ -333,23 +332,15 @@ export default function AdminDashboard() {
                   return (
                     <div
                       key={entry.date}
-                      className="flex items-center gap-[var(--space-4)] rounded-[var(--radius-md)] px-[var(--space-4)] py-[var(--space-3)] text-[var(--text-sm)]"
+                      className="flex items-center gap-[var(--space-4)] rounded-[var(--radius-md)] px-[var(--space-4)] py-[var(--space-2)] text-[var(--text-sm)] min-h-[40px]"
                       style={inset}
                     >
-                      <span className="w-16 shrink-0 font-medium" style={{ color: "var(--color-text)" }}>{fmtShortDate(entry.date)}</span>
-                      <div className="flex min-w-0 flex-1 flex-col gap-[3px]">
-                        <div className="flex items-center gap-[var(--space-2)]">
-                          <span className="text-[var(--text-xs)]" style={{ color: "var(--color-text-secondary)" }}>{entry.calls} calls</span>
-                          {entry.failures > 0 && <span className="text-[var(--text-xs)] font-medium" style={{ color: "var(--color-error)" }}>{entry.failures} failed</span>}
-                        </div>
-                        <div className="h-[3px] rounded-full" style={{
-                          width: `${Math.max(4, (entry.calls / Math.max(...ai.dailyUsage.map((d) => d.calls), 1)) * 100)}%`,
-                          background: entry.failures > 0 ? "var(--color-error)" : "var(--color-accent)",
-                          opacity: entry.failures > 0 ? 0.8 : 0.6,
-                          maxWidth: "100%",
-                        }} />
-                      </div>
-                      <span className="shrink-0 font-semibold tabular-nums" style={{ color: "var(--color-text)" }}>{fmtCost(entry.estimatedCostUsd)}</span>
+                      <span className="w-14 shrink-0 font-medium text-[var(--text-xs)]" style={{ color: "var(--color-text-secondary)" }}>{fmtShortDate(entry.date)}</span>
+                      <span className="min-w-0 flex-1 font-medium tabular-nums" style={{ color: "var(--color-text)" }}>
+                        {entry.calls} calls
+                        {entry.failures > 0 && <span className="ml-1 font-medium" style={{ color: "var(--color-error)" }}>({entry.failures} failed)</span>}
+                      </span>
+                      <span className="shrink-0 font-semibold tabular-nums text-[var(--text-xs)]" style={{ color: "var(--color-text-secondary)" }}>{fmtCost(entry.estimatedCostUsd)}</span>
                     </div>
                   );
                 })}
@@ -364,27 +355,26 @@ export default function AdminDashboard() {
         <div className="flex flex-col gap-[var(--space-6)]">
           {/* AI health summary */}
           <div
-            className="flex items-center gap-[var(--space-5)] rounded-[var(--radius-lg)] p-[var(--space-5)]"
+            className="flex items-center gap-[var(--space-4)] rounded-[var(--radius-md)] p-[var(--space-4)]"
             style={{
               background: ai.successRate >= 95 ? "oklch(96% 0.02 145)" : ai.successRate >= 80 ? "oklch(96% 0.03 85)" : "oklch(96% 0.03 25)",
               border: `1px solid ${ai.successRate >= 95 ? "oklch(88% 0.08 145)" : ai.successRate >= 80 ? "oklch(88% 0.08 85)" : "oklch(88% 0.08 25)"}`,
             }}
           >
             <div
-              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-sm font-bold"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-bold"
               style={{
                 background: ai.successRate >= 95 ? "var(--color-success)" : ai.successRate >= 80 ? "var(--color-warning)" : "var(--color-error)",
                 color: "white",
-                boxShadow: `0 0 0 3px ${ai.successRate >= 95 ? "oklch(90% 0.06 145)" : ai.successRate >= 80 ? "oklch(90% 0.06 85)" : "oklch(90% 0.06 25)"}`,
               }}
             >
               {ai.successRate}%
             </div>
-            <div className="flex flex-col gap-[var(--space-1)]">
-              <span className="text-[var(--text-base)] font-semibold" style={{ color: "var(--color-text)" }}>
+            <div>
+              <span className="text-[var(--text-sm)] font-semibold" style={{ color: "var(--color-text)" }}>
                 {ai.successRate >= 95 ? "All systems healthy" : ai.successRate >= 80 ? "Degraded performance" : "Service issues detected"}
               </span>
-              <span className="text-[var(--text-sm)]" style={{ color: "var(--color-text-secondary)" }}>
+              <span className="block text-[var(--text-xs)] mt-1" style={{ color: "var(--color-text-secondary)" }}>
                 {fmtCost(ai.estimatedCostUsd)} est. cost · {fmtCost(ai.previousPeriodCostUsd)} prior period · {ai.avgLatencyMs}ms avg latency
               </span>
             </div>
@@ -512,22 +502,19 @@ export default function AdminDashboard() {
         <div className="flex flex-col gap-[var(--space-6)]">
           <section className="flex flex-col gap-[var(--space-6)] rounded-[var(--radius-md)] p-[var(--space-5)]" style={inset}>
             {/* Section header */}
-            <div className="flex flex-col gap-[var(--space-1)] lg:flex-row lg:items-center lg:justify-between lg:gap-0">
+            <div className="flex flex-col gap-[var(--space-4)] lg:flex-row lg:items-start lg:justify-between">
               <div>
                 <Label>Alert Settings</Label>
                 <h2 className="mt-[var(--space-2)] font-[family-name:var(--font-display)] text-[var(--text-lg)] font-semibold" style={{ color: "var(--color-text)" }}>
                   Notification destinations
                 </h2>
-                <p className="mt-[var(--space-1)] text-[var(--text-sm)]" style={{ color: "var(--color-text-secondary)" }}>
-                  Configure where and how alerts are delivered.
-                </p>
               </div>
-              <div className="flex gap-[var(--space-2)] shrink-0 mt-[var(--space-3)] lg:mt-0">
+              <div className="flex gap-[var(--space-2)] shrink-0">
                 <button
                   type="button"
                   onClick={() => void sendTestAlert()}
                   disabled={sendingTestAlert}
-                  className="inline-flex min-h-[38px] items-center justify-center rounded-[var(--radius-md)] px-[var(--space-4)] py-[var(--space-2)] text-[var(--text-sm)] font-medium transition-opacity hover:opacity-90 disabled:opacity-60"
+                  className="inline-flex h-[36px] items-center justify-center rounded-[var(--radius-md)] px-[var(--space-4)] text-[var(--text-sm)] font-medium transition-opacity hover:opacity-90 disabled:opacity-60"
                   style={inset}
                 >
                   {sendingTestAlert ? "Sending…" : "Send Test"}
@@ -536,7 +523,7 @@ export default function AdminDashboard() {
                   type="button"
                   onClick={() => void saveAlertSettings()}
                   disabled={savingAlerts}
-                  className="inline-flex min-h-[38px] items-center justify-center rounded-[var(--radius-md)] px-[var(--space-5)] py-[var(--space-2)] text-[var(--text-sm)] font-semibold transition-opacity hover:opacity-90 disabled:opacity-60"
+                  className="inline-flex h-[36px] items-center justify-center rounded-[var(--radius-md)] px-[var(--space-5)] text-[var(--text-sm)] font-semibold transition-opacity hover:opacity-90 disabled:opacity-60"
                   style={{ background: "var(--color-accent)", color: "var(--color-accent-on)" }}
                 >
                   {savingAlerts ? "Saving…" : "Save Settings"}
@@ -550,8 +537,8 @@ export default function AdminDashboard() {
                 { key: "webhookEnabled" as const, label: "Webhook alerts", desc: "Send alerts to the configured webhook URL.", configured: alertSettings.webhookConfigured },
                 { key: "telegramEnabled" as const, label: "Telegram alerts", desc: "Send compact alerts to the configured Telegram bot.", configured: alertSettings.telegramConfigured },
               ]).map((dest) => (
-                <label key={dest.key} className="flex cursor-pointer items-start gap-[var(--space-4)] rounded-[var(--radius-md)] p-[var(--space-5)] transition-colors" style={{ ...inset, background: alertSettings[dest.key] ? "color-mix(in oklch, var(--color-bg) 92%, var(--color-accent) 8%)" : inset.background }}>
-                  <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[4px] transition-colors" style={{ background: alertSettings[dest.key] ? "var(--color-accent)" : "var(--color-bg-elevated)", border: alertSettings[dest.key] ? "none" : "1.5px solid var(--color-border-strong)" }}>
+                <label key={dest.key} className="flex cursor-pointer items-start gap-[var(--space-3)] rounded-[var(--radius-md)] p-[var(--space-4)]" style={{ ...inset, background: alertSettings[dest.key] ? "color-mix(in oklch, var(--color-bg) 92%, var(--color-accent) 8%)" : inset.background }}>
+                  <div className="mt-[3px] flex h-4 w-4 shrink-0 items-center justify-center rounded-[3px]" style={{ background: alertSettings[dest.key] ? "var(--color-accent)" : "transparent", border: alertSettings[dest.key] ? "none" : "1.5px solid var(--color-border-strong)" }}>
                     <input
                       type="checkbox"
                       checked={alertSettings[dest.key]}
@@ -559,14 +546,14 @@ export default function AdminDashboard() {
                       className="sr-only"
                     />
                     {alertSettings[dest.key] && (
-                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="var(--color-bg-elevated)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="var(--color-bg-elevated)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
                     )}
                   </div>
-                  <span className="flex flex-col gap-[var(--space-1)]">
-                    <span className="text-[var(--text-sm)] font-semibold" style={{ color: "var(--color-text)" }}>{dest.label}</span>
+                  <span className="flex flex-col gap-[var(--space-1)] min-w-0">
+                    <span className="text-[var(--text-sm)] font-semibold leading-snug" style={{ color: "var(--color-text)" }}>{dest.label}</span>
                     <span className="text-[var(--text-xs)] leading-relaxed" style={{ color: "var(--color-text-secondary)" }}>{dest.desc}</span>
                     <span
-                      className="mt-[var(--space-1)] inline-flex w-fit rounded-full px-2 py-[3px] font-[family-name:var(--font-mono)] text-[10px] uppercase tracking-[0.18em]"
+                      className="mt-[var(--space-1)] inline-flex w-fit rounded-full px-2 py-[2px] font-[family-name:var(--font-mono)] text-[10px] uppercase tracking-[0.16em]"
                       style={{
                         background: dest.configured ? "oklch(96% 0.02 145)" : "oklch(94% 0.01 75)",
                         color: dest.configured ? "oklch(40% 0.12 145)" : "var(--color-text-tertiary)",
@@ -608,11 +595,11 @@ export default function AdminDashboard() {
             </div>
 
             {/* Daily digest */}
-            <label className="flex items-start gap-[var(--space-4)] rounded-[var(--radius-md)] p-[var(--space-5)]" style={{
+            <label className="flex items-start gap-[var(--space-3)] rounded-[var(--radius-md)] p-[var(--space-4)]" style={{
               background: "color-mix(in oklch, var(--color-bg) 90%, var(--color-accent-lightest) 10%)",
               border: "1px solid color-mix(in oklch, var(--color-border) 78%, var(--color-accent) 22%)",
             }}>
-              <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[4px] transition-colors" style={{ background: alertSettings.dailyDigestEnabled ? "var(--color-accent)" : "var(--color-bg-elevated)", border: alertSettings.dailyDigestEnabled ? "none" : "1.5px solid var(--color-border-strong)" }}>
+              <div className="mt-[3px] flex h-4 w-4 shrink-0 items-center justify-center rounded-[3px]" style={{ background: alertSettings.dailyDigestEnabled ? "var(--color-accent)" : "transparent", border: alertSettings.dailyDigestEnabled ? "none" : "1.5px solid var(--color-border-strong)" }}>
                 <input
                   type="checkbox"
                   checked={alertSettings.dailyDigestEnabled}
@@ -620,11 +607,11 @@ export default function AdminDashboard() {
                   className="sr-only"
                 />
                 {alertSettings.dailyDigestEnabled && (
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="var(--color-bg-elevated)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="var(--color-bg-elevated)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
                 )}
               </div>
-              <span className="flex flex-col gap-[var(--space-1)]">
-                <span className="text-[var(--text-sm)] font-semibold" style={{ color: "var(--color-text)" }}>Daily Digest</span>
+              <span className="flex flex-col gap-[var(--space-1)] min-w-0">
+                <span className="text-[var(--text-sm)] font-semibold leading-snug" style={{ color: "var(--color-text)" }}>Daily Digest</span>
                 <span className="text-[var(--text-xs)] leading-relaxed" style={{ color: "var(--color-text-secondary)" }}>
                   Send one summary per day with call volume, failures, latency, and cost.
                 </span>
