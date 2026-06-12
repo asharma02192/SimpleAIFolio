@@ -5,40 +5,30 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/auth";
 import type { AiAlertSettings, AnalyticsDashboardData } from "@/types";
 
-function formatCurrency(value: number) {
-  return `$${value.toFixed(4)}`;
+/* ── helpers ── */
+
+function fmtCost(value: number) {
+  return value < 0.01 && value > 0 ? `$${value.toFixed(4)}` : `$${value.toFixed(2)}`;
 }
 
-function formatWindowLabel(days: number) {
+function fmtWindow(days: number) {
   return `${days}d`;
 }
 
-function formatCooldownMinutes(value: number) {
+function fmtDate(value: string) {
+  try {
+    return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(value));
+  } catch { return value; }
+}
+
+function fmtShortDate(value: string) {
+  try {
+    return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(value));
+  } catch { return value; }
+}
+
+function fmtCooldown(value: number) {
   return Math.max(0, Math.round(value / 60000));
-}
-
-function formatDate(value: string) {
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    }).format(new Date(value));
-  } catch {
-    return value;
-  }
-}
-
-function formatShortDate(value: string) {
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      month: "short",
-      day: "numeric",
-    }).format(new Date(value));
-  } catch {
-    return value;
-  }
 }
 
 type WindowDays = 7 | 30 | 90;
@@ -51,138 +41,75 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "details", label: "Details" },
 ];
 
-const ALERT_STYLES = {
-  info: {
-    background: "rgba(79, 70, 229, 0.08)",
-    border: "rgba(79, 70, 229, 0.18)",
-    text: "var(--color-text)",
-  },
-  warning: {
-    background: "rgba(245, 158, 11, 0.12)",
-    border: "rgba(245, 158, 11, 0.24)",
-    text: "var(--color-text)",
-  },
-  critical: {
-    background: "rgba(220, 38, 38, 0.1)",
-    border: "rgba(220, 38, 38, 0.22)",
-    text: "var(--color-text)",
-  },
-} as const;
+/* ── shared surfaces ── */
 
-const surfaceStyle = {
+const surface = {
   background: "var(--color-bg-elevated)",
   border: "1px solid var(--color-border)",
-  boxShadow: "0 1px 0 rgba(15, 23, 42, 0.04)",
-};
+  boxShadow: "0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 0 rgba(15, 23, 42, 0.04)",
+} as const;
 
-const insetSurfaceStyle = {
+const inset = {
   background: "var(--color-bg)",
   border: "1px solid var(--color-border)",
-};
+} as const;
 
-const softSurfaceStyle = {
-  background: "color-mix(in oklch, var(--color-bg) 90%, var(--color-accent-lightest) 10%)",
-  border: "1px solid color-mix(in oklch, var(--color-border) 78%, var(--color-accent) 22%)",
-};
+/* ── section label ── */
 
-function SurfaceSection({
-  title,
-  description,
-  action,
-  label,
-  children,
-  compact = false,
-}: {
-  title: string;
-  description?: string;
-  action?: React.ReactNode;
-  label?: string;
-  children: React.ReactNode;
-  compact?: boolean;
-}) {
+function Label({ children }: { children: React.ReactNode }) {
   return (
-    <section
-      className={`rounded-[calc(var(--radius-lg)+2px)] ${compact ? "p-[var(--space-5)]" : "p-[var(--space-6)]"}`}
-      style={surfaceStyle}
+    <p
+      className="font-[family-name:var(--font-mono)] text-[0.625rem] uppercase tracking-[0.2em]"
+      style={{ color: "var(--color-text-tertiary)" }}
     >
-      <div className="mb-[var(--space-5)] flex flex-col gap-[var(--space-3)] lg:flex-row lg:items-start lg:justify-between">
-        <div className="max-w-[52rem]">
-          {label ? (
-            <p
-              className="font-[family-name:var(--font-mono)] text-[0.625rem] uppercase tracking-[0.22em]"
-              style={{ color: "var(--color-text-tertiary)" }}
-            >
-              {label}
-            </p>
-          ) : null}
-          <h2
-            className="font-[family-name:var(--font-display)] text-[var(--text-lg)] font-semibold"
-            style={{ color: "var(--color-text)" }}
-          >
-            {title}
-          </h2>
-          {description ? (
-            <p className="mt-[var(--space-2)] max-w-[68ch] text-[var(--text-sm)] leading-relaxed" style={{ color: "var(--color-text-secondary)" }}>
-              {description}
-            </p>
-          ) : null}
-        </div>
-        {action ? <div className="shrink-0">{action}</div> : null}
-      </div>
       {children}
-    </section>
+    </p>
   );
 }
 
-function MetricTile({ label, value, sub }: { label: string; value: string; sub?: string }) {
+/* ── metric tile ── */
+
+function Metric({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="rounded-[calc(var(--radius-md)+2px)] p-[var(--space-4)]" style={insetSurfaceStyle}>
-      <p
-        className="font-[family-name:var(--font-mono)] text-[0.625rem] uppercase tracking-[0.22em]"
+    <div className="flex flex-col gap-[var(--space-1)]">
+      <span
+        className="font-[family-name:var(--font-mono)] text-[0.625rem] uppercase tracking-[0.16em]"
         style={{ color: "var(--color-text-tertiary)" }}
       >
         {label}
-      </p>
-      <p
-        className="mt-[var(--space-3)] font-[family-name:var(--font-display)] text-[clamp(1.4rem,2vw,2rem)] font-semibold leading-none"
+      </span>
+      <span
+        className="font-[family-name:var(--font-display)] text-[1.25rem] font-semibold leading-none tabular-nums"
         style={{ color: "var(--color-text)" }}
       >
         {value}
-      </p>
-      {sub ? (
-        <p className="mt-[var(--space-2)] text-[var(--text-xs)] leading-relaxed" style={{ color: "var(--color-text-tertiary)" }}>
+      </span>
+      {sub && (
+        <span className="text-[var(--text-xs)] leading-none" style={{ color: "var(--color-text-tertiary)" }}>
           {sub}
-        </p>
-      ) : null}
+        </span>
+      )}
     </div>
   );
 }
 
-function ListCard({
-  title,
-  children,
-  description,
-}: {
-  title: string;
-  description?: string;
-  children: React.ReactNode;
-}) {
+/* ── alert badge ── */
+
+function AlertBadge({ level }: { level: "info" | "warning" | "critical" }) {
+  const bg = level === "critical" ? "var(--color-error)" : level === "warning" ? "var(--color-warning)" : "var(--color-accent)";
   return (
-    <div className="rounded-[calc(var(--radius-md)+2px)] p-[var(--space-4)]" style={insetSurfaceStyle}>
-      <div className="mb-[var(--space-3)]">
-        <h3 className="text-[var(--text-sm)] font-semibold" style={{ color: "var(--color-text)" }}>
-          {title}
-        </h3>
-        {description ? (
-          <p className="mt-[var(--space-1)] text-[var(--text-xs)] leading-relaxed" style={{ color: "var(--color-text-tertiary)" }}>
-            {description}
-          </p>
-        ) : null}
-      </div>
-      {children}
-    </div>
+    <span
+      className="inline-flex h-[18px] items-center rounded-[var(--radius-sm)] px-[6px] text-[0.6rem] font-semibold uppercase tracking-[0.08em]"
+      style={{ background: bg, color: "var(--color-bg-elevated)" }}
+    >
+      {level}
+    </span>
   );
 }
+
+/* ════════════════════════════════════════════════════════════════
+   MAIN COMPONENT
+   ════════════════════════════════════════════════════════════════ */
 
 export default function AdminDashboard() {
   const [data, setData] = useState<AnalyticsDashboardData | null>(null);
@@ -196,126 +123,57 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     let active = true;
-
-    async function loadDashboard() {
+    async function load() {
       try {
-        const [dashboardResponse, alertSettingsResponse] = await Promise.all([
+        const [dashRes, alertRes] = await Promise.all([
           apiFetch(`/api/analytics/dashboard?windowDays=${windowDays}`),
           apiFetch("/api/analytics/alert-settings"),
         ]);
-        const [payload, settingsPayload] = (await Promise.all([
-          dashboardResponse.json(),
-          alertSettingsResponse.json(),
-        ])) as [AnalyticsDashboardData, AiAlertSettings];
-        if (active) {
-          setData(payload);
-          setAlertSettings(settingsPayload);
-        }
-      } catch (error) {
-        console.error(error);
-        if (active) {
-          setData(null);
-          setAlertSettings(null);
-        }
+        const [payload, settings] = (await Promise.all([dashRes.json(), alertRes.json()])) as [AnalyticsDashboardData, AiAlertSettings];
+        if (active) { setData(payload); setAlertSettings(settings); }
+      } catch (err) {
+        console.error(err);
+        if (active) { setData(null); setAlertSettings(null); }
       } finally {
-        if (active) {
-          setLoading(false);
-        }
+        if (active) setLoading(false);
       }
     }
-
-    void loadDashboard();
-
-    return () => {
-      active = false;
-    };
+    void load();
+    return () => { active = false; };
   }, [windowDays]);
 
   async function saveAlertSettings() {
     if (!alertSettings) return;
-
     setSavingAlerts(true);
     setAlertNotice(null);
-
     try {
-      const response = await apiFetch("/api/analytics/alert-settings", {
+      const res = await apiFetch("/api/analytics/alert-settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          webhookEnabled: alertSettings.webhookEnabled,
-          telegramEnabled: alertSettings.telegramEnabled,
-          minLevel: alertSettings.minLevel,
-          cooldownMs: alertSettings.cooldownMs,
-          dailyDigestEnabled: alertSettings.dailyDigestEnabled,
-        }),
+        body: JSON.stringify(alertSettings),
       });
-      const payload = (await response.json()) as AiAlertSettings;
+      const payload = (await res.json()) as AiAlertSettings;
       setAlertSettings(payload);
-      setAlertNotice({
-        type: "success",
-        message:
-          payload.webhookEnabled || payload.telegramEnabled
-            ? "Notification preferences updated. Enabled destinations can now receive alerts."
-            : "Notification preferences updated. All notification destinations are currently off.",
-      });
-    } catch (error) {
-      console.error(error);
-      setAlertNotice({ type: "error", message: "Could not update notification preferences." });
-    } finally {
-      setSavingAlerts(false);
-    }
+      setAlertNotice({ type: "success", message: payload.webhookEnabled || payload.telegramEnabled ? "Notification settings saved. Enabled channels can now receive alerts." : "Notification settings saved. All channels are off." });
+    } catch { setAlertNotice({ type: "error", message: "Could not save settings." }); }
+    finally { setSavingAlerts(false); }
   }
 
   async function sendTestAlert() {
     setSendingTestAlert(true);
     setAlertNotice(null);
-
     try {
-      const response = await apiFetch("/api/analytics/alert-settings/test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-
-      const payload = (await response.json().catch(() => ({}))) as { success?: boolean; error?: string };
-      if (!response.ok) {
-        throw new Error(payload.error || "Failed to send test alert.");
-      }
-
-      setAlertNotice({
-        type: "success",
-        message: "Test alert sent successfully. Check the enabled destination for delivery.",
-      });
-    } catch (error) {
-      console.error(error);
-      setAlertNotice({
-        type: "error",
-        message: error instanceof Error ? error.message : "Failed to send test alert.",
-      });
-    } finally {
-      setSendingTestAlert(false);
-    }
+      const res = await apiFetch("/api/analytics/alert-settings/test", { method: "POST", headers: { "Content-Type": "application/json" } });
+      if (!res.ok) throw new Error("Failed");
+      setAlertNotice({ type: "success", message: "Test alert sent. Check enabled destinations." });
+    } catch { setAlertNotice({ type: "error", message: "Failed to send test alert." }); }
+    finally { setSendingTestAlert(false); }
   }
 
-  const metrics = data
-    ? [
-        { label: "Total Posts", value: data.totalPosts.toLocaleString(), sub: `${data.publishedPosts} published posts` },
-        { label: "Projects", value: data.totalProjects.toLocaleString(), sub: "Public project inventory" },
-        {
-          label: `Views (${formatWindowLabel(data.aiOps.windowDays)})`,
-          value: data.totalViews.toLocaleString(),
-          sub: `${data.recentViews} views in the last 7 days`,
-        },
-        {
-          label: `AI Calls (${formatWindowLabel(data.aiOps.windowDays)})`,
-          value: data.aiOps.totalCalls.toLocaleString(),
-          sub: `${data.aiOps.failures} failed · ${data.aiOps.successRate}% success`,
-        },
-      ]
-    : [];
-
+  /* ── loading ── */
   if (loading) {
     return (
-      <div className="flex h-64 items-center justify-center rounded-[calc(var(--radius-lg)+2px)]" style={surfaceStyle}>
+      <div className="flex h-64 items-center justify-center rounded-[var(--radius-lg)]" style={surface}>
         <p className="font-[family-name:var(--font-mono)] text-[var(--text-sm)]" style={{ color: "var(--color-text-tertiary)" }}>
           Loading dashboard…
         </p>
@@ -325,109 +183,87 @@ export default function AdminDashboard() {
 
   if (!data) {
     return (
-      <div className="rounded-[calc(var(--radius-lg)+2px)] p-[var(--space-6)]" style={surfaceStyle}>
-        <p style={{ color: "var(--color-text-secondary)" }}>
-          Could not load dashboard data. Make sure the backend is running.
-        </p>
+      <div className="rounded-[var(--radius-lg)] p-[var(--space-6)]" style={surface}>
+        <p style={{ color: "var(--color-text-secondary)" }}>Could not load dashboard data. Make sure the backend is running.</p>
       </div>
     );
   }
 
+  const ai = data.aiOps;
+
   return (
-    <div className="space-y-[var(--space-8)]">
-      {/* Page header - always visible */}
-      <section className="rounded-[calc(var(--radius-lg)+4px)] p-[var(--space-6)] lg:p-[var(--space-7)]" style={surfaceStyle}>
-        <div className="grid gap-[var(--space-6)] xl:grid-cols-[minmax(0,1.35fr),minmax(18rem,0.65fr)]">
-          <div>
-            <p
-              className="font-[family-name:var(--font-mono)] text-[0.625rem] uppercase tracking-[0.24em]"
-              style={{ color: "var(--color-text-tertiary)" }}
-            >
-              Dashboard
-            </p>
-            <h1
-              className="mt-[var(--space-3)] max-w-[18ch] font-[family-name:var(--font-display)] text-[clamp(2rem,4vw,3.2rem)] font-semibold leading-[0.96]"
-              style={{ color: "var(--color-text)" }}
-            >
-              Operational visibility for content and AI publishing.
-            </h1>
-            <p
-              className="mt-[var(--space-4)] max-w-[72ch] text-[var(--text-sm)] leading-relaxed sm:text-[var(--text-base)]"
-              style={{ color: "var(--color-text-secondary)" }}
-            >
-              Review content volume, public traffic, AI cost patterns, failure signals, and notification posture from one place without leaving the admin workspace.
-            </p>
-          </div>
-
-          <div className="grid gap-[var(--space-4)] self-start">
-            <div className="rounded-[calc(var(--radius-md)+2px)] p-[var(--space-4)]" style={softSurfaceStyle}>
-              <p
-                className="font-[family-name:var(--font-mono)] text-[0.625rem] uppercase tracking-[0.22em]"
-                style={{ color: "var(--color-text-tertiary)" }}
-              >
-                Active Window
-              </p>
-              <div className="mt-[var(--space-3)] flex flex-wrap items-center gap-[var(--space-3)]">
-                <select
-                  value={windowDays}
-                  onChange={(event) => {
-                    setLoading(true);
-                    setWindowDays(Number(event.target.value) as WindowDays);
-                  }}
-                  className="min-h-[42px] rounded-[var(--radius-md)] px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none"
-                  style={insetSurfaceStyle}
-                >
-                  <option value={7}>Last 7 days</option>
-                  <option value={30}>Last 30 days</option>
-                  <option value={90}>Last 90 days</option>
-                </select>
-                <Link
-                  href="/admin/posts/new"
-                  className="inline-flex min-h-[42px] items-center justify-center rounded-[var(--radius-md)] px-[var(--space-4)] py-[var(--space-2)] font-[family-name:var(--font-mono)] text-[0.7rem] uppercase tracking-[0.18em] transition-opacity hover:opacity-90"
-                  style={{ background: "var(--color-accent)", color: "var(--color-accent-on)" }}
-                >
-                  New Post
-                </Link>
-              </div>
-              <div className="mt-[var(--space-3)]">
-                <Link
-                  href="/admin/ai-writer"
-                  className="inline-flex min-h-[42px] w-full items-center justify-center rounded-[var(--radius-md)] px-[var(--space-4)] py-[var(--space-2)] text-[var(--text-sm)] font-medium transition-opacity hover:opacity-90"
-                  style={insetSurfaceStyle}
-                >
-                  Open AI Writer
-                </Link>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Tab bar */}
+    <div className="flex flex-col gap-[var(--space-6)]">
+      {/* ──────────────── HEADER ──────────────── */}
       <div
-        className="flex overflow-x-auto"
-        style={{ borderBottom: "1px solid var(--color-border)" }}
+        className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-lg)] p-[var(--space-6)] lg:flex-row lg:items-center lg:justify-between lg:gap-0"
+        style={surface}
+      >
+        <div>
+          <Label>Dashboard</Label>
+          <h1
+            className="mt-[var(--space-2)] font-[family-name:var(--font-display)] text-[1.5rem] font-semibold leading-tight lg:text-[1.75rem]"
+            style={{ color: "var(--color-text)" }}
+          >
+            Content &amp; AI Operations
+          </h1>
+        </div>
+
+        <div className="flex items-center gap-[var(--space-3)] flex-wrap">
+          <select
+            value={windowDays}
+            onChange={(e) => { setLoading(true); setWindowDays(Number(e.target.value) as WindowDays); }}
+            className="min-h-[36px] rounded-[var(--radius-md)] px-[var(--space-3)] py-[var(--space-1)] text-[var(--text-sm)] outline-none"
+            style={inset}
+          >
+            <option value={7}>Last 7 days</option>
+            <option value={30}>Last 30 days</option>
+            <option value={90}>Last 90 days</option>
+          </select>
+          <Link
+            href="/admin/posts/new"
+            className="inline-flex min-h-[36px] items-center justify-center rounded-[var(--radius-md)] px-[var(--space-4)] py-[var(--space-2)] font-[family-name:var(--font-mono)] text-[0.65rem] uppercase tracking-[0.14em] transition-opacity hover:opacity-90"
+            style={{ background: "var(--color-accent)", color: "var(--color-accent-on)" }}
+          >
+            New Post
+          </Link>
+          <Link
+            href="/admin/ai-writer"
+            className="inline-flex min-h-[36px] items-center justify-center rounded-[var(--radius-md)] px-[var(--space-4)] py-[var(--space-2)] text-[var(--text-sm)] font-medium transition-opacity hover:opacity-90"
+            style={inset}
+          >
+            AI Writer
+          </Link>
+        </div>
+      </div>
+
+      {/* ──────────────── STATS STRIP ──────────────── */}
+      <div
+        className="grid grid-cols-2 gap-x-[var(--space-6)] gap-y-[var(--space-5)] rounded-[var(--radius-lg)] p-[var(--space-6)] md:grid-cols-3 lg:grid-cols-6"
+        style={surface}
+      >
+        <Metric label="Posts" value={data.publishedPosts.toLocaleString()} sub={`${data.totalPosts} total`} />
+        <Metric label="Projects" value={data.totalProjects.toLocaleString()} />
+        <Metric label={`Views (${fmtWindow(ai.windowDays)})`} value={data.totalViews.toLocaleString()} sub={`${data.recentViews} in last 7d`} />
+        <Metric label="AI Calls" value={ai.totalCalls.toLocaleString()} sub={`${ai.failures} failures`} />
+        <Metric label="Est. Cost" value={fmtCost(ai.estimatedCostUsd)} sub={`${ai.totalTokens.toLocaleString()} tokens`} />
+        <Metric label="Avg Latency" value={`${ai.avgLatencyMs}ms`} sub={`${ai.totalConversations} conversations`} />
+      </div>
+
+      {/* ──────────────── TAB BAR ──────────────── */}
+      <div
+        className="-mb-[1px] flex overflow-x-auto rounded-[var(--radius-lg)] rounded-b-none"
+        style={{ ...surface, WebkitOverflowScrolling: "touch" }}
       >
         {TABS.map((tab) => (
           <button
             key={tab.id}
             type="button"
             onClick={() => setActiveTab(tab.id)}
-            className="whitespace-nowrap py-[var(--space-3)] px-[var(--space-4)] text-[var(--text-sm)] transition-colors"
+            className="whitespace-nowrap px-[var(--space-5)] py-[var(--space-4)] text-[var(--text-sm)] font-medium transition-colors"
             style={{
-              borderBottom: activeTab === tab.id ? "2px solid var(--color-accent)" : "2px solid transparent",
               color: activeTab === tab.id ? "var(--color-text)" : "var(--color-text-tertiary)",
-              fontWeight: activeTab === tab.id ? 500 : 400,
-            }}
-            onMouseEnter={(e) => {
-              if (activeTab !== tab.id) {
-                e.currentTarget.style.color = "var(--color-text)";
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (activeTab !== tab.id) {
-                e.currentTarget.style.color = "var(--color-text-tertiary)";
-              }
+              borderBottom: activeTab === tab.id ? "2px solid var(--color-accent)" : "2px solid transparent",
+              marginBottom: "-1px",
             }}
           >
             {tab.label}
@@ -435,477 +271,386 @@ export default function AdminDashboard() {
         ))}
       </div>
 
-      {/* Tab: Overview */}
+      {/* ══════════════ TAB: OVERVIEW ══════════════ */}
       {activeTab === "overview" && (
-        <div className="space-y-[var(--space-6)]">
-          <div className="grid grid-cols-1 gap-[var(--space-4)] md:grid-cols-2 2xl:grid-cols-4">
-            {metrics.map((metric) => (
-              <MetricTile key={metric.label} label={metric.label} value={metric.value} sub={metric.sub} />
-            ))}
-          </div>
-
-          <div className="grid gap-[var(--space-6)] xl:grid-cols-3">
+        <div className="grid gap-[var(--space-6)] lg:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)]">
+          {/* Top Pages */}
+          <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-lg)] p-[var(--space-6)]" style={surface}>
             <div>
-              <ListCard title={`Top pages (${formatWindowLabel(data.aiOps.windowDays)})`} description="Public routes with the strongest view count.">
-                {data.topPages.length ? (
-                  <div className="space-y-[var(--space-2)]">
-                    {data.topPages.map((pageEntry) => (
-                      <div
-                        key={pageEntry.path}
-                        className="flex items-center justify-between gap-[var(--space-3)] rounded-[var(--radius-md)] px-[var(--space-3)] py-[var(--space-3)] text-[var(--text-sm)]"
-                        style={insetSurfaceStyle}
+              <Label>Top Pages</Label>
+              <h2 className="mt-[var(--space-2)] font-[family-name:var(--font-display)] text-[var(--text-lg)] font-semibold" style={{ color: "var(--color-text)" }}>
+                Most visited routes
+              </h2>
+            </div>
+            {data.topPages.length === 0 ? (
+              <p className="py-[var(--space-4)] text-[var(--text-sm)]" style={{ color: "var(--color-text-tertiary)" }}>No page views yet.</p>
+            ) : (
+              <ol className="flex flex-col gap-[var(--space-2)]">
+                {data.topPages.map((p, i) => {
+                  const maxViews = data.topPages[0]?.views ?? 1;
+                  const barWidth = Math.max(4, (p.views / maxViews) * 100);
+                  return (
+                    <li key={p.path} className="flex items-center gap-[var(--space-3)] rounded-[var(--radius-md)] px-[var(--space-4)] py-[var(--space-3)] text-[var(--text-sm)]" style={inset}>
+                      <span
+                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[var(--text-xs)] font-semibold"
+                        style={{ background: i === 0 ? "var(--color-accent)" : "var(--color-bg-muted)", color: i === 0 ? "var(--color-accent-on)" : "var(--color-text-tertiary)" }}
                       >
-                        <span className="truncate pr-[var(--space-4)]" style={{ color: "var(--color-text-secondary)" }}>
-                          {pageEntry.path}
-                        </span>
-                        <span style={{ color: "var(--color-text)", fontWeight: 600 }}>{pageEntry.views}</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p style={{ color: "var(--color-text-tertiary)" }}>No page view data yet.</p>
-                )}
-              </ListCard>
-            </div>
-
-            <div className="xl:col-span-2">
-              <ListCard title="Daily usage" description="Calls, failures, and estimated spend by day.">
-                {data.aiOps.dailyUsage.length ? (
-                  <div className="space-y-[var(--space-2)]">
-                    {data.aiOps.dailyUsage.map((entry) => (
-                      <div
-                        key={entry.date}
-                        className="grid grid-cols-[minmax(0,1fr),auto,auto] gap-[var(--space-3)] rounded-[var(--radius-md)] px-[var(--space-3)] py-[var(--space-3)] text-[var(--text-sm)]"
-                        style={{
-                          background: "color-mix(in oklch, var(--color-bg) 94%, var(--color-accent-lightest) 6%)",
-                          border: "1px solid var(--color-border)",
-                        }}
-                      >
-                        <div>
-                          <p style={{ color: "var(--color-text)" }}>{formatShortDate(entry.date)}</p>
-                          <p className="mt-[2px] text-[var(--text-xs)]" style={{ color: "var(--color-text-tertiary)" }}>
-                            {entry.calls} calls · {entry.failures} failed
-                          </p>
-                        </div>
-                        <span className="self-center text-[var(--text-xs)]" style={{ color: "var(--color-text-secondary)" }}>
-                          {entry.calls ? `${Math.round((entry.failures / entry.calls) * 100)}% fail` : "0% fail"}
-                        </span>
-                        <span className="self-center text-[var(--text-sm)] font-semibold" style={{ color: "var(--color-text)" }}>
-                          {formatCurrency(entry.estimatedCostUsd)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p style={{ color: "var(--color-text-tertiary)" }}>No AI usage events in this window.</p>
-                )}
-              </ListCard>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Tab: AI Ops */}
-      {activeTab === "ai-ops" && (
-        <div className="space-y-[var(--space-6)]">
-          <SurfaceSection
-            title="AI Ops overview"
-            label="AI Blog Studio"
-            description="Usage, latency, provider mix, and cost signals for AI Blog Studio across the selected time window."
-          >
-            <div className="mb-[var(--space-5)] grid grid-cols-2 gap-[var(--space-4)] lg:grid-cols-4">
-              <MetricTile label="Tokens" value={data.aiOps.totalTokens.toLocaleString()} />
-              <MetricTile label="Avg Latency" value={`${data.aiOps.avgLatencyMs} ms`} />
-              <MetricTile label="Estimated Cost" value={formatCurrency(data.aiOps.estimatedCostUsd)} />
-              <MetricTile
-                label="Previous Window"
-                value={formatCurrency(data.aiOps.previousPeriodCostUsd)}
-                sub={`${data.aiOps.totalConversations} conversations`}
-              />
-            </div>
-            <div className="grid gap-[var(--space-5)] xl:grid-cols-[minmax(0,0.95fr),minmax(0,1.05fr)]">
-              <ListCard title="Ops alerts" description="Server-side signals surfaced for delivery and review.">
-                {data.aiOps.alerts.length ? (
-                  <div className="space-y-[var(--space-3)]">
-                    {data.aiOps.alerts.map((alert) => {
-                      const palette = ALERT_STYLES[alert.level];
-                      return (
-                        <div
-                          key={alert.code}
-                          className="rounded-[var(--radius-md)] border p-[var(--space-4)]"
-                          style={{ background: palette.background, borderColor: palette.border, color: palette.text }}
-                        >
-                          <div className="flex items-center justify-between gap-[var(--space-3)]">
-                            <p className="text-[var(--text-sm)] font-semibold">{alert.title}</p>
-                            <span className="text-[10px] uppercase tracking-[0.2em]" style={{ color: "var(--color-text-tertiary)" }}>
-                              {alert.level}
-                            </span>
-                          </div>
-                          <p className="mt-[var(--space-2)] text-[var(--text-sm)] leading-relaxed" style={{ color: "var(--color-text-secondary)" }}>
-                            {alert.message}
-                          </p>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <p style={{ color: "var(--color-text-tertiary)" }}>No active AI ops alerts in this window.</p>
-                )}
-              </ListCard>
-
-              <ListCard title="Recent failures" description="Latest provider failures captured in the selected window.">
-                {data.aiOps.recentFailures.length ? (
-                  <div className="space-y-[var(--space-3)]">
-                    {data.aiOps.recentFailures.map((failure) => (
-                      <div
-                        key={failure.id}
-                        className="rounded-[var(--radius-md)] p-[var(--space-4)]"
-                        style={{
-                          background: "rgba(220, 38, 38, 0.04)",
-                          border: "1px solid rgba(220, 38, 38, 0.12)",
-                        }}
-                      >
-                        <div className="flex flex-col gap-[var(--space-1)] sm:flex-row sm:items-center sm:justify-between">
-                          <p className="text-[var(--text-sm)] font-semibold" style={{ color: "var(--color-text)" }}>
-                            {failure.operation} · {failure.provider}
-                          </p>
-                          <p className="text-[var(--text-xs)]" style={{ color: "var(--color-text-tertiary)" }}>
-                            {formatDate(failure.createdAt)}
-                          </p>
-                        </div>
-                        <p className="mt-[var(--space-2)] text-[var(--text-sm)] leading-relaxed" style={{ color: "var(--color-text-secondary)" }}>
-                          {failure.errorMessage}
-                        </p>
-                        {failure.conversationLabel ? (
-                          <p className="mt-[var(--space-2)] text-[var(--text-xs)]" style={{ color: "var(--color-text-tertiary)" }}>
-                            Conversation: {failure.conversationLabel}
-                          </p>
-                        ) : null}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p style={{ color: "var(--color-text-tertiary)" }}>No recent AI failures in this window.</p>
-                )}
-              </ListCard>
-            </div>
-          </SurfaceSection>
-
-          <div className="grid gap-[var(--space-6)] xl:grid-cols-3">
-            <ListCard title="Top providers" description="Volume and estimated spend by provider.">
-              <div className="space-y-[var(--space-3)]">
-                <div className="grid grid-cols-[1fr,auto] gap-[var(--space-3)] pb-[var(--space-2)] mb-[var(--space-2)] border-b text-[var(--text-xs)] font-semibold uppercase tracking-wider" style={{ borderColor: "var(--color-border)", color: "var(--color-text-tertiary)" }}>
-                  <span>Provider</span>
-                  <span>Calls · Cost</span>
-                </div>
-              </div>
-              {data.aiOps.topProviders.length ? (
-                <div className="space-y-[var(--space-3)]">
-                  {data.aiOps.topProviders.map((provider) => (
-                    <div key={provider.provider} className="flex items-center justify-between gap-[var(--space-3)] text-[var(--text-sm)]">
-                      <span style={{ color: "var(--color-text-secondary)" }}>{provider.provider}</span>
-                      <span style={{ color: "var(--color-text)" }}>
-                        {provider.calls} · {formatCurrency(provider.estimatedCostUsd)}
+                        {i + 1}
                       </span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p style={{ color: "var(--color-text-tertiary)" }}>No provider activity yet.</p>
-              )}
-            </ListCard>
+                      <div className="flex min-w-0 flex-1 flex-col gap-[3px]">
+                        <Link href={p.path} className="truncate font-medium hover:underline" style={{ color: "var(--color-accent)" }}>{p.path}</Link>
+                        <div className="h-[3px] rounded-full" style={{ width: `${barWidth}%`, background: i === 0 ? "var(--color-accent)" : "var(--color-border-strong)", maxWidth: "100%" }} />
+                      </div>
+                      <span className="shrink-0 font-semibold tabular-nums" style={{ color: "var(--color-text)" }}>{p.views.toLocaleString()}</span>
+                    </li>
+                  );
+                })}
+              </ol>
+            )}
+          </section>
 
-            <ListCard title="Top operations" description="Where AI generation effort is being spent.">
-              {data.aiOps.topOperations.length ? (
-                <div className="space-y-[var(--space-3)]">
-                  {data.aiOps.topOperations.map((operation) => (
-                    <div key={operation.operation} className="flex items-center justify-between gap-[var(--space-3)] text-[var(--text-sm)]">
-                      <span style={{ color: "var(--color-text-secondary)" }}>{operation.operation}</span>
-                      <span style={{ color: "var(--color-text)" }}>{operation.calls}</span>
+          {/* Daily Usage */}
+          <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-lg)] p-[var(--space-6)]" style={surface}>
+            <div>
+              <Label>Daily Usage</Label>
+              <h2 className="mt-[var(--space-2)] font-[family-name:var(--font-display)] text-[var(--text-lg)] font-semibold" style={{ color: "var(--color-text)" }}>
+                AI calls per day
+              </h2>
+            </div>
+            {ai.dailyUsage.length === 0 ? (
+              <p className="py-[var(--space-4)] text-[var(--text-sm)]" style={{ color: "var(--color-text-tertiary)" }}>No usage in this period.</p>
+            ) : (
+              <div className="space-y-[var(--space-2)]">
+                {ai.dailyUsage.map((entry) => {
+                  const failPct = entry.calls ? Math.round((entry.failures / entry.calls) * 100) : 0;
+                  return (
+                    <div
+                      key={entry.date}
+                      className="flex items-center gap-[var(--space-4)] rounded-[var(--radius-md)] px-[var(--space-4)] py-[var(--space-3)] text-[var(--text-sm)]"
+                      style={inset}
+                    >
+                      <span className="w-16 shrink-0 font-medium" style={{ color: "var(--color-text)" }}>{fmtShortDate(entry.date)}</span>
+                      <div className="flex min-w-0 flex-1 flex-col gap-[3px]">
+                        <div className="flex items-center gap-[var(--space-2)]">
+                          <span className="text-[var(--text-xs)]" style={{ color: "var(--color-text-secondary)" }}>{entry.calls} calls</span>
+                          {entry.failures > 0 && <span className="text-[var(--text-xs)] font-medium" style={{ color: "var(--color-error)" }}>{entry.failures} failed</span>}
+                        </div>
+                        <div className="h-[3px] rounded-full" style={{
+                          width: `${Math.max(4, (entry.calls / Math.max(...ai.dailyUsage.map((d) => d.calls), 1)) * 100)}%`,
+                          background: entry.failures > 0 ? "var(--color-error)" : "var(--color-accent)",
+                          opacity: entry.failures > 0 ? 0.8 : 0.6,
+                          maxWidth: "100%",
+                        }} />
+                      </div>
+                      <span className="shrink-0 font-semibold tabular-nums" style={{ color: "var(--color-text)" }}>{fmtCost(entry.estimatedCostUsd)}</span>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <p style={{ color: "var(--color-text-tertiary)" }}>No operation data yet.</p>
-              )}
-            </ListCard>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        </div>
+      )}
 
-            <ListCard title="Provider / model" description="Most active provider and model combinations.">
-              {data.aiOps.topModels.length ? (
-                <div className="space-y-[var(--space-3)]">
-                  {data.aiOps.topModels.map((model) => (
-                    <div key={`${model.provider}:${model.model}`} className="space-y-[2px] text-[var(--text-sm)]">
-                      <p style={{ color: "var(--color-text)" }}>
-                        {model.provider} / {model.model}
-                      </p>
-                      <p style={{ color: "var(--color-text-tertiary)" }}>
-                        {model.calls} calls · {formatCurrency(model.estimatedCostUsd)}
-                      </p>
+      {/* ══════════════ TAB: AI OPS ══════════════ */}
+      {activeTab === "ai-ops" && (
+        <div className="flex flex-col gap-[var(--space-6)]">
+          {/* AI health summary */}
+          <div
+            className="flex items-center gap-[var(--space-4)] rounded-[var(--radius-md)] p-[var(--space-4)]"
+            style={{
+              background: ai.successRate >= 95 ? "oklch(96% 0.02 145)" : ai.successRate >= 80 ? "oklch(96% 0.03 85)" : "oklch(96% 0.03 25)",
+            }}
+          >
+            <div
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-[var(--text-sm)] font-bold"
+              style={{
+                background: ai.successRate >= 95 ? "var(--color-success)" : ai.successRate >= 80 ? "var(--color-warning)" : "var(--color-error)",
+                color: "var(--color-bg-elevated)",
+              }}
+            >
+              {ai.successRate}%
+            </div>
+            <div className="flex flex-col gap-[2px]">
+              <span className="text-[var(--text-sm)] font-semibold" style={{ color: "var(--color-text)" }}>
+                {ai.successRate >= 95 ? "All systems healthy" : ai.successRate >= 80 ? "Degraded performance" : "Service issues detected"}
+              </span>
+              <span className="text-[var(--text-xs)]" style={{ color: "var(--color-text-secondary)" }}>
+                {fmtCost(ai.estimatedCostUsd)} est. cost · {fmtCost(ai.previousPeriodCostUsd)} prior period · {ai.avgLatencyMs}ms avg latency
+              </span>
+            </div>
+          </div>
+
+          {/* Alerts & Failures */}
+          <div className="grid gap-[var(--space-6)] lg:grid-cols-2">
+            <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-lg)] p-[var(--space-6)]" style={surface}>
+              <Label>Alerts</Label>
+              {ai.alerts.length === 0 ? (
+                <p className="text-[var(--text-sm)]" style={{ color: "var(--color-text-tertiary)" }}>No alerts in this window.</p>
+              ) : (
+                <div className="flex flex-col gap-[var(--space-2)]">
+                  {ai.alerts.map((a) => (
+                    <div key={a.code} className="flex items-start gap-[var(--space-3)] rounded-[var(--radius-md)] p-[var(--space-3)] text-[var(--text-sm)]" style={inset}>
+                      <AlertBadge level={a.level} />
+                      <div className="flex flex-col gap-[2px]">
+                        <span className="font-medium" style={{ color: "var(--color-text)" }}>{a.title}</span>
+                        <span style={{ color: "var(--color-text-secondary)" }}>{a.message}</span>
+                      </div>
                     </div>
                   ))}
                 </div>
-              ) : (
-                <p style={{ color: "var(--color-text-tertiary)" }}>No model data yet.</p>
               )}
-            </ListCard>
+            </section>
+
+            <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-lg)] p-[var(--space-6)]" style={surface}>
+              <Label>Recent Failures</Label>
+              {ai.recentFailures.length === 0 ? (
+                <div className="flex items-center gap-[var(--space-3)] rounded-[var(--radius-md)] p-[var(--space-4)]" style={{ background: "oklch(96% 0.02 145)" }}>
+                  <span className="text-[var(--text-sm)] font-medium" style={{ color: "var(--color-success)" }}>✓</span>
+                  <span className="text-[var(--text-sm)]" style={{ color: "var(--color-text-secondary)" }}>No failures in the last {windowDays} days.</span>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-[var(--space-2)]">
+                  {ai.recentFailures.slice(0, 5).map((f) => (
+                    <div key={f.id} className="flex flex-col gap-[var(--space-1)] rounded-[var(--radius-md)] p-[var(--space-3)] text-[var(--text-sm)]" style={{ background: "oklch(96% 0.02 25 / 0.5)", border: "1px solid oklch(80% 0.04 25)" }}>
+                      <div className="flex items-center justify-between gap-[var(--space-2)]">
+                        <span className="font-medium truncate" style={{ color: "var(--color-text)" }}>{f.operation}</span>
+                        <span className="shrink-0 text-[var(--text-xs)] tabular-nums" style={{ color: "var(--color-text-tertiary)" }}>{f.provider}</span>
+                      </div>
+                      <p className="text-[var(--text-xs)] truncate" style={{ color: "var(--color-text-tertiary)" }}>{f.errorMessage}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+
+          {/* Providers, Operations, Models */}
+          <div className="grid gap-[var(--space-6)] lg:grid-cols-3">
+            {ai.topProviders.length > 0 && (
+              <section className="flex flex-col gap-[var(--space-3)] rounded-[var(--radius-lg)] p-[var(--space-6)]" style={surface}>
+                <Label>Top Providers</Label>
+                {ai.topProviders.map((p) => (
+                  <div key={p.provider} className="flex items-center justify-between gap-[var(--space-3)] text-[var(--text-sm)] py-[var(--space-2)]" style={{ borderBottom: "1px solid var(--color-border)" }}>
+                    <span className="font-medium" style={{ color: "var(--color-text)" }}>{p.provider}</span>
+                    <span className="tabular-nums" style={{ color: "var(--color-text-secondary)" }}>{p.calls} · {fmtCost(p.estimatedCostUsd)}</span>
+                  </div>
+                ))}
+              </section>
+            )}
+
+            {ai.topOperations.length > 0 && (
+              <section className="flex flex-col gap-[var(--space-3)] rounded-[var(--radius-lg)] p-[var(--space-6)]" style={surface}>
+                <Label>Top Operations</Label>
+                {ai.topOperations.map((op) => (
+                  <div key={op.operation} className="flex items-center justify-between gap-[var(--space-3)] text-[var(--text-sm)] py-[var(--space-2)]" style={{ borderBottom: "1px solid var(--color-border)" }}>
+                    <span className="font-medium" style={{ color: "var(--color-text)" }}>{op.operation}</span>
+                    <span className="tabular-nums" style={{ color: "var(--color-text-secondary)" }}>{op.calls}</span>
+                  </div>
+                ))}
+              </section>
+            )}
+
+            {ai.topModels.length > 0 && (
+              <section className="flex flex-col gap-[var(--space-3)] rounded-[var(--radius-lg)] p-[var(--space-6)]" style={surface}>
+                <Label>Top Models</Label>
+                {ai.topModels.map((m) => (
+                  <div key={`${m.provider}:${m.model}`} className="flex flex-col gap-[2px] py-[var(--space-2)]" style={{ borderBottom: "1px solid var(--color-border)" }}>
+                    <span className="text-[var(--text-sm)] font-medium" style={{ color: "var(--color-text)" }}>{m.provider} / {m.model}</span>
+                    <span className="text-[var(--text-xs)]" style={{ color: "var(--color-text-tertiary)" }}>{m.calls} calls · {fmtCost(m.estimatedCostUsd)}</span>
+                  </div>
+                ))}
+              </section>
+            )}
           </div>
         </div>
       )}
 
-      {/* Tab: Alerts */}
-      {activeTab === "alerts" && (
-        <div className="space-y-[var(--space-6)]">
-          <SurfaceSection
-            title="Notification destinations"
-            label="Alerts"
-            description="Alert delivery stays off by default. Turn on each channel only after the backend destination is configured."
-            action={
-              <div className="flex flex-wrap gap-[var(--space-2)]">
+      {/* ══════════════ TAB: ALERTS ══════════════ */}
+      {activeTab === "alerts" && alertSettings && (
+        <div className="flex flex-col gap-[var(--space-6)]">
+          <section className="flex flex-col gap-[var(--space-6)] rounded-[var(--radius-lg)] p-[var(--space-6)]" style={surface}>
+            <div className="flex flex-col gap-[var(--space-3)] lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <Label>Alert Settings</Label>
+                <h2 className="mt-[var(--space-2)] font-[family-name:var(--font-display)] text-[var(--text-lg)] font-semibold" style={{ color: "var(--color-text)" }}>
+                  Notification destinations
+                </h2>
+                <p className="mt-[var(--space-1)] text-[var(--text-sm)]" style={{ color: "var(--color-text-secondary)" }}>
+                  Turn on channels only after the backend destination is configured.
+                </p>
+              </div>
+              <div className="flex gap-[var(--space-2)] shrink-0">
                 <button
                   type="button"
                   onClick={() => void saveAlertSettings()}
-                  disabled={!alertSettings || savingAlerts}
-                  className="inline-flex min-h-[38px] items-center justify-center rounded-[var(--radius-md)] px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-xs)] font-medium disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={savingAlerts}
+                  className="inline-flex min-h-[36px] items-center justify-center rounded-[var(--radius-md)] px-[var(--space-4)] py-[var(--space-2)] text-[var(--text-xs)] font-medium disabled:opacity-60"
                   style={{ background: "var(--color-accent)", color: "var(--color-accent-on)" }}
                 >
-                  {savingAlerts ? "Saving…" : "Save Settings"}
+                  {savingAlerts ? "Saving…" : "Save"}
                 </button>
                 <button
                   type="button"
                   onClick={() => void sendTestAlert()}
-                  disabled={!alertSettings || sendingTestAlert}
-                  className="inline-flex min-h-[38px] items-center justify-center rounded-[var(--radius-md)] px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-xs)] font-medium disabled:cursor-not-allowed disabled:opacity-60"
-                  style={insetSurfaceStyle}
+                  disabled={sendingTestAlert}
+                  className="inline-flex min-h-[36px] items-center justify-center rounded-[var(--radius-md)] px-[var(--space-4)] py-[var(--space-2)] text-[var(--text-xs)] font-medium disabled:opacity-60"
+                  style={inset}
                 >
-                  {sendingTestAlert ? "Sending…" : "Send Test Alert"}
+                  {sendingTestAlert ? "Sending…" : "Send Test"}
                 </button>
               </div>
-            }
-          >
-            <div className="grid grid-cols-1 gap-[var(--space-4)] xl:grid-cols-2">
-              {[
-                {
-                  key: "webhookEnabled" as const,
-                  label: "Webhook alerts",
-                  description: "Use the backend webhook URL for AI failure, latency, and cost alerts.",
-                  configured: alertSettings?.webhookConfigured ?? false,
-                },
-                {
-                  key: "telegramEnabled" as const,
-                  label: "Telegram alerts",
-                  description: "Send compact AI ops alerts to the configured Telegram bot and chat.",
-                  configured: alertSettings?.telegramConfigured ?? false,
-                },
-              ].map((destination) => (
-                <label
-                  key={destination.key}
-                  className="flex cursor-pointer items-start gap-[var(--space-3)] rounded-[calc(var(--radius-md)+2px)] p-[var(--space-4)]"
-                  style={insetSurfaceStyle}
-                >
+            </div>
+
+            {/* Notification channels */}
+            <div className="grid gap-[var(--space-4)] lg:grid-cols-2">
+              {([
+                { key: "webhookEnabled" as const, label: "Webhook alerts", desc: "Send alerts to the configured webhook URL.", configured: alertSettings.webhookConfigured },
+                { key: "telegramEnabled" as const, label: "Telegram alerts", desc: "Send compact alerts to the configured Telegram bot.", configured: alertSettings.telegramConfigured },
+              ]).map((dest) => (
+                <label key={dest.key} className="flex cursor-pointer items-start gap-[var(--space-3)] rounded-[var(--radius-md)] p-[var(--space-4)]" style={inset}>
                   <input
                     type="checkbox"
-                    checked={alertSettings?.[destination.key] ?? false}
-                    onChange={(event) => {
-                      setAlertSettings((current) =>
-                        current
-                          ? {
-                              ...current,
-                              [destination.key]: event.target.checked,
-                            }
-                          : current
-                      );
-                    }}
+                    checked={alertSettings[dest.key]}
+                    onChange={(e) => setAlertSettings((s) => s ? { ...s, [dest.key]: e.target.checked } : s)}
                     className="mt-[2px]"
                   />
                   <span>
-                    <span className="block text-[var(--text-sm)] font-semibold" style={{ color: "var(--color-text)" }}>
-                      {destination.label}
-                    </span>
-                    <span className="mt-[4px] block text-[var(--text-xs)] leading-relaxed" style={{ color: "var(--color-text-secondary)" }}>
-                      {destination.description}
-                    </span>
+                    <span className="block text-[var(--text-sm)] font-semibold" style={{ color: "var(--color-text)" }}>{dest.label}</span>
+                    <span className="mt-1 block text-[var(--text-xs)] leading-relaxed" style={{ color: "var(--color-text-secondary)" }}>{dest.desc}</span>
                     <span
-                      className="mt-[var(--space-3)] inline-flex rounded-full px-2 py-1 font-[family-name:var(--font-mono)] text-[10px] uppercase tracking-[0.18em]"
+                      className="mt-[var(--space-2)] inline-flex rounded-full px-2 py-1 font-[family-name:var(--font-mono)] text-[10px] uppercase tracking-[0.18em]"
                       style={{
-                        background: destination.configured ? "rgba(16, 185, 129, 0.08)" : "rgba(148, 163, 184, 0.12)",
-                        color: destination.configured ? "rgb(4, 120, 87)" : "var(--color-text-tertiary)",
+                        background: dest.configured ? "oklch(96% 0.02 145)" : "oklch(94% 0.01 75)",
+                        color: dest.configured ? "oklch(40% 0.12 145)" : "var(--color-text-tertiary)",
                       }}
                     >
-                      {destination.configured ? "Configured" : "Not configured"}
+                      {dest.configured ? "Configured" : "Not configured"}
                     </span>
                   </span>
                 </label>
               ))}
             </div>
 
-            <div className="mt-[var(--space-4)] grid grid-cols-1 gap-[var(--space-4)] md:grid-cols-2">
-              <label className="flex flex-col gap-[var(--space-1)]">
-                <span
-                  className="font-[family-name:var(--font-mono)] text-[0.625rem] uppercase tracking-[0.2em]"
-                  style={{ color: "var(--color-text-tertiary)" }}
-                >
-                  Minimum Severity
-                </span>
+            {/* Severity & cooldown */}
+            <div className="grid gap-[var(--space-4)] md:grid-cols-2">
+              <label className="flex flex-col gap-[var(--space-2)]">
+                <span className="font-[family-name:var(--font-mono)] text-[0.625rem] uppercase tracking-[0.2em]" style={{ color: "var(--color-text-tertiary)" }}>Minimum Severity</span>
                 <select
-                  value={alertSettings?.minLevel ?? "warning"}
-                  onChange={(event) =>
-                    setAlertSettings((current) =>
-                      current
-                        ? {
-                            ...current,
-                            minLevel: event.target.value as AiAlertSettings["minLevel"],
-                          }
-                        : current
-                    )
-                  }
+                  value={alertSettings.minLevel}
+                  onChange={(e) => setAlertSettings((s) => s ? { ...s, minLevel: e.target.value as AiAlertSettings["minLevel"] } : s)}
                   className="min-h-[42px] rounded-[var(--radius-md)] px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none"
-                  style={insetSurfaceStyle}
+                  style={inset}
                 >
                   <option value="info">Info</option>
                   <option value="warning">Warning</option>
                   <option value="critical">Critical</option>
                 </select>
               </label>
-
-              <label className="flex flex-col gap-[var(--space-1)]">
-                <span
-                  className="font-[family-name:var(--font-mono)] text-[0.625rem] uppercase tracking-[0.2em]"
-                  style={{ color: "var(--color-text-tertiary)" }}
-                >
-                  Cooldown Minutes
-                </span>
+              <label className="flex flex-col gap-[var(--space-2)]">
+                <span className="font-[family-name:var(--font-mono)] text-[0.625rem] uppercase tracking-[0.2em]" style={{ color: "var(--color-text-tertiary)" }}>Cooldown (minutes)</span>
                 <input
                   type="number"
                   min={0}
-                  value={formatCooldownMinutes(alertSettings?.cooldownMs ?? 300000)}
-                  onChange={(event) =>
-                    setAlertSettings((current) =>
-                      current
-                        ? {
-                            ...current,
-                            cooldownMs: Math.max(0, Number(event.target.value || 0)) * 60_000,
-                          }
-                        : current
-                    )
-                  }
+                  value={fmtCooldown(alertSettings.cooldownMs)}
+                  onChange={(e) => setAlertSettings((s) => s ? { ...s, cooldownMs: Math.max(0, Number(e.target.value || 0)) * 60_000 } : s)}
                   className="min-h-[42px] rounded-[var(--radius-md)] px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none"
-                  style={insetSurfaceStyle}
+                  style={inset}
                 />
               </label>
             </div>
 
-            <label className="mt-[var(--space-4)] flex items-start gap-[var(--space-3)] rounded-[calc(var(--radius-md)+2px)] p-[var(--space-4)]" style={softSurfaceStyle}>
+            {/* Daily digest */}
+            <label className="flex items-start gap-[var(--space-3)] rounded-[var(--radius-md)] p-[var(--space-4)]" style={{
+              background: "color-mix(in oklch, var(--color-bg) 90%, var(--color-accent-lightest) 10%)",
+              border: "1px solid color-mix(in oklch, var(--color-border) 78%, var(--color-accent) 22%)",
+            }}>
               <input
                 type="checkbox"
-                checked={alertSettings?.dailyDigestEnabled ?? false}
-                onChange={(event) =>
-                  setAlertSettings((current) =>
-                    current
-                      ? {
-                          ...current,
-                          dailyDigestEnabled: event.target.checked,
-                        }
-                      : current
-                  )
-                }
+                checked={alertSettings.dailyDigestEnabled}
+                onChange={(e) => setAlertSettings((s) => s ? { ...s, dailyDigestEnabled: e.target.checked } : s)}
                 className="mt-[2px]"
               />
               <span>
-                <span className="block text-[var(--text-sm)] font-semibold" style={{ color: "var(--color-text)" }}>
-                  Daily Digest
-                </span>
-                <span className="mt-[4px] block text-[var(--text-xs)] leading-relaxed" style={{ color: "var(--color-text-secondary)" }}>
-                  Send one summary notification per day with recent AI call volume, failures, latency, and estimated cost.
+                <span className="block text-[var(--text-sm)] font-semibold" style={{ color: "var(--color-text)" }}>Daily Digest</span>
+                <span className="mt-1 block text-[var(--text-xs)] leading-relaxed" style={{ color: "var(--color-text-secondary)" }}>
+                  Send one summary per day with call volume, failures, latency, and cost.
                 </span>
               </span>
             </label>
 
-            {alertNotice ? (
+            {/* Notice */}
+            {alertNotice && (
               <div
-                className="mt-[var(--space-4)] rounded-[calc(var(--radius-md)+2px)] border px-[var(--space-4)] py-[var(--space-3)] text-[var(--text-sm)]"
+                className="rounded-[var(--radius-md)] px-[var(--space-4)] py-[var(--space-3)] text-[var(--text-sm)]"
                 style={{
-                  background: alertNotice.type === "success" ? "rgba(16, 185, 129, 0.08)" : "rgba(220, 38, 38, 0.08)",
-                  borderColor: alertNotice.type === "success" ? "rgba(16, 185, 129, 0.2)" : "rgba(220, 38, 38, 0.2)",
+                  background: alertNotice.type === "success" ? "oklch(96% 0.02 145)" : "oklch(96% 0.03 25)",
+                  border: `1px solid ${alertNotice.type === "success" ? "oklch(80% 0.06 145)" : "oklch(80% 0.06 25)"}`,
                   color: "var(--color-text)",
                 }}
               >
                 {alertNotice.message}
               </div>
-            ) : null}
-          </SurfaceSection>
+            )}
+          </section>
         </div>
       )}
 
-      {/* Tab: Details */}
+      {/* ══════════════ TAB: DETAILS ══════════════ */}
       {activeTab === "details" && (
-        <div className="space-y-[var(--space-6)]">
-          <div className="grid gap-[var(--space-6)] xl:grid-cols-2">
-            <ListCard title="Provider breakdown" description="Call volume, failures, and spend by provider across the active window.">
-              {data.aiOps.providerBreakdown.length ? (
-                <div className="space-y-[var(--space-2)]">
-                  {data.aiOps.providerBreakdown.map((provider) => (
-                    <div
-                      key={provider.provider}
-                      className="grid grid-cols-[minmax(0,1.2fr),auto,auto,auto] items-center gap-[var(--space-3)] rounded-[var(--radius-md)] px-[var(--space-3)] py-[var(--space-3)] text-[var(--text-sm)]"
-                      style={insetSurfaceStyle}
-                    >
-                      <span style={{ color: "var(--color-text)" }}>{provider.provider}</span>
-                      <span style={{ color: "var(--color-text-secondary)" }}>{provider.calls} calls</span>
-                      <span style={{ color: "var(--color-text-secondary)" }}>{provider.failures} failed</span>
-                      <span style={{ color: "var(--color-text)" }}>{formatCurrency(provider.estimatedCostUsd)}</span>
-                    </div>
-                  ))}
-                </div>
+        <div className="flex flex-col gap-[var(--space-6)]">
+          <div className="grid gap-[var(--space-6)] lg:grid-cols-2">
+            {/* Provider breakdown */}
+            <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-lg)] p-[var(--space-6)]" style={surface}>
+              <Label>Provider Breakdown</Label>
+              {ai.providerBreakdown.length === 0 ? (
+                <p className="text-[var(--text-sm)]" style={{ color: "var(--color-text-tertiary)" }}>No provider data.</p>
               ) : (
-                <p style={{ color: "var(--color-text-tertiary)" }}>No provider breakdown available yet.</p>
+                <table className="w-full text-[var(--text-sm)]">
+                  <thead>
+                    <tr style={{ color: "var(--color-text-tertiary)" }}>
+                      <th className="text-left font-medium text-[var(--text-xs)] pb-[var(--space-3)]">Provider</th>
+                      <th className="text-right font-medium text-[var(--text-xs)] pb-[var(--space-3)]">Calls</th>
+                      <th className="text-right font-medium text-[var(--text-xs)] pb-[var(--space-3)]">Failed</th>
+                      <th className="text-right font-medium text-[var(--text-xs)] pb-[var(--space-3)]">Cost</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ai.providerBreakdown.map((p) => (
+                      <tr key={p.provider} style={{ borderTop: "1px solid var(--color-border)" }}>
+                        <td className="py-[var(--space-3)] font-medium" style={{ color: "var(--color-text)" }}>{p.provider}</td>
+                        <td className="py-[var(--space-3)] text-right tabular-nums" style={{ color: "var(--color-text-secondary)" }}>{p.calls.toLocaleString()}</td>
+                        <td className="py-[var(--space-3)] text-right tabular-nums" style={{ color: p.failures > 0 ? "var(--color-error)" : "var(--color-text-secondary)" }}>{p.failures}</td>
+                        <td className="py-[var(--space-3)] text-right tabular-nums" style={{ color: "var(--color-text-secondary)" }}>{fmtCost(p.estimatedCostUsd)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               )}
-            </ListCard>
+            </section>
 
-            <ListCard title="Model breakdown" description="Detailed performance by provider and model combination.">
-              {data.aiOps.modelBreakdown.length ? (
+            {/* Model breakdown */}
+            <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-lg)] p-[var(--space-6)]" style={surface}>
+              <Label>Model Breakdown</Label>
+              {ai.modelBreakdown.length === 0 ? (
+                <p className="text-[var(--text-sm)]" style={{ color: "var(--color-text-tertiary)" }}>No model data.</p>
+              ) : (
                 <div className="space-y-[var(--space-2)]">
-                  {data.aiOps.modelBreakdown.map((model) => (
-                    <div
-                      key={`${model.provider}:${model.model}`}
-                      className="rounded-[var(--radius-md)] px-[var(--space-3)] py-[var(--space-3)] text-[var(--text-sm)]"
-                      style={insetSurfaceStyle}
-                    >
-                      <div className="flex flex-col gap-[var(--space-1)] sm:flex-row sm:items-center sm:justify-between">
-                        <span style={{ color: "var(--color-text)" }}>
-                          {model.provider} / {model.model}
-                        </span>
-                        <span style={{ color: "var(--color-text-tertiary)" }}>{model.calls} calls</span>
+                  {ai.modelBreakdown.map((m) => (
+                    <div key={`${m.provider}-${m.model}`} className="flex flex-col gap-[var(--space-1)] rounded-[var(--radius-md)] p-[var(--space-3)] text-[var(--text-sm)]" style={inset}>
+                      <div className="flex items-center justify-between gap-[var(--space-2)]">
+                        <span className="font-medium" style={{ color: "var(--color-text)" }}>{m.model}</span>
+                        <span className="text-[var(--text-xs)] tabular-nums" style={{ color: "var(--color-text-tertiary)" }}>{m.provider}</span>
                       </div>
-                      <p className="mt-[var(--space-2)] text-[var(--text-xs)] leading-relaxed" style={{ color: "var(--color-text-tertiary)" }}>
-                        {model.failures} failed · {model.totalTokens.toLocaleString()} tokens · {model.avgLatencyMs} ms avg · {formatCurrency(model.estimatedCostUsd)}
+                      <p className="text-[var(--text-xs)]" style={{ color: "var(--color-text-tertiary)" }}>
+                        {m.calls.toLocaleString()} calls · {m.totalTokens.toLocaleString()} tokens · {m.avgLatencyMs}ms · {fmtCost(m.estimatedCostUsd)}
                       </p>
                     </div>
                   ))}
                 </div>
-              ) : (
-                <p style={{ color: "var(--color-text-tertiary)" }}>No model breakdown available yet.</p>
               )}
-            </ListCard>
+            </section>
           </div>
-
-          <ListCard title="Provider / model" description="Most active provider and model combinations.">
-            {data.aiOps.topModels.length ? (
-              <div className="space-y-[var(--space-3)]">
-                {data.aiOps.topModels.map((model) => (
-                  <div key={`${model.provider}:${model.model}`} className="space-y-[2px] text-[var(--text-sm)]">
-                    <p style={{ color: "var(--color-text)" }}>
-                      {model.provider} / {model.model}
-                    </p>
-                    <p style={{ color: "var(--color-text-tertiary)" }}>
-                      {model.calls} calls · {formatCurrency(model.estimatedCostUsd)}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p style={{ color: "var(--color-text-tertiary)" }}>No model data yet.</p>
-            )}
-          </ListCard>
         </div>
       )}
     </div>
