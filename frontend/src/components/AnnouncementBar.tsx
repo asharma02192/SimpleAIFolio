@@ -15,9 +15,9 @@ export default function AnnouncementBar({
 
   return (
     <div
-      className="w-full sticky top-0 z-50 overflow-hidden text-center"
+      className="w-full sticky top-0 z-50 overflow-hidden text-center announcement-surface"
       style={{
-        background: "linear-gradient(90deg, #111 0%, #1a1a1a 50%, #111 100%)",
+        background: "var(--announcement-bg)",
         borderBottom: "2px solid var(--color-accent)",
       }}
     >

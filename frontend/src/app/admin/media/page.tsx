@@ -170,7 +170,7 @@ function MediaContent() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row" style={{ background: "var(--color-bg)" }}>
+    <div className="admin-main min-h-screen flex flex-col md:flex-row" style={{ background: "var(--color-bg)" }}>
       <AdminSidebar onLogout={logoutAdmin} />
       <main className="min-w-0 w-full flex-1 overflow-x-hidden p-[var(--space-4)] sm:p-[var(--space-6)] md:p-[var(--space-8)]">
         <div className="mb-[var(--space-8)] flex flex-col gap-[var(--space-2)]">
@@ -196,20 +196,52 @@ function MediaContent() {
           }}
           onDragLeave={() => setDragOver(false)}
           onDrop={handleDrop}
-          className="mb-[var(--space-8)] rounded-[var(--radius-lg)] p-[var(--space-6)] text-center sm:p-[var(--space-10)]"
+          className="group relative mb-[var(--space-8)] rounded-[var(--radius-lg)] p-[var(--space-8)] text-center sm:p-[var(--space-12)]"
           style={{
+            background: dragOver
+              ? "color-mix(in oklch, var(--color-accent-lightest) 60%, var(--color-bg) 40%)"
+              : "var(--color-bg-elevated)",
             border: `2px dashed ${dragOver ? "var(--color-accent)" : "var(--color-border)"}`,
-            background: dragOver ? "var(--color-accent-lightest)" : "var(--color-bg-subtle)",
-            transition: "all var(--duration-fast) var(--ease-out-quart)",
+            transition: "all 0.2s ease",
           }}
         >
-          <p className="mb-[var(--space-3)] font-[family-name:var(--font-mono)] text-[var(--text-sm)]" style={{ color: "var(--color-text-tertiary)" }}>
-            {uploading ? `Uploading ${uploadingCount} file${uploadingCount === 1 ? "" : "s"}...` : "Drag and drop images here"}
+          <div
+            className="mx-auto mb-[var(--space-4)] flex h-14 w-14 items-center justify-center rounded-[var(--radius-lg)]"
+            style={{
+              background: dragOver ? "var(--color-accent)" : "var(--color-bg-subtle)",
+              transition: "all 0.2s ease",
+            }}
+          >
+            <svg
+              width="28"
+              height="28"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke={dragOver ? "var(--color-accent-on)" : "var(--color-text-tertiary)"}
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{ transition: "stroke 0.2s ease" }}
+            >
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
+          </div>
+          <p className="mb-[var(--space-1)] font-[family-name:var(--font-display)] text-[var(--text-base)] font-semibold" style={{ color: "var(--color-text)" }}>
+            {uploading ? `Uploading ${uploadingCount} file${uploadingCount === 1 ? "" : "s"}...` : "Upload images"}
           </p>
-          <p className="mb-[var(--space-4)] text-[var(--text-sm)]" style={{ color: "var(--color-text-secondary)" }}>
-            {uploading ? "Please wait until the current upload finishes." : "Uploads are optimized automatically after they finish."}
+          <p className="mb-[var(--space-5)] text-[var(--text-sm)]" style={{ color: "var(--color-text-tertiary)" }}>
+            {uploading ? "Please wait until the current upload finishes." : "Drag and drop, or click to browse"}
           </p>
-          <label className="inline-flex cursor-pointer items-center justify-center rounded-[var(--radius-md)] px-[var(--space-4)] py-[var(--space-2)] font-[family-name:var(--font-mono)] text-[var(--text-xs)] uppercase tracking-wider" style={{ background: "var(--color-bg-muted)", color: "var(--color-text-secondary)", opacity: uploading ? 0.6 : 1 }}>
+          <label
+            className="inline-flex cursor-pointer items-center justify-center gap-[var(--space-2)] rounded-[var(--radius-md)] px-[var(--space-5)] py-[var(--space-2.5)] font-[family-name:var(--font-body)] text-[var(--text-sm)] font-500 transition-all duration-150 hover:brightness-110"
+            style={{
+              background: "var(--color-accent)",
+              color: "var(--color-accent-on)",
+              opacity: uploading ? 0.6 : 1,
+            }}
+          >
             Browse Files
             <input
               type="file"
@@ -225,6 +257,9 @@ function MediaContent() {
               }}
             />
           </label>
+          <p className="mt-[var(--space-4)] font-[family-name:var(--font-mono)] text-[0.625rem] uppercase tracking-widest" style={{ color: "var(--color-text-tertiary)" }}>
+            JPEG, PNG, WEBP, GIF &middot; 10 MB max
+          </p>
         </div>
 
         {loading ? (

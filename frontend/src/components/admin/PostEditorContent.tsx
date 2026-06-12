@@ -146,7 +146,7 @@ export default function PostEditorContent({ postId }: { postId?: string }) {
 
   return (
     <AuthProvider>
-      <div className="min-h-screen flex flex-col md:flex-row" style={{ background: "var(--color-bg)" }}>
+      <div className="admin-main min-h-screen flex flex-col md:flex-row" style={{ background: "var(--color-bg)" }}>
         <AdminSidebar onLogout={logoutAdmin} />
         <main className="min-w-0 flex-1 overflow-x-hidden">
           {/* Top bar */}
@@ -196,9 +196,8 @@ export default function PostEditorContent({ postId }: { postId?: string }) {
             </div>
           </div>
 
-          <div className="flex min-h-[calc(100vh-52px)] flex-col xl:flex-row">
-            {/* Main editor */}
-            <div className="min-w-0 flex-1 p-[var(--space-4)] sm:p-[var(--space-6)] md:p-[var(--space-8)] xl:max-w-[80ch]">
+          <div className="flex min-h-[calc(100vh-52px)] flex-col lg:flex-row">
+            <div className="min-w-0 flex-1 p-[var(--space-4)] sm:p-[var(--space-6)] md:p-[var(--space-8)]">
               {/* Title */}
               <input
                 type="text"
@@ -247,9 +246,8 @@ export default function PostEditorContent({ postId }: { postId?: string }) {
               />
             </div>
 
-            {/* Sidebar panel */}
             <div
-              className="w-full flex-shrink-0 border-t p-[var(--space-4)] sm:p-[var(--space-6)] xl:w-72 xl:border-t-0 xl:border-l"
+              className="w-full flex-shrink-0 border-t p-[var(--space-4)] sm:p-[var(--space-6)] lg:w-80 lg:border-t-0 lg:border-l"
               style={{ borderColor: "var(--color-border)", background: "var(--color-bg-elevated)" }}
             >
               <div className="flex flex-col gap-[var(--space-6)]">

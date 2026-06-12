@@ -144,7 +144,7 @@ function ExperienceContent() {
   const labelClass = "font-[family-name:var(--font-mono)] text-[var(--text-xs)] uppercase tracking-wider block mb-[var(--space-1)]";
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row" style={{ background: "var(--color-bg)" }}>
+    <div className="admin-main min-h-screen flex flex-col md:flex-row" style={{ background: "var(--color-bg)" }}>
       <AdminSidebar onLogout={logoutAdmin} />
       <main className="min-w-0 w-full flex-1 overflow-x-hidden p-[var(--space-4)] sm:p-[var(--space-6)] md:p-[var(--space-8)]">
         <div className="mb-[var(--space-8)] flex flex-col gap-[var(--space-4)] sm:flex-row sm:items-center sm:justify-between">

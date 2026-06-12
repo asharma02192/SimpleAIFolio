@@ -11,6 +11,8 @@ export interface AnnouncementSettings {
   enabled: boolean;
 }
 
+export type ThemeName = "light-minimal" | "dark-modern" | "mono-editorial";
+
 export interface PublicSettings {
   siteConfig: SiteConfig;
   bioHero: string;
@@ -18,6 +20,7 @@ export interface PublicSettings {
   heroStats: HeroStat[];
   skillGroups: SkillGroup[];
   announcement: AnnouncementSettings;
+  theme: ThemeName;
 }
 
 type JsonRecord = Record<string, unknown>;
@@ -231,6 +234,10 @@ function parseAnnouncement(value: unknown): AnnouncementSettings {
 }
 
 function buildSettings(data: JsonRecord): PublicSettings {
+  const rawTheme = data.theme as string;
+  const validThemes: ThemeName[] = ["light-minimal", "dark-modern", "mono-editorial"];
+  const theme: ThemeName = validThemes.includes(rawTheme as ThemeName) ? (rawTheme as ThemeName) : "light-minimal";
+
   return {
     siteConfig: {
       title: (data.site_title as string) || siteConfig.title,
@@ -248,6 +255,7 @@ function buildSettings(data: JsonRecord): PublicSettings {
       ? (data.skill_groups as SkillGroup[])
       : defaultSkillGroups,
     announcement: parseAnnouncement(data.announcement),
+    theme,
   };
 }
 
@@ -266,6 +274,7 @@ export async function fetchSettings(): Promise<PublicSettings> {
       heroStats: [],
       skillGroups: defaultSkillGroups,
       announcement: defaultAnnouncement,
+      theme: "light-minimal" as ThemeName,
     };
   }
 }

@@ -72,7 +72,7 @@ function Stat({
         {label}
       </span>
       <span
-        className="font-[family-name:var(--font-display)] text-[1.25rem] font-semibold leading-none tabular-nums"
+        className="font-[family-name:var(--font-display)] text-[1.25rem] font-semibold leading-tight tabular-nums"
         style={{ color: "var(--color-text)" }}
       >
         {value}
@@ -188,7 +188,7 @@ export default function AnalyticsDashboard() {
     <div className="flex flex-col gap-[var(--space-6)]">
       {/* ──────────────── HEADER ──────────────── */}
       <div
-        className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-lg)] p-[var(--space-6)] lg:flex-row lg:items-center lg:justify-between lg:gap-0"
+        className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-lg)] p-[var(--space-4)] sm:flex-row sm:items-center sm:justify-between sm:gap-[var(--space-4)] sm:p-[var(--space-6)]"
         style={surface}
       >
         <div>
@@ -226,7 +226,7 @@ export default function AnalyticsDashboard() {
 
       {/* ──────────────── STATS STRIP ──────────────── */}
       <div
-        className="grid grid-cols-2 gap-x-[var(--space-6)] gap-y-[var(--space-5)] rounded-[var(--radius-lg)] p-[var(--space-6)] md:grid-cols-3 lg:grid-cols-6"
+        className="grid grid-cols-2 gap-x-[var(--space-4)] gap-y-[var(--space-4)] rounded-[var(--radius-lg)] p-[var(--space-4)] sm:p-[var(--space-6)] sm:grid-cols-3 lg:grid-cols-6"
         style={surface}
       >
         <Stat label="Page Views" value={fmtNum(data.totalViews)} hint={`${fmtNum(data.recentViews)} in last 7d`} />
@@ -240,7 +240,7 @@ export default function AnalyticsDashboard() {
       {/* ──────────────── TWO-COLUMN BODY ──────────────── */}
       <div className="grid gap-[var(--space-6)] lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
         {/* ── LEFT: Top Pages ── */}
-        <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-lg)] p-[var(--space-6)]" style={surface}>
+        <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-lg)] p-[var(--space-4)] sm:p-[var(--space-6)]" style={surface}>
           <div>
             <SectionLabel>Top Pages</SectionLabel>
             <h2
@@ -315,7 +315,7 @@ export default function AnalyticsDashboard() {
         </section>
 
         {/* ── RIGHT: AI Health ── */}
-        <section className="flex flex-col gap-[var(--space-5)] rounded-[var(--radius-lg)] p-[var(--space-6)]" style={surface}>
+        <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-lg)] p-[var(--space-4)] sm:p-[var(--space-6)]" style={surface}>
           <div>
             <SectionLabel>AI Operations</SectionLabel>
             <h2
@@ -427,7 +427,7 @@ export default function AnalyticsDashboard() {
       {/* ──────────────── AI USAGE DETAIL ──────────────── */}
       <div className="grid gap-[var(--space-6)] lg:grid-cols-2">
         {/* Daily usage bars */}
-        <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-lg)] p-[var(--space-6)]" style={surface}>
+        <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-lg)] p-[var(--space-4)] sm:p-[var(--space-6)]" style={surface}>
           <div>
             <SectionLabel>Daily Usage</SectionLabel>
             <h2
@@ -470,7 +470,7 @@ export default function AnalyticsDashboard() {
         </section>
 
         {/* Recent failures */}
-        <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-lg)] p-[var(--space-6)]" style={surface}>
+        <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-lg)] p-[var(--space-4)] sm:p-[var(--space-6)]" style={surface}>
           <div>
             <SectionLabel>Failures</SectionLabel>
             <h2
@@ -522,10 +522,10 @@ export default function AnalyticsDashboard() {
 
       {/* ──────────────── MODELS & OPERATIONS ──────────────── */}
       {ai.modelBreakdown.length > 0 && (
-        <section className="rounded-[var(--radius-lg)] p-[var(--space-6)]" style={surface}>
+        <section className="rounded-[var(--radius-lg)] p-[var(--space-4)] sm:p-[var(--space-6)]" style={surface}>
           <SectionLabel>Model Breakdown</SectionLabel>
           <div className="mt-[var(--space-3)] overflow-x-auto">
-            <table className="w-full text-[var(--text-sm)]">
+            <table className="w-full min-w-[500px] text-[var(--text-sm)]">
               <thead>
                 <tr style={{ color: "var(--color-text-tertiary)" }}>
                   <th className="text-left font-medium text-[var(--text-xs)] pb-[var(--space-3)] pr-[var(--space-4)]">Model</th>

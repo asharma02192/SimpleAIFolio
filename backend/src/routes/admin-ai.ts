@@ -21,7 +21,7 @@ import {
   type AiRewriteProposal,
   type BlogStudioAiService,
 } from "../services/ai/blog-studio";
-import { getAiProviderConfig } from "../services/ai/provider";
+import { getAiProviderConfig, getDbOverrides, type AiProviderConfig } from "../services/ai/provider";
 import { sanitizeGeneratedHtml, toSafeUrl } from "../services/ai/html";
 import { notifyAiOpsForUsageEvent } from "../services/ops-alerts";
 import {
@@ -524,6 +524,56 @@ function getProposalTargetText(draft: AiDraftData, target: AiRewriteProposal["ta
   }
 }
 
+function buildFaqHtml(faq: Array<{ question: string; answer: string }>) {
+  if (!faq.length) return "";
+  const items = faq
+    .map(
+      (item) =>
+        `<li><strong>${escapeHtml(item.question)}</strong><p>${escapeHtml(item.answer)}</p></li>`
+    )
+    .join("");
+  return `<section><h2>Frequently Asked Questions</h2><ul>${items}</ul></section>`;
+}
+
+async function validateInternalLinkSuggestions(
+  prismaClient: AdminAiPrisma,
+  aiSuggestions: AiInternalLinkSuggestion[],
+  topic: string,
+  brief?: AiBriefData | null,
+): Promise<{ links: AiInternalLinkSuggestion[]; topicGaps: string[] }> {
+  const realSuggestions = await getInternalLinkSuggestions(prismaClient, topic, brief);
+  const realPostIds = new Set(realSuggestions.map((s: AiInternalLinkSuggestion & { score: number }) => s.postId));
+
+  const validated = aiSuggestions.filter((s: AiInternalLinkSuggestion) => realPostIds.has(s.postId));
+
+  const usedSlugs = new Set(realSuggestions.map((s: AiInternalLinkSuggestion & { score: number }) => s.slug));
+  const gaps = aiSuggestions
+    .filter((s: AiInternalLinkSuggestion) => !realPostIds.has(s.postId) && !usedSlugs.has(s.slug))
+    .map((s: AiInternalLinkSuggestion) => s.title)
+    .filter((title) => title.length > 5)
+    .slice(0, 3);
+
+  const merged = [...validated];
+  for (const real of realSuggestions) {
+    if (!merged.some((s) => s.postId === real.postId)) {
+      merged.push(real);
+    }
+  }
+
+  return {
+    links: merged.slice(0, 5),
+    topicGaps: gaps,
+  };
+}
+
+function applyAllInternalLinks(contentHtml: string, suggestions: AiInternalLinkSuggestion[]) {
+  let html = contentHtml;
+  for (const suggestion of suggestions) {
+    html = applyInternalLinkSuggestionToHtml(html, suggestion);
+  }
+  return html;
+}
+
 function buildDraftPatchUpdate(patch: Partial<AiDraftData>) {
   return {
     ...(typeof patch.title === "string" ? { title: patch.title } : {}),
@@ -533,6 +583,13 @@ function buildDraftPatchUpdate(patch: Partial<AiDraftData>) {
     ...(typeof patch.metaDescription === "string" ? { metaDescription: patch.metaDescription } : {}),
     ...(typeof patch.contentHtml === "string" ? { contentHtml: sanitizeGeneratedHtml(patch.contentHtml) } : {}),
     ...(Array.isArray(patch.faq) ? { faqJson: JSON.stringify(patch.faq) } : {}),
+    ...(typeof patch.ogImagePrompt === "string" ? { ogImagePrompt: patch.ogImagePrompt } : {}),
+    ...(typeof patch.categorySuggestion === "string" ? { categorySuggestion: patch.categorySuggestion } : {}),
+    ...(Array.isArray(patch.tagSuggestions) ? { tagsJson: JSON.stringify(patch.tagSuggestions) } : {}),
+    ...(Array.isArray(patch.outline) ? { outlineJson: JSON.stringify(patch.outline) } : {}),
+    ...(typeof patch.seoScore === "number" ? { seoScore: patch.seoScore } : {}),
+    ...(typeof patch.engagementScore === "number" ? { engagementScore: patch.engagementScore } : {}),
+    ...(typeof patch.readabilityScore === "number" ? { readabilityScore: patch.readabilityScore } : {}),
     ...(Array.isArray(patch.recommendations) ? { recommendationsJson: JSON.stringify(patch.recommendations) } : {}),
     ...(Array.isArray(patch.verificationNotes) ? { verificationNotesJson: JSON.stringify(patch.verificationNotes) } : {}),
     ...(Array.isArray(patch.verificationFlags) ? { verificationFlagsJson: JSON.stringify(patch.verificationFlags) } : {}),
@@ -541,6 +598,7 @@ function buildDraftPatchUpdate(patch: Partial<AiDraftData>) {
       ? { internalLinkSuggestionsJson: JSON.stringify(patch.internalLinkSuggestions) }
       : {}),
     ...(typeof patch.researchUsed === "boolean" ? { researchUsed: patch.researchUsed } : {}),
+    ...(typeof patch.referencesEnabled === "boolean" ? { referencesEnabled: patch.referencesEnabled } : {}),
   };
 }
 
@@ -796,17 +854,27 @@ export function createAdminAiRouter({
   researchService?: ResearchService;
 } = {}) {
   const router = Router();
-  const aiConfig = getAiProviderConfig();
+  const envConfig = getAiProviderConfig();
   const aiRateLimit = createRateLimiter({
     keyPrefix: "admin-ai",
-    maxRequests: aiConfig.rateLimitMax,
-    windowMs: aiConfig.rateLimitWindowMs,
+    maxRequests: envConfig.rateLimitMax,
+    windowMs: envConfig.rateLimitWindowMs,
     message: "Too many AI requests. Please slow down and try again shortly.",
   });
-  const getAiService = (capture?: (event: AiTelemetryEvent) => void | Promise<void>) =>
-    aiService || createBlogStudioAiService({ config: aiConfig, onTelemetry: capture });
-  const getResearchService = (capture?: (event: ResearchTelemetryEvent) => void | Promise<void>) =>
-    researchService || createResearchServiceWithOptions({ config: aiConfig, onTelemetry: capture });
+
+  async function resolveConfig(): Promise<AiProviderConfig> {
+    const dbOverrides = await getDbOverrides();
+    return { ...envConfig, ...dbOverrides };
+  }
+
+  const getAiService = async (capture?: (event: AiTelemetryEvent) => void | Promise<void>) => {
+    const config = await resolveConfig();
+    return aiService || createBlogStudioAiService({ config, onTelemetry: capture });
+  };
+  const getResearchService = async (capture?: (event: ResearchTelemetryEvent) => void | Promise<void>) => {
+    const config = await resolveConfig();
+    return researchService || createResearchServiceWithOptions({ config, onTelemetry: capture });
+  };
   const getResearchMeta = (service: ResearchService) => ({
     researchEnabled: service.isEnabled(),
     researchMessage: service.getUnavailableReason(),
@@ -880,10 +948,10 @@ export function createAdminAiRouter({
     }
 
     const usageEvents: AiTelemetryEvent[] = [];
-    const routeAiService = getAiService((event) => {
+    const routeAiService = await getAiService((event) => {
       usageEvents.push(event);
     });
-    const researchMeta = getResearchMeta(getResearchService());
+    const researchMeta = getResearchMeta(await getResearchService());
 
     if (!routeAiService.isAvailable()) {
       aiUnavailableResponse(res, routeAiService);
@@ -924,7 +992,7 @@ export function createAdminAiRouter({
       await recordFailedOperation(
         prismaClient,
         null,
-        aiConfig.provider,
+        envConfig.provider,
         "conversation_start",
         error instanceof Error ? error.message : "Failed to start AI conversation"
       );
@@ -945,7 +1013,7 @@ export function createAdminAiRouter({
         return;
       }
 
-      res.json(toConversationPayload(conversation, getResearchMeta(getResearchService())));
+      res.json(toConversationPayload(conversation, getResearchMeta(await getResearchService())));
     } catch (error) {
       logError("AI conversation lookup failed", {
         ...getRequestLogMeta(req),
@@ -972,7 +1040,7 @@ export function createAdminAiRouter({
       });
 
       const detail = await loadConversationForUser(prismaClient, conversation.id, req.userId!);
-      res.json(toConversationPayload(detail, getResearchMeta(getResearchService())));
+      res.json(toConversationPayload(detail, getResearchMeta(await getResearchService())));
     } catch (error) {
       logError("AI conversation archive update failed", {
         ...getRequestLogMeta(req),
@@ -1016,10 +1084,10 @@ export function createAdminAiRouter({
     }
 
     const usageEvents: AiTelemetryEvent[] = [];
-    const routeAiService = getAiService((event) => {
+    const routeAiService = await getAiService((event) => {
       usageEvents.push(event);
     });
-    const researchMeta = getResearchMeta(getResearchService());
+    const researchMeta = getResearchMeta(await getResearchService());
 
     if (!routeAiService.isAvailable()) {
       aiUnavailableResponse(res, routeAiService);
@@ -1057,7 +1125,7 @@ export function createAdminAiRouter({
       await recordFailedOperation(
         prismaClient,
         param(req, "id"),
-        aiConfig.provider,
+        envConfig.provider,
         "conversation_reply",
         error instanceof Error ? error.message : "Failed to send AI message"
       );
@@ -1077,10 +1145,10 @@ export function createAdminAiRouter({
 
   router.post("/conversations/:id/brief", aiRateLimit, async (req: AuthRequest, res) => {
     const usageEvents: AiTelemetryEvent[] = [];
-    const routeAiService = getAiService((event) => {
+    const routeAiService = await getAiService((event) => {
       usageEvents.push(event);
     });
-    const researchMeta = getResearchMeta(getResearchService());
+    const researchMeta = getResearchMeta(await getResearchService());
 
     if (!routeAiService.isAvailable()) {
       aiUnavailableResponse(res, routeAiService);
@@ -1152,7 +1220,7 @@ export function createAdminAiRouter({
       await recordFailedOperation(
         prismaClient,
         param(req, "id"),
-        aiConfig.provider,
+        envConfig.provider,
         "brief_generate",
         error instanceof Error ? error.message : "Failed to generate AI brief"
       );
@@ -1172,7 +1240,7 @@ export function createAdminAiRouter({
 
   router.put("/conversations/:id/brief", async (req: AuthRequest, res) => {
     try {
-      const researchMeta = getResearchMeta(getResearchService());
+      const researchMeta = getResearchMeta(await getResearchService());
       const conversation = await loadConversationForUser(prismaClient, param(req, "id"), req.userId!);
       if (!conversation) {
         res.status(404).json({ error: "AI conversation not found" });
@@ -1238,7 +1306,7 @@ export function createAdminAiRouter({
 
   router.post("/conversations/:id/research", aiRateLimit, async (req: AuthRequest, res) => {
     const usageEvents: ResearchTelemetryEvent[] = [];
-    const routeResearchService = getResearchService((event) => {
+    const routeResearchService = await getResearchService((event) => {
       usageEvents.push(event);
     });
     const researchMeta = getResearchMeta(routeResearchService);
@@ -1259,13 +1327,23 @@ export function createAdminAiRouter({
         internalLinkSuggestions,
       });
 
+      const rawMergedLinkSuggestions = [
+        ...(research.internalLinkSuggestions && research.internalLinkSuggestions.length > 0
+          ? research.internalLinkSuggestions
+          : []),
+        ...internalLinkSuggestions,
+      ];
+      const { links: validatedResearchLinks } = await validateInternalLinkSuggestions(
+        prismaClient,
+        rawMergedLinkSuggestions,
+        conversation.topic,
+        brief,
+      );
+
       const mergedResearch: AiResearchData = {
         ...research,
         sources: mergeResearchSources(existingResearch?.sources || [], research.sources),
-        internalLinkSuggestions:
-          research.internalLinkSuggestions && research.internalLinkSuggestions.length > 0
-            ? research.internalLinkSuggestions
-            : internalLinkSuggestions,
+        internalLinkSuggestions: validatedResearchLinks.length > 0 ? validatedResearchLinks : internalLinkSuggestions,
       };
 
       await prismaClient.aiResearchRun.upsert({
@@ -1347,7 +1425,7 @@ export function createAdminAiRouter({
 
   router.put("/conversations/:id/research", async (req: AuthRequest, res) => {
     try {
-      const researchMeta = getResearchMeta(getResearchService());
+      const researchMeta = getResearchMeta(await getResearchService());
       const conversation = await loadConversationForUser(prismaClient, param(req, "id"), req.userId!);
       if (!conversation) {
         res.status(404).json({ error: "AI conversation not found" });
@@ -1402,10 +1480,10 @@ export function createAdminAiRouter({
 
   router.post("/conversations/:id/draft", aiRateLimit, async (req: AuthRequest, res) => {
     const usageEvents: AiTelemetryEvent[] = [];
-    const routeAiService = getAiService((event) => {
+    const routeAiService = await getAiService((event) => {
       usageEvents.push(event);
     });
-    const researchMeta = getResearchMeta(getResearchService());
+    const researchMeta = getResearchMeta(await getResearchService());
 
     if (!routeAiService.isAvailable()) {
       aiUnavailableResponse(res, routeAiService);
@@ -1437,14 +1515,24 @@ export function createAdminAiRouter({
         research,
       });
 
-      const internalLinkSuggestions =
+      const rawInternalLinkSuggestions =
         draft.internalLinkSuggestions && draft.internalLinkSuggestions.length > 0
           ? draft.internalLinkSuggestions
           : research?.internalLinkSuggestions || [];
+      const { links: internalLinkSuggestions, topicGaps } = await validateInternalLinkSuggestions(
+        prismaClient,
+        rawInternalLinkSuggestions,
+        conversation.topic,
+        brief,
+      );
       const verificationNotes = uniqueStrings([
         ...(draft.verificationNotes || []),
         ...(research?.sources.length === 0 && storedResearch?.sources.length ? [SOURCELESS_RESEARCH_WARNING] : []),
       ]);
+      const draftRecommendations = [
+        ...(draft.recommendations || []),
+        ...topicGaps.map((gap) => `Consider writing a related post: "${gap}" to strengthen internal linking.`),
+      ];
 
       await prismaClient.aiDraftOutput.upsert({
         where: { conversationId: conversation.id },
@@ -1463,7 +1551,7 @@ export function createAdminAiRouter({
           seoScore: draft.seoScore,
           engagementScore: draft.engagementScore,
           readabilityScore: draft.readabilityScore,
-          recommendationsJson: JSON.stringify(draft.recommendations || []),
+          recommendationsJson: JSON.stringify(draftRecommendations),
           verificationNotesJson: JSON.stringify(verificationNotes),
           verificationFlagsJson: JSON.stringify(draft.verificationFlags || []),
           engagementInsightsJson: JSON.stringify(
@@ -1492,7 +1580,7 @@ export function createAdminAiRouter({
           seoScore: draft.seoScore,
           engagementScore: draft.engagementScore,
           readabilityScore: draft.readabilityScore,
-          recommendationsJson: JSON.stringify(draft.recommendations || []),
+          recommendationsJson: JSON.stringify(draftRecommendations),
           verificationNotesJson: JSON.stringify(verificationNotes),
           verificationFlagsJson: JSON.stringify(draft.verificationFlags || []),
           engagementInsightsJson: JSON.stringify(
@@ -1540,7 +1628,7 @@ export function createAdminAiRouter({
       await recordFailedOperation(
         prismaClient,
         param(req, "id"),
-        aiConfig.provider,
+        envConfig.provider,
         "draft_generate",
         error instanceof Error ? error.message : "Failed to generate AI draft"
       );
@@ -1560,10 +1648,10 @@ export function createAdminAiRouter({
 
   router.post("/conversations/:id/analyze", aiRateLimit, async (req: AuthRequest, res) => {
     const usageEvents: AiTelemetryEvent[] = [];
-    const routeAiService = getAiService((event) => {
+    const routeAiService = await getAiService((event) => {
       usageEvents.push(event);
     });
-    const researchMeta = getResearchMeta(getResearchService());
+    const researchMeta = getResearchMeta(await getResearchService());
 
     if (!routeAiService.isAvailable()) {
       aiUnavailableResponse(res, routeAiService);
@@ -1610,9 +1698,19 @@ export function createAdminAiRouter({
               : historicalContext.insights
           ),
           internalLinkSuggestionsJson: JSON.stringify(
-            analysis.internalLinkSuggestions && analysis.internalLinkSuggestions.length > 0
-              ? analysis.internalLinkSuggestions
-              : draft.internalLinkSuggestions || []
+            await (async () => {
+              const rawSuggestions =
+                analysis.internalLinkSuggestions && analysis.internalLinkSuggestions.length > 0
+                  ? analysis.internalLinkSuggestions
+                  : draft.internalLinkSuggestions || [];
+              const { links } = await validateInternalLinkSuggestions(
+                prismaClient,
+                rawSuggestions,
+                conversation.topic,
+                brief,
+              );
+              return links;
+            })()
           ),
         },
       });
@@ -1640,7 +1738,7 @@ export function createAdminAiRouter({
       await recordFailedOperation(
         prismaClient,
         param(req, "id"),
-        aiConfig.provider,
+        envConfig.provider,
         "draft_analyze",
         error instanceof Error ? error.message : "Failed to analyze AI draft"
       );
@@ -1689,7 +1787,7 @@ export function createAdminAiRouter({
       });
 
       const detail = await loadConversationForUser(prismaClient, conversation.id, req.userId!);
-      res.json(toConversationPayload(detail, getResearchMeta(getResearchService())));
+      res.json(toConversationPayload(detail, getResearchMeta(await getResearchService())));
     } catch (error) {
       logError("AI draft review update failed", {
         ...getRequestLogMeta(req),
@@ -1728,10 +1826,14 @@ export function createAdminAiRouter({
       }
 
       const nextHtml = applyInternalLinkSuggestionToHtml(draft.contentHtml, suggestion);
+      const updatedSuggestions = (draft.internalLinkSuggestions || []).map((s, i) =>
+        i === suggestionIndex ? { ...s, applied: true } : s
+      );
       await prismaClient.aiDraftOutput.update({
         where: { conversationId: conversation.id },
         data: {
           contentHtml: sanitizeGeneratedHtml(nextHtml),
+          internalLinkSuggestionsJson: JSON.stringify(updatedSuggestions),
         },
       });
 
@@ -1744,7 +1846,7 @@ export function createAdminAiRouter({
       );
 
       const detail = await loadConversationForUser(prismaClient, conversation.id, req.userId!);
-      res.json(toConversationPayload(detail, getResearchMeta(getResearchService())));
+      res.json(toConversationPayload(detail, getResearchMeta(await getResearchService())));
     } catch (error) {
       logError("AI internal link apply failed", {
         ...getRequestLogMeta(req),
@@ -1764,7 +1866,7 @@ export function createAdminAiRouter({
     }
 
     const usageEvents: AiTelemetryEvent[] = [];
-    const routeAiService = getAiService((event) => {
+    const routeAiService = await getAiService((event) => {
       usageEvents.push(event);
     });
 
@@ -1830,7 +1932,7 @@ export function createAdminAiRouter({
       await recordFailedOperation(
         prismaClient,
         param(req, "id"),
-        aiConfig.provider,
+        envConfig.provider,
         "draft_rewrite",
         error instanceof Error ? error.message : "Failed to generate rewrite proposal"
       );
@@ -1847,7 +1949,7 @@ export function createAdminAiRouter({
 
   router.post("/conversations/:id/rewrite/:proposalId/apply", aiRateLimit, async (req: AuthRequest, res) => {
     try {
-      const researchMeta = getResearchMeta(getResearchService());
+      const researchMeta = getResearchMeta(await getResearchService());
       const conversation = await loadConversationForUser(prismaClient, param(req, "id"), req.userId!);
       if (!conversation) {
         res.status(404).json({ error: "AI conversation not found" });
@@ -1921,7 +2023,7 @@ export function createAdminAiRouter({
 
   router.post("/conversations/:id/rewrite/:proposalId/reject", async (req: AuthRequest, res) => {
     try {
-      const researchMeta = getResearchMeta(getResearchService());
+      const researchMeta = getResearchMeta(await getResearchService());
       const conversation = await loadConversationForUser(prismaClient, param(req, "id"), req.userId!);
       if (!conversation) {
         res.status(404).json({ error: "AI conversation not found" });
@@ -1976,7 +2078,71 @@ export function createAdminAiRouter({
         return;
       }
 
+      const includeReferences = coerceBoolean(req.body?.includeReferences);
+      const research = toResearchPayload(conversation.research);
+
+      let html = draft.contentHtml;
+
+      const faqHtml = buildFaqHtml(draft.faq || []);
+      if (faqHtml && !html.includes("Frequently Asked Questions") && !html.includes("faq")) {
+        html = `${html}${faqHtml}`;
+      }
+
+      html = applyAllInternalLinks(html, draft.internalLinkSuggestions || []);
+
+      const referencesHtml = includeReferences ? buildReferencesHtml(research?.sources || []) : "";
+      if (referencesHtml) {
+        html = `${html}${referencesHtml}`;
+      }
+
+      const contentHtml = sanitizeGeneratedHtml(html);
+      const excerpt = draft.excerpt || stripHtml(contentHtml).slice(0, 220);
+
       if (draft.postId) {
+        const categoryId = await resolveCategoryId(prismaClient, draft.categorySuggestion);
+        const tagIds = await resolveTagIds(prismaClient, draft.tagSuggestions || []);
+
+        await prismaClient.post.update({
+          where: { id: draft.postId },
+          data: {
+            title: draft.title,
+            excerpt: excerpt || null,
+            body: contentHtml,
+            readingTime: computeReadingTime(contentHtml),
+            metaTitle: draft.metaTitle || null,
+            metaDescription: draft.metaDescription || null,
+            categoryId,
+            tags: {
+              set: [],
+              ...(tagIds.length > 0 ? { connect: tagIds.map((id) => ({ id })) } : {}),
+            },
+          },
+        });
+
+        await prismaClient.aiDraftOutput.update({
+          where: { conversationId: conversation.id },
+          data: {
+            contentHtml,
+            referencesEnabled: includeReferences,
+            status: "saved",
+          },
+        });
+
+        await appendConversationMessage(
+          prismaClient,
+          conversation.id,
+          "assistant",
+          "CMS draft updated with the latest changes. Open the editor to review and publish.",
+          { type: "saved-draft", postId: draft.postId }
+        );
+
+        logInfo("AI draft re-saved to existing CMS post", {
+          ...getRequestLogMeta(req),
+          userId: req.userId,
+          conversationId: conversation.id,
+          postId: draft.postId,
+        });
+
         res.status(200).json({
           postId: draft.postId,
           editUrl: `/admin/posts/${draft.postId}/edit`,
@@ -1984,14 +2150,9 @@ export function createAdminAiRouter({
         return;
       }
 
-      const includeReferences = coerceBoolean(req.body?.includeReferences);
       const uniqueSlug = await createUniquePostSlug(prismaClient, draft.slug, draft.title);
       const categoryId = await resolveCategoryId(prismaClient, draft.categorySuggestion);
       const tagIds = await resolveTagIds(prismaClient, draft.tagSuggestions || []);
-      const research = toResearchPayload(conversation.research);
-      const referencesHtml = includeReferences ? buildReferencesHtml(research?.sources || []) : "";
-      const contentHtml = sanitizeGeneratedHtml(`${draft.contentHtml}${referencesHtml}`);
-      const excerpt = draft.excerpt || stripHtml(contentHtml).slice(0, 220);
 
       const post = await prismaClient.post.create({
         data: {

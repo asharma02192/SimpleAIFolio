@@ -19,6 +19,18 @@ interface Settings {
   hero_stats?: { value: string; label: string }[];
   skill_groups?: { category: string; skills: { name: string; level: string }[] }[];
   announcement?: { text: string; link: string; enabled: boolean };
+  theme?: string;
+}
+
+interface AiConfig {
+  provider: string;
+  apiKeyMasked: string;
+  apiKeySet: boolean;
+  baseUrl: string;
+  model: string;
+  temperature: number;
+  maxTokens: number;
+  apiKey?: string;
 }
 
 const defaultSettings: Settings = {
@@ -34,6 +46,7 @@ const defaultSettings: Settings = {
   hero_stats: [{ value: "", label: "" }],
   skill_groups: [],
   announcement: { text: "", link: "", enabled: false },
+  theme: "light-minimal",
 };
 
 const sections = [
@@ -56,6 +69,8 @@ function SettingsContent() {
   const { token } = useAuth();
   const { toast } = useUI();
   const [settings, setSettings] = useState<Settings>(defaultSettings);
+  const [aiConfig, setAiConfig] = useState<AiConfig | null>(null);
+  const [aiSaving, setAiSaving] = useState(false);
   const [skillGroupsText, setSkillGroupsText] = useState("[]");
   const [skillGroupsError, setSkillGroupsError] = useState<string | null>(null);
   const [pageError, setPageError] = useState<string | null>(null);
@@ -96,6 +111,7 @@ function SettingsContent() {
     };
 
     void loadSettings();
+    void adminApiRequest<AiConfig>("/api/admin/ai-config").then(setAiConfig).catch(() => {});
 
     return () => {
       cancelled = true;
@@ -182,8 +198,32 @@ function SettingsContent() {
     }
   };
 
+  const saveAiConfig = async () => {
+    if (aiSaving || !aiConfig) return;
+    setAiSaving(true);
+    try {
+      await adminApiRequest("/api/admin/ai-config", {
+        method: "PUT",
+        body: JSON.stringify(aiConfig),
+      });
+      const fresh = await adminApiRequest<AiConfig>("/api/admin/ai-config");
+      setAiConfig(fresh);
+      toast("AI configuration saved", "success");
+    } catch (error) {
+      const message = getAdminErrorMessage(error, "Failed to save AI configuration.");
+      toast(message, "error");
+    } finally {
+      setAiSaving(false);
+    }
+  };
+
+  const aiInputStyle = {
+    ...inputStyle,
+    fontFamily: "var(--font-mono)",
+  };
+
   return (
-    <div className="min-h-screen flex flex-col md:flex-row" style={{ background: "var(--color-bg)" }}>
+    <div className="admin-main min-h-screen flex flex-col md:flex-row" style={{ background: "var(--color-bg)" }}>
       <AdminSidebar onLogout={logoutAdmin} />
       <main className="min-w-0 w-full flex-1 overflow-x-hidden p-[var(--space-4)] sm:p-[var(--space-6)] md:p-[var(--space-8)]">
         <div className="mb-[var(--space-8)] flex flex-col gap-[var(--space-4)] sm:flex-row sm:items-center sm:justify-between">
@@ -213,33 +253,40 @@ function SettingsContent() {
           </div>
         ) : (
           <>
-            <div className="mb-[var(--space-8)] flex flex-col gap-[var(--space-2)] rounded-[var(--radius-lg)] p-[var(--space-1)] sm:flex-row sm:flex-wrap" style={{ background: "var(--color-bg-elevated)" }}>
-              {sections.map((section) => (
-                <button
-                  key={section.id}
-                  onClick={() => setActiveSection(section.id)}
-                  className="rounded-[var(--radius-md)] px-[var(--space-4)] py-[var(--space-2)] text-left font-[family-name:var(--font-body)] text-[var(--text-sm)] font-500 transition-colors sm:flex-1 sm:text-center"
-                  style={{
-                    background: activeSection === section.id ? "var(--color-accent)" : "transparent",
-                    color: activeSection === section.id ? "var(--color-accent-on)" : "var(--color-text-secondary)",
-                  }}
-                >
-                  {section.label}
-                </button>
-              ))}
+            <div className="mb-[var(--space-8)] flex gap-0 rounded-[var(--radius-lg)] p-[var(--space-1)]" style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)" }}>
+              {sections.map((section) => {
+                const active = activeSection === section.id;
+                return (
+                  <button
+                    key={section.id}
+                    onClick={() => setActiveSection(section.id)}
+                    className="flex-1 rounded-[var(--radius-md)] px-[var(--space-4)] py-[var(--space-3)] text-center font-[family-name:var(--font-display)] text-[var(--text-sm)] font-600 transition-all duration-150 whitespace-nowrap"
+                    style={{
+                      background: active ? "var(--color-accent)" : "transparent",
+                      color: active ? "var(--color-accent-on)" : "var(--color-text-secondary)",
+                      boxShadow: active ? "0 1px 3px rgba(15, 23, 42, 0.1)" : "none",
+                    }}
+                  >
+                    {section.label}
+                  </button>
+                );
+              })}
             </div>
 
-            <div className="flex flex-col gap-[var(--space-10)]">
+            <div className="flex flex-col gap-[var(--space-6)]">
               {activeSection === "home" && (
                 <>
-                  <section>
-                    <h2 className="mb-[var(--space-1)] font-[family-name:var(--font-display)] text-[var(--text-base)] font-600" style={{ color: "var(--color-text)" }}>
-                      Hero Section
-                    </h2>
-                    <p className="mb-[var(--space-4)] font-[family-name:var(--font-mono)] text-[var(--text-xs)]" style={{ color: "var(--color-text-tertiary)" }}>
-                      Appears at the top of the home page with your intro text and key highlights.
-                    </p>
-                    <div className="flex flex-col gap-[var(--space-4)]">
+                  <section className="rounded-[var(--radius-lg)] p-[var(--space-6)]" style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)" }}>
+                    <div className="mb-[var(--space-5)]">
+                      <p className="font-[family-name:var(--font-mono)] text-[0.625rem] uppercase tracking-[0.2em] mb-[var(--space-1)]" style={{ color: "var(--color-accent)" }}>Home Page</p>
+                      <h2 className="font-[family-name:var(--font-display)] text-[var(--text-lg)] font-700" style={{ color: "var(--color-text)" }}>
+                        Hero Section
+                      </h2>
+                      <p className="mt-[var(--space-1)] font-[family-name:var(--font-body)] text-[var(--text-sm)]" style={{ color: "var(--color-text-tertiary)" }}>
+                        Appears at the top of the home page with your intro text and key highlights.
+                      </p>
+                    </div>
+                    <div className="flex flex-col gap-[var(--space-5)]">
                       <div>
                         <label htmlFor="settings-bio-hero" className={labelClass} style={{ color: "var(--color-text-tertiary)" }}>Bio Text</label>
                         <textarea id="settings-bio-hero" value={settings.bio_hero || ""} onChange={(e) => set("bio_hero", e.target.value)} rows={2} className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-colors" style={inputStyle} />
@@ -258,13 +305,16 @@ function SettingsContent() {
                     </div>
                   </section>
 
-                  <section>
-                    <h2 className="mb-[var(--space-1)] font-[family-name:var(--font-display)] text-[var(--text-base)] font-600" style={{ color: "var(--color-text)" }}>
-                      Skills Section
-                    </h2>
-                    <p className="mb-[var(--space-4)] font-[family-name:var(--font-mono)] text-[var(--text-xs)]" style={{ color: "var(--color-text-tertiary)" }}>
-                      Skill groups shown on the home page and the about-page sidebar.
-                    </p>
+                  <section className="rounded-[var(--radius-lg)] p-[var(--space-6)]" style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)" }}>
+                    <div className="mb-[var(--space-5)]">
+                      <p className="font-[family-name:var(--font-mono)] text-[0.625rem] uppercase tracking-[0.2em] mb-[var(--space-1)]" style={{ color: "var(--color-accent)" }}>Home Page</p>
+                      <h2 className="font-[family-name:var(--font-display)] text-[var(--text-lg)] font-700" style={{ color: "var(--color-text)" }}>
+                        Skills Section
+                      </h2>
+                      <p className="mt-[var(--space-1)] font-[family-name:var(--font-body)] text-[var(--text-sm)]" style={{ color: "var(--color-text-tertiary)" }}>
+                        Skill groups shown on the home page and the about-page sidebar.
+                      </p>
+                    </div>
                     <textarea
                       id="settings-skill-groups"
                       aria-label="Skill groups JSON"
@@ -290,39 +340,98 @@ function SettingsContent() {
 
               {activeSection === "about" && (
                 <>
-                  <section>
-                    <h2 className="mb-[var(--space-1)] font-[family-name:var(--font-display)] text-[var(--text-base)] font-600" style={{ color: "var(--color-text)" }}>
-                      Bio Paragraphs
-                    </h2>
-                    <p className="mb-[var(--space-4)] font-[family-name:var(--font-mono)] text-[var(--text-xs)]" style={{ color: "var(--color-text-tertiary)" }}>
-                      The main body text on the about page, up to three paragraphs.
-                    </p>
-                    <div className="flex flex-col gap-[var(--space-4)]">
+                  <section className="rounded-[var(--radius-lg)] p-[var(--space-6)]" style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)" }}>
+                    <div className="mb-[var(--space-5)]">
+                      <p className="font-[family-name:var(--font-mono)] text-[0.625rem] uppercase tracking-[0.2em] mb-[var(--space-1)]" style={{ color: "var(--color-accent)" }}>About Page</p>
+                      <h2 className="font-[family-name:var(--font-display)] text-[var(--text-lg)] font-700" style={{ color: "var(--color-text)" }}>
+                        Bio Paragraphs
+                      </h2>
+                      <p className="mt-[var(--space-1)] font-[family-name:var(--font-body)] text-[var(--text-sm)]" style={{ color: "var(--color-text-tertiary)" }}>
+                        The main body text on the about page, up to three paragraphs.
+                      </p>
+                    </div>
+                    <div className="flex flex-col gap-[var(--space-5)]">
                       <div><label className={labelClass} style={{ color: "var(--color-text-tertiary)" }}>Paragraph 1</label><textarea value={settings.bio_about_1 || ""} onChange={(e) => set("bio_about_1", e.target.value)} rows={3} className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-colors" style={inputStyle} /></div>
                       <div><label className={labelClass} style={{ color: "var(--color-text-tertiary)" }}>Paragraph 2</label><textarea value={settings.bio_about_2 || ""} onChange={(e) => set("bio_about_2", e.target.value)} rows={3} className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-colors" style={inputStyle} /></div>
                       <div><label className={labelClass} style={{ color: "var(--color-text-tertiary)" }}>Paragraph 3</label><textarea value={settings.bio_about_3 || ""} onChange={(e) => set("bio_about_3", e.target.value)} rows={3} className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-colors" style={inputStyle} /></div>
                     </div>
                   </section>
 
-                  <div className="flex flex-col gap-[var(--space-3)] rounded-[var(--radius-md)] p-[var(--space-4)] sm:flex-row sm:items-center" style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)" }}>
-                    <span className="font-[family-name:var(--font-mono)] text-[var(--text-xs)]" style={{ color: "var(--color-text-tertiary)" }}>
-                      Experience timeline entries are managed separately.
-                    </span>
-                    <a href="/admin/experience" className="font-[family-name:var(--font-body)] text-[var(--text-sm)] font-500" style={{ color: "var(--color-accent)" }}>Go to Experience Editor &rarr;</a>
+                  <div className="flex flex-col gap-[var(--space-3)] rounded-[var(--radius-lg)] p-[var(--space-5)] sm:flex-row sm:items-center sm:justify-between" style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)" }}>
+                    <div>
+                      <p className="font-[family-name:var(--font-display)] text-[var(--text-sm)] font-600" style={{ color: "var(--color-text)" }}>Experience Timeline</p>
+                      <p className="font-[family-name:var(--font-body)] text-[var(--text-xs)]" style={{ color: "var(--color-text-tertiary)" }}>Experience timeline entries are managed separately.</p>
+                    </div>
+                    <a href="/admin/experience" className="inline-flex min-h-[36px] items-center rounded-[var(--radius-md)] px-4 py-2 font-[family-name:var(--font-body)] text-[var(--text-sm)] font-500 transition-colors" style={{ color: "var(--color-accent)", border: "1px solid var(--color-accent)" }}>Go to Experience Editor &rarr;</a>
                   </div>
                 </>
               )}
 
               {activeSection === "site" && (
-                <>
-                  <section>
-                    <h2 className="mb-[var(--space-1)] font-[family-name:var(--font-display)] text-[var(--text-base)] font-600" style={{ color: "var(--color-text)" }}>
-                      Site Info
-                    </h2>
-                    <p className="mb-[var(--space-4)] font-[family-name:var(--font-mono)] text-[var(--text-xs)]" style={{ color: "var(--color-text-tertiary)" }}>
-                      Used across all pages for browser title, description, and author name.
-                    </p>
-                    <div className="flex flex-col gap-[var(--space-4)]">
+                 <>
+                  <section className="rounded-[var(--radius-lg)] p-[var(--space-6)]" style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)" }}>
+                    <div className="mb-[var(--space-5)]">
+                      <p className="font-[family-name:var(--font-mono)] text-[0.625rem] uppercase tracking-[0.2em] mb-[var(--space-1)]" style={{ color: "var(--color-accent)" }}>Appearance</p>
+                      <h2 className="font-[family-name:var(--font-display)] text-[var(--text-lg)] font-700" style={{ color: "var(--color-text)" }}>
+                        Theme
+                      </h2>
+                      <p className="mt-[var(--space-1)] font-[family-name:var(--font-body)] text-[var(--text-sm)]" style={{ color: "var(--color-text-tertiary)" }}>
+                        Choose the visual theme for your website. Changes apply after saving.
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-[var(--space-4)]">
+                      {([
+                        { id: "light-minimal", name: "Light Minimal", desc: "Warm light background with indigo accents and Bricolage headings" },
+                        { id: "dark-modern", name: "Dark Modern", desc: "Dark charcoal with indigo accent, cream text, and Bricolage headings" },
+                        { id: "mono-editorial", name: "Mono Editorial", desc: "Pure white, true black text, Sora headings — sharp and print-like" },
+                      ] as const).map((t) => {
+                        const selected = (settings.theme || "light-minimal") === t.id;
+                        return (
+                          <button
+                            key={t.id}
+                            onClick={() => set("theme", t.id)}
+                            className="text-left rounded-[var(--radius-lg)] p-[var(--space-5)] transition-all duration-150"
+                            style={{
+                              background: selected ? "var(--color-accent-lightest)" : "var(--color-bg)",
+                              border: `2px solid ${selected ? "var(--color-accent)" : "var(--color-border)"}`,
+                              boxShadow: selected ? "0 0 0 1px var(--color-accent)" : "none",
+                            }}
+                          >
+                            <div className="flex items-center gap-[var(--space-3)] mb-[var(--space-2)]">
+                              <div
+                                className="w-5 h-5 rounded-full flex items-center justify-center text-[var(--text-xs)]"
+                                style={{
+                                  border: `2px solid ${selected ? "var(--color-accent)" : "var(--color-border-strong)"}`,
+                                  background: selected ? "var(--color-accent)" : "transparent",
+                                  color: selected ? "var(--color-accent-on)" : "transparent",
+                                }}
+                              >
+                                {selected ? "✓" : ""}
+                              </div>
+                              <span className="font-[family-name:var(--font-display)] text-[var(--text-sm)] font-700" style={{ color: "var(--color-text)" }}>
+                                {t.name}
+                              </span>
+                            </div>
+                            <p className="font-[family-name:var(--font-body)] text-[var(--text-xs)] pl-[var(--space-8)]" style={{ color: "var(--color-text-tertiary)" }}>
+                              {t.desc}
+                            </p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </section>
+
+                  <section className="rounded-[var(--radius-lg)] p-[var(--space-6)]" style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)" }}>
+                    <div className="mb-[var(--space-5)]">
+                      <p className="font-[family-name:var(--font-mono)] text-[0.625rem] uppercase tracking-[0.2em] mb-[var(--space-1)]" style={{ color: "var(--color-accent)" }}>Site Wide</p>
+                      <h2 className="font-[family-name:var(--font-display)] text-[var(--text-lg)] font-700" style={{ color: "var(--color-text)" }}>
+                        Site Info
+                      </h2>
+                      <p className="mt-[var(--space-1)] font-[family-name:var(--font-body)] text-[var(--text-sm)]" style={{ color: "var(--color-text-tertiary)" }}>
+                        Used across all pages for browser title, description, and author name.
+                      </p>
+                    </div>
+                    <div className="flex flex-col gap-[var(--space-5)]">
                       <div><label className={labelClass} style={{ color: "var(--color-text-tertiary)" }}>Site Title</label><input value={settings.site_title || ""} onChange={(e) => set("site_title", e.target.value)} className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-colors" style={inputStyle} /></div>
                       <div><label className={labelClass} style={{ color: "var(--color-text-tertiary)" }}>Tagline</label><input value={settings.tagline || ""} onChange={(e) => set("tagline", e.target.value)} className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-colors" style={inputStyle} /></div>
                       <div><label className={labelClass} style={{ color: "var(--color-text-tertiary)" }}>Description</label><textarea value={settings.description || ""} onChange={(e) => set("description", e.target.value)} rows={2} className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-colors" style={inputStyle} /></div>
@@ -330,14 +439,17 @@ function SettingsContent() {
                     </div>
                   </section>
 
-                  <section>
-                    <h2 className="mb-[var(--space-1)] font-[family-name:var(--font-display)] text-[var(--text-base)] font-600" style={{ color: "var(--color-text)" }}>
-                      Social Links
-                    </h2>
-                    <p className="mb-[var(--space-4)] font-[family-name:var(--font-mono)] text-[var(--text-xs)]" style={{ color: "var(--color-text-tertiary)" }}>
-                      Shown on the home-page hero card and about-page connect section.
-                    </p>
-                    <div className="grid grid-cols-1 gap-[var(--space-4)] sm:grid-cols-2">
+                  <section className="rounded-[var(--radius-lg)] p-[var(--space-6)]" style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)" }}>
+                    <div className="mb-[var(--space-5)]">
+                      <p className="font-[family-name:var(--font-mono)] text-[0.625rem] uppercase tracking-[0.2em] mb-[var(--space-1)]" style={{ color: "var(--color-accent)" }}>Site Wide</p>
+                      <h2 className="font-[family-name:var(--font-display)] text-[var(--text-lg)] font-700" style={{ color: "var(--color-text)" }}>
+                        Social Links
+                      </h2>
+                      <p className="mt-[var(--space-1)] font-[family-name:var(--font-body)] text-[var(--text-sm)]" style={{ color: "var(--color-text-tertiary)" }}>
+                        Shown on the home-page hero card and about-page connect section.
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-1 gap-[var(--space-5)] sm:grid-cols-2">
                       <div><label className={labelClass} style={{ color: "var(--color-text-tertiary)" }}>GitHub</label><input value={settings.social_links?.github || ""} onChange={(e) => setSocial("github", e.target.value)} className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-colors" style={inputStyle} /></div>
                       <div><label className={labelClass} style={{ color: "var(--color-text-tertiary)" }}>LinkedIn</label><input value={settings.social_links?.linkedin || ""} onChange={(e) => setSocial("linkedin", e.target.value)} className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-colors" style={inputStyle} /></div>
                       <div><label className={labelClass} style={{ color: "var(--color-text-tertiary)" }}>Twitter</label><input value={settings.social_links?.twitter || ""} onChange={(e) => setSocial("twitter", e.target.value)} className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-colors" style={inputStyle} /></div>
@@ -345,14 +457,17 @@ function SettingsContent() {
                     </div>
                   </section>
 
-                  <section>
-                    <h2 className="mb-[var(--space-1)] font-[family-name:var(--font-display)] text-[var(--text-base)] font-600" style={{ color: "var(--color-text)" }}>
-                      Announcement Bar
-                    </h2>
-                    <p className="mb-[var(--space-4)] font-[family-name:var(--font-mono)] text-[var(--text-xs)]" style={{ color: "var(--color-text-tertiary)" }}>
-                      A top banner for launches, updates, or alerts.
-                    </p>
-                    <div className="flex flex-col gap-[var(--space-4)]">
+                  <section className="rounded-[var(--radius-lg)] p-[var(--space-6)]" style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)" }}>
+                    <div className="mb-[var(--space-5)]">
+                      <p className="font-[family-name:var(--font-mono)] text-[0.625rem] uppercase tracking-[0.2em] mb-[var(--space-1)]" style={{ color: "var(--color-accent)" }}>Site Wide</p>
+                      <h2 className="font-[family-name:var(--font-display)] text-[var(--text-lg)] font-700" style={{ color: "var(--color-text)" }}>
+                        Announcement Bar
+                      </h2>
+                      <p className="mt-[var(--space-1)] font-[family-name:var(--font-body)] text-[var(--text-sm)]" style={{ color: "var(--color-text-tertiary)" }}>
+                        A top banner for launches, updates, or alerts.
+                      </p>
+                    </div>
+                    <div className="flex flex-col gap-[var(--space-5)]">
                       <label className="flex items-center gap-[var(--space-2)]">
                         <input
                           type="checkbox"
@@ -360,7 +475,7 @@ function SettingsContent() {
                           onChange={(e) => set("announcement", { ...(settings.announcement || { text: "", link: "" }), enabled: e.target.checked })}
                           className="h-4 w-4"
                         />
-                        <span className="font-[family-name:var(--font-body)] text-[var(--text-sm)]" style={{ color: "var(--color-text)" }}>
+                        <span className="font-[family-name:var(--font-body)] text-[var(--text-sm)] font-500" style={{ color: "var(--color-text)" }}>
                           Show announcement bar
                         </span>
                       </label>
@@ -373,13 +488,134 @@ function SettingsContent() {
                       ) : null}
                     </div>
                   </section>
+
+                  <section className="rounded-[var(--radius-lg)] p-[var(--space-6)]" style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)" }}>
+                    <div className="mb-[var(--space-5)] flex flex-col gap-[var(--space-3)] sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="font-[family-name:var(--font-mono)] text-[0.625rem] uppercase tracking-[0.2em] mb-[var(--space-1)]" style={{ color: "var(--color-accent)" }}>AI Writer</p>
+                        <h2 className="font-[family-name:var(--font-display)] text-[var(--text-lg)] font-700" style={{ color: "var(--color-text)" }}>
+                          AI Configuration
+                        </h2>
+                        <p className="mt-[var(--space-1)] font-[family-name:var(--font-body)] text-[var(--text-sm)]" style={{ color: "var(--color-text-tertiary)" }}>
+                          OpenAI-compatible API settings for the AI Blog Studio. Saved securely — the key is never exposed to the frontend.
+                        </p>
+                      </div>
+                      <button
+                        onClick={saveAiConfig}
+                        disabled={aiSaving}
+                        className="inline-flex min-h-[36px] items-center justify-center rounded-[var(--radius-md)] px-4 py-2 font-[family-name:var(--font-body)] text-[var(--text-sm)] font-500 transition-all duration-150 hover:brightness-110 disabled:opacity-50 whitespace-nowrap self-start sm:self-auto"
+                        style={{ background: "var(--color-accent)", color: "var(--color-accent-on)" }}
+                      >
+                        {aiSaving ? "Saving..." : "Save AI Config"}
+                      </button>
+                    </div>
+                    {aiConfig ? (
+                      <div className="flex flex-col gap-[var(--space-5)]">
+                        <div className="grid grid-cols-1 gap-[var(--space-5)] sm:grid-cols-2">
+                          <div>
+                            <label className={labelClass} style={{ color: "var(--color-text-tertiary)" }}>Provider</label>
+                            <select
+                              value={aiConfig.provider}
+                              onChange={(e) => setAiConfig({ ...aiConfig, provider: e.target.value })}
+                              className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-colors"
+                              style={inputStyle}
+                            >
+                              <option value="openai-compatible">OpenAI Compatible</option>
+                              <option value="disabled">Disabled</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className={labelClass} style={{ color: "var(--color-text-tertiary)" }}>Model</label>
+                            <input
+                              value={aiConfig.model}
+                              onChange={(e) => setAiConfig({ ...aiConfig, model: e.target.value })}
+                              placeholder="gpt-4o"
+                              className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-colors"
+                              style={aiInputStyle}
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className={labelClass} style={{ color: "var(--color-text-tertiary)" }}>API Endpoint URL</label>
+                          <input
+                            value={aiConfig.baseUrl}
+                            onChange={(e) => setAiConfig({ ...aiConfig, baseUrl: e.target.value })}
+                            placeholder="https://api.openai.com/v1"
+                            className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-colors"
+                            style={aiInputStyle}
+                          />
+                        </div>
+                        <div>
+                          <label className={labelClass} style={{ color: "var(--color-text-tertiary)" }}>API Key</label>
+                          <input
+                            type="password"
+                            value={aiConfig.apiKeySet ? aiConfig.apiKeyMasked : ""}
+                            onChange={(e) => setAiConfig({ ...aiConfig, apiKeyMasked: e.target.value, apiKey: e.target.value })}
+                            placeholder={aiConfig.apiKeySet ? "Key is set — enter a new one to replace" : "Enter your API key"}
+                            className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-colors"
+                            style={aiInputStyle}
+                          />
+                          {aiConfig.apiKeySet ? (
+                            <p className="mt-[var(--space-1)] font-[family-name:var(--font-mono)] text-[var(--text-xs)]" style={{ color: "var(--color-text-tertiary)" }}>
+                              Current: {aiConfig.apiKeyMasked}
+                            </p>
+                          ) : (
+                            <p className="mt-[var(--space-1)] font-[family-name:var(--font-mono)] text-[var(--text-xs)]" style={{ color: "oklch(55% 0.15 30)" }}>
+                              No API key configured. AI features will not work.
+                            </p>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-1 gap-[var(--space-5)] sm:grid-cols-2">
+                          <div>
+                            <label className={labelClass} style={{ color: "var(--color-text-tertiary)" }}>Temperature ({aiConfig.temperature})</label>
+                            <input
+                              type="range"
+                              min="0"
+                              max="2"
+                              step="0.1"
+                              value={aiConfig.temperature}
+                              onChange={(e) => setAiConfig({ ...aiConfig, temperature: parseFloat(e.target.value) })}
+                              className="w-full"
+                              style={{ accentColor: "var(--color-accent)" }}
+                            />
+                            <div className="flex justify-between font-[family-name:var(--font-mono)] text-[0.625rem]" style={{ color: "var(--color-text-tertiary)" }}>
+                              <span>Precise</span>
+                              <span>Creative</span>
+                            </div>
+                          </div>
+                          <div>
+                            <label className={labelClass} style={{ color: "var(--color-text-tertiary)" }}>Max Tokens</label>
+                            <input
+                              type="number"
+                              value={aiConfig.maxTokens}
+                              onChange={(e) => setAiConfig({ ...aiConfig, maxTokens: parseInt(e.target.value) || 6000 })}
+                              min={500}
+                              max={16000}
+                              className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-colors"
+                              style={aiInputStyle}
+                            />
+                          </div>
+                        </div>
+                        <div className="rounded-[var(--radius-md)] p-[var(--space-3)] flex items-start gap-[var(--space-2)]" style={{ background: "var(--color-bg)", border: "1px solid var(--color-border)" }}>
+                          <span className="text-[var(--text-sm)]" style={{ color: "var(--color-text-tertiary)" }}>🔒</span>
+                          <p className="font-[family-name:var(--font-body)] text-[var(--text-xs)]" style={{ color: "var(--color-text-tertiary)" }}>
+                            Your API key is stored with an internal prefix and never exposed publicly. It is only sent to the backend over an authenticated, admin-only endpoint.
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="font-[family-name:var(--font-mono)] text-[var(--text-sm)]" style={{ color: "var(--color-text-tertiary)" }}>
+                        Loading AI configuration...
+                      </p>
+                    )}
+                  </section>
                 </>
               )}
 
               {saveError ? (
-                <p className="text-[var(--text-sm)]" style={{ color: "var(--color-error)" }}>
+                <div className="rounded-[var(--radius-md)] px-[var(--space-4)] py-[var(--space-3)] text-[var(--text-sm)]" style={{ background: "oklch(95% 0.05 25)", border: "1px solid oklch(90% 0.05 25)", color: "oklch(40% 0.1 25)" }}>
                   {saveError}
-                </p>
+                </div>
               ) : null}
             </div>
           </>

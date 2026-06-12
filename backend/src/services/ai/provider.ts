@@ -52,6 +52,40 @@ function usesMaxCompletionTokens(model: string | null) {
   return /^gpt-5(\b|[\.-])/i.test(model.trim());
 }
 
+export async function getDbOverrides(): Promise<Partial<AiProviderConfig>> {
+  const keys = [
+    "internal_ai_provider",
+    "internal_ai_api_key",
+    "internal_ai_base_url",
+    "internal_ai_model",
+    "internal_ai_temperature",
+    "internal_ai_max_tokens",
+  ];
+
+  let rows: Array<{ key: string; value: string }> = [];
+  try {
+    const prisma = (await import("../../utils/db")).default;
+    rows = await prisma.siteSetting.findMany({ where: { key: { in: keys } } });
+  } catch {
+    return {};
+  }
+
+  const record: Record<string, string> = {};
+  for (const row of rows) {
+    record[row.key] = row.value;
+  }
+
+  const overrides: Partial<AiProviderConfig> = {};
+  if (record.internal_ai_provider) overrides.provider = record.internal_ai_provider as AiProviderName;
+  if (record.internal_ai_api_key) overrides.apiKey = record.internal_ai_api_key;
+  if (record.internal_ai_base_url) overrides.baseUrl = record.internal_ai_base_url;
+  if (record.internal_ai_model) overrides.model = record.internal_ai_model;
+  if (record.internal_ai_temperature) overrides.temperature = normalizeNumber(record.internal_ai_temperature, 0.7);
+  if (record.internal_ai_max_tokens) overrides.maxTokens = normalizeNumber(record.internal_ai_max_tokens, 6000);
+
+  return overrides;
+}
+
 export function getAiProviderConfig(): AiProviderConfig {
   const provider = (process.env.AI_PROVIDER?.trim() || "disabled") as AiProviderName;
   const researchProvider = (process.env.RESEARCH_PROVIDER?.trim() || "disabled") as ResearchProviderName;

@@ -6,6 +6,120 @@ import { triggerFrontendRevalidation } from "../services/revalidate";
 
 const router = Router();
 
+// GET /api/admin/ai-config — admin-only, returns AI config with masked API key
+router.get("/admin/ai-config", authMiddleware, async (_req: AuthRequest, res) => {
+  try {
+    const keys = [
+      "internal_ai_provider",
+      "internal_ai_api_key",
+      "internal_ai_base_url",
+      "internal_ai_model",
+      "internal_ai_temperature",
+      "internal_ai_max_tokens",
+    ];
+    const rows = await prisma.siteSetting.findMany({ where: { key: { in: keys } } });
+    const record: Record<string, string | null> = {};
+    for (const row of rows) {
+      record[row.key] = row.value;
+    }
+
+    const apiKey = record.internal_ai_api_key || process.env.AI_API_KEY?.trim() || "";
+    const maskedKey = apiKey.length > 8
+      ? apiKey.slice(0, 4) + "••••••••" + apiKey.slice(-4)
+      : apiKey ? "••••••••" : "";
+
+    res.json({
+      provider: record.internal_ai_provider || process.env.AI_PROVIDER?.trim() || "openai-compatible",
+      apiKeyMasked: maskedKey,
+      apiKeySet: Boolean(apiKey),
+      baseUrl: record.internal_ai_base_url || process.env.AI_BASE_URL?.trim() || "",
+      model: record.internal_ai_model || process.env.AI_MODEL?.trim() || "",
+      temperature: Number(record.internal_ai_temperature || process.env.AI_TEMPERATURE || "0.7"),
+      maxTokens: Number(record.internal_ai_max_tokens || process.env.AI_MAX_TOKENS || "6000"),
+    });
+  } catch (err) {
+    console.error("Get AI config error:", err);
+    res.status(500).json({ error: "Failed to fetch AI config" });
+  }
+});
+
+// PUT /api/admin/ai-config — admin-only, saves AI config with internal_ prefix
+router.put("/admin/ai-config", authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const { provider, apiKey, baseUrl, model, temperature, maxTokens } = req.body as Record<string, unknown>;
+    const operations = [];
+
+    if (typeof provider === "string") {
+      operations.push(
+        prisma.siteSetting.upsert({
+          where: { key: "internal_ai_provider" },
+          update: { value: provider },
+          create: { key: "internal_ai_provider", value: provider },
+        })
+      );
+    }
+
+    if (typeof apiKey === "string" && apiKey.trim() && apiKey !== "••••••••") {
+      operations.push(
+        prisma.siteSetting.upsert({
+          where: { key: "internal_ai_api_key" },
+          update: { value: apiKey.trim() },
+          create: { key: "internal_ai_api_key", value: apiKey.trim() },
+        })
+      );
+    }
+
+    if (typeof baseUrl === "string") {
+      operations.push(
+        prisma.siteSetting.upsert({
+          where: { key: "internal_ai_base_url" },
+          update: { value: baseUrl.trim().replace(/\/$/, "") },
+          create: { key: "internal_ai_base_url", value: baseUrl.trim().replace(/\/$/, "") },
+        })
+      );
+    }
+
+    if (typeof model === "string") {
+      operations.push(
+        prisma.siteSetting.upsert({
+          where: { key: "internal_ai_model" },
+          update: { value: model.trim() },
+          create: { key: "internal_ai_model", value: model.trim() },
+        })
+      );
+    }
+
+    if (typeof temperature === "number" && Number.isFinite(temperature)) {
+      operations.push(
+        prisma.siteSetting.upsert({
+          where: { key: "internal_ai_temperature" },
+          update: { value: String(Math.max(0, Math.min(2, temperature))) },
+          create: { key: "internal_ai_temperature", value: String(Math.max(0, Math.min(2, temperature))) },
+        })
+      );
+    }
+
+    if (typeof maxTokens === "number" && Number.isFinite(maxTokens) && maxTokens > 0) {
+      operations.push(
+        prisma.siteSetting.upsert({
+          where: { key: "internal_ai_max_tokens" },
+          update: { value: String(Math.round(maxTokens)) },
+          create: { key: "internal_ai_max_tokens", value: String(Math.round(maxTokens)) },
+        })
+      );
+    }
+
+    if (operations.length > 0) {
+      await prisma.$transaction(operations);
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Update AI config error:", err);
+    res.status(500).json({ error: "Failed to update AI config" });
+  }
+});
+
 // GET /api/settings — public, returns all settings as flat object
 router.get("/settings", async (_req, res) => {
   try {

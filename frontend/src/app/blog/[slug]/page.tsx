@@ -356,7 +356,7 @@ export default async function BlogPostPage({
             </span>
           </div>
           <h1
-            className="font-[family-name:var(--font-display)] text-[var(--text-xl)] md:text-[var(--text-2xl)] font-semibold max-w-[var(--measure-wide)] leading-[var(--leading-tight)]"
+            className="font-[family-name:var(--font-display)] text-[var(--text-xl)] md:text-[var(--text-2xl)] font-semibold leading-[var(--leading-tight)]"
             style={{
               color: "var(--color-text)",
               fontSize: "clamp(1.75rem, 4vw, var(--text-2xl))",
@@ -367,7 +367,7 @@ export default async function BlogPostPage({
         </header>
 
         <div
-          className="prose max-w-[var(--measure)]"
+          className="prose"
           dangerouslySetInnerHTML={{ __html: renderBody(post.body ?? "") }}
         />
 

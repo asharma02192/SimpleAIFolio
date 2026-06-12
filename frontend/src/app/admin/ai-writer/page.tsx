@@ -734,12 +734,12 @@ function WriterContent() {
      RENDER
      ═══════════════════════════════════════════ */
   return (
-    <div className="flex min-h-screen" style={{ background: "var(--color-bg)" }}>
+    <div className="admin-main flex min-h-screen" style={{ background: "var(--color-bg)" }}>
       <AdminSidebar onLogout={logoutAdmin} />
-      <main id="main" className="flex-1 px-[var(--space-5)] py-[var(--space-6)] lg:px-[var(--space-8)]">
+      <main id="main" className="flex-1 overflow-x-hidden p-[var(--space-4)] sm:px-[var(--space-5)] sm:py-[var(--space-6)] lg:px-[var(--space-8)]">
         {/* ── Page header ── */}
         <section className="mb-[var(--space-8)]">
-          <div className="flex items-start justify-between gap-[var(--space-4)]">
+          <div className="flex flex-col items-start justify-between gap-[var(--space-4)] sm:flex-row sm:items-center">
             <div>
               <p
                 className="font-[family-name:var(--font-mono)] text-[0.625rem] uppercase tracking-[0.24em]"
@@ -1711,21 +1711,25 @@ function WriterContent() {
                               {showInternalLinks && (
                                 <div className="mt-[var(--space-3)] flex flex-col gap-[var(--space-2)]">
                                   {draft.internalLinkSuggestions.map((link, linkIndex) => (
-                                    <div key={`${link.slug}-${link.anchorText}`} className="rounded-[var(--radius-md)] border px-[var(--space-3)] py-[var(--space-3)]" style={{ borderColor: "var(--color-border)" }}>
+                                    <div key={`${link.slug}-${link.anchorText}`} className="rounded-[var(--radius-md)] border px-[var(--space-3)] py-[var(--space-3)]" style={{ borderColor: (link as any).applied ? "var(--color-accent)" : "var(--color-border)", opacity: (link as any).applied ? 0.7 : 1 }}>
                                       <p className="text-[var(--text-sm)] font-semibold" style={{ color: "var(--color-text)" }}>{link.title}</p>
                                       <p className="mt-1 text-[var(--text-xs)]" style={{ color: "var(--color-text-tertiary)" }}>
                                         Anchor: {link.anchorText} — /blog/{link.slug}
                                       </p>
                                       <p className="mt-[var(--space-2)] text-[var(--text-sm)]" style={{ color: "var(--color-text-secondary)" }}>{link.reason}</p>
-                                      <button
-                                        type="button"
-                                        onClick={() => void applyInternalLinkSuggestion(linkIndex)}
-                                        disabled={busy !== null}
-                                        className="mt-[var(--space-3)] inline-flex min-h-[36px] items-center justify-center rounded-[var(--radius-md)] px-3 py-2 text-[var(--text-xs)] font-500 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-                                        style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)", color: "var(--color-text)" }}
-                                      >
-                                        {busy === "internalLink" ? "Applying..." : "Apply Link"}
-                                      </button>
+                                      {(link as any).applied ? (
+                                        <p className="mt-[var(--space-3)] text-[var(--text-xs)] font-500" style={{ color: "var(--color-accent)" }}>Applied</p>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          onClick={() => void applyInternalLinkSuggestion(linkIndex)}
+                                          disabled={busy !== null}
+                                          className="mt-[var(--space-3)] inline-flex min-h-[36px] items-center justify-center rounded-[var(--radius-md)] px-3 py-2 text-[var(--text-xs)] font-500 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                                          style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)", color: "var(--color-text)" }}
+                                        >
+                                          {busy === "internalLink" ? "Applying..." : "Apply Link"}
+                                        </button>
+                                      )}
                                     </div>
                                   ))}
                                 </div>
@@ -1891,7 +1895,7 @@ function WriterContent() {
                             className="inline-flex min-h-[40px] w-full items-center justify-center rounded-[var(--radius-md)] px-5 py-2.5 text-[var(--text-sm)] font-500 transition-all duration-150 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
                             style={{ background: "var(--color-accent)", color: "var(--color-accent-on)" }}
                           >
-                            {busy === "save" ? "Saving..." : "Save as CMS Draft"}
+                            {busy === "save" ? "Saving..." : detail.draft?.postId ? "Update CMS Draft" : "Save as CMS Draft"}
                           </button>
                         </div>
                       ) : null}

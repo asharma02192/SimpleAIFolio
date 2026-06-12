@@ -71,21 +71,21 @@ function Label({ children }: { children: React.ReactNode }) {
 
 function Metric({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="flex flex-col gap-[var(--space-1)]">
+    <div className="min-w-0 flex flex-col gap-[var(--space-1)]">
       <span
-        className="font-[family-name:var(--font-mono)] text-[0.625rem] uppercase tracking-[0.16em]"
+        className="font-[family-name:var(--font-mono)] text-[0.625rem] uppercase tracking-[0.16em] truncate"
         style={{ color: "var(--color-text-tertiary)" }}
       >
         {label}
       </span>
       <span
-        className="font-[family-name:var(--font-display)] text-[1.25rem] font-semibold leading-none tabular-nums"
+        className="font-[family-name:var(--font-display)] text-[1.25rem] font-semibold leading-tight tabular-nums"
         style={{ color: "var(--color-text)" }}
       >
         {value}
       </span>
       {sub && (
-        <span className="text-[var(--text-xs)] leading-none" style={{ color: "var(--color-text-tertiary)" }}>
+        <span className="text-[var(--text-xs)] leading-snug truncate" style={{ color: "var(--color-text-tertiary)" }}>
           {sub}
         </span>
       )}
@@ -208,37 +208,39 @@ export default function AdminDashboard() {
           </h1>
         </div>
 
-        <div className="flex items-center gap-[var(--space-3)] flex-wrap">
+        <div className="flex items-center gap-[var(--space-3)] flex-shrink-0 flex-wrap">
           <select
             value={windowDays}
             onChange={(e) => { setLoading(true); setWindowDays(Number(e.target.value) as WindowDays); }}
-            className="min-h-[36px] rounded-[var(--radius-md)] px-[var(--space-3)] py-[var(--space-1)] text-[var(--text-sm)] outline-none"
+            className="min-h-[36px] rounded-[var(--radius-md)] px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none"
             style={inset}
           >
             <option value={7}>Last 7 days</option>
             <option value={30}>Last 30 days</option>
             <option value={90}>Last 90 days</option>
           </select>
-          <Link
-            href="/admin/posts/new"
-            className="inline-flex min-h-[36px] items-center justify-center rounded-[var(--radius-md)] px-[var(--space-4)] py-[var(--space-2)] font-[family-name:var(--font-mono)] text-[0.65rem] uppercase tracking-[0.14em] transition-opacity hover:opacity-90"
-            style={{ background: "var(--color-accent)", color: "var(--color-accent-on)" }}
-          >
-            New Post
-          </Link>
-          <Link
-            href="/admin/ai-writer"
-            className="inline-flex h-[36px] items-center justify-center rounded-[var(--radius-md)] px-[var(--space-4)] font-[family-name:var(--font-mono)] text-[0.65rem] uppercase tracking-[0.14em] font-medium transition-opacity hover:opacity-90"
-            style={inset}
-          >
-            AI Writer
-          </Link>
+          <div className="flex items-center gap-[var(--space-2)]">
+            <Link
+              href="/admin/posts/new"
+              className="inline-flex min-h-[36px] items-center justify-center rounded-[var(--radius-md)] px-[var(--space-4)] py-[var(--space-2)] font-[family-name:var(--font-mono)] text-[0.65rem] uppercase tracking-[0.14em] transition-opacity hover:opacity-90 whitespace-nowrap"
+              style={{ background: "var(--color-accent)", color: "var(--color-accent-on)" }}
+            >
+              New Post
+            </Link>
+            <Link
+              href="/admin/ai-writer"
+              className="inline-flex min-h-[36px] items-center justify-center rounded-[var(--radius-md)] px-[var(--space-4)] py-[var(--space-2)] font-[family-name:var(--font-mono)] text-[0.65rem] uppercase tracking-[0.14em] font-medium transition-opacity hover:opacity-90 whitespace-nowrap"
+              style={inset}
+            >
+              AI Writer
+            </Link>
+          </div>
         </div>
       </div>
 
       {/* ──────────────── STATS STRIP ──────────────── */}
       <div
-        className="grid grid-cols-2 gap-x-[var(--space-6)] gap-y-[var(--space-5)] rounded-[var(--radius-lg)] p-[var(--space-6)] md:grid-cols-3 lg:grid-cols-6"
+        className="grid grid-cols-2 gap-x-[var(--space-4)] gap-y-[var(--space-5)] rounded-[var(--radius-lg)] p-[var(--space-6)] sm:grid-cols-3 lg:grid-cols-6"
         style={surface}
       >
         <Metric label="Posts" value={data.publishedPosts.toLocaleString()} sub={`${data.totalPosts} total`} />
@@ -253,7 +255,7 @@ export default function AdminDashboard() {
       <div className="flex flex-col rounded-[var(--radius-lg)] overflow-hidden" style={surface}>
         {/* Tab bar */}
         <div
-          className="flex gap-[2px] p-[var(--space-1)]"
+          className="flex gap-[2px] p-[var(--space-1)] overflow-x-auto"
           style={{ borderBottom: "1px solid var(--color-border)" }}
         >
           {TABS.map((tab) => {
@@ -263,7 +265,7 @@ export default function AdminDashboard() {
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
-                className="min-w-0 flex-1 cursor-pointer whitespace-nowrap rounded-[var(--radius-md)] px-[var(--space-4)] py-[var(--space-2.5)] text-[var(--text-sm)] font-semibold transition-all duration-200"
+                className="flex-shrink-0 cursor-pointer whitespace-nowrap rounded-[var(--radius-md)] px-[var(--space-4)] py-[var(--space-2)] text-[var(--text-sm)] font-semibold transition-all duration-200"
                 style={{
                   color: active ? "var(--color-bg-elevated)" : "var(--color-text-secondary)",
                   background: active ? "var(--color-accent)" : "transparent",
@@ -276,13 +278,13 @@ export default function AdminDashboard() {
         </div>
 
         {/* Tab content */}
-        <div className="flex flex-col gap-[var(--space-6)] p-[var(--space-6)]">
+        <div className="flex flex-col gap-[var(--space-6)] p-[var(--space-4)] sm:p-[var(--space-6)]">
 
       {/* ══════════════ TAB: OVERVIEW ══════════════ */}
       {activeTab === "overview" && (
         <div className="grid gap-[var(--space-6)] lg:grid-cols-2">
           {/* Top Pages */}
-          <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-md)] p-[var(--space-5)]" style={inset}>
+          <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-md)] p-[var(--space-4)] sm:p-[var(--space-5)]" style={inset}>
             <div>
               <Label>Top Pages</Label>
               <h2 className="mt-[var(--space-2)] font-[family-name:var(--font-display)] text-[var(--text-lg)] font-semibold" style={{ color: "var(--color-text)" }}>
@@ -297,14 +299,14 @@ export default function AdminDashboard() {
                   const maxViews = data.topPages[0]?.views ?? 1;
                   const barWidth = Math.max(4, (p.views / maxViews) * 100);
                   return (
-                    <li key={p.path} className="flex items-center gap-[var(--space-3)] rounded-[var(--radius-md)] px-[var(--space-4)] py-[var(--space-2)] text-[var(--text-sm)]" style={inset}>
+                    <li key={p.path} className="flex items-center gap-[var(--space-2)] rounded-[var(--radius-md)] px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)]" style={inset}>
                       <span
-                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[0.625rem] font-bold"
+                        className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[0.6rem] font-bold"
                         style={{ background: i === 0 ? "var(--color-accent)" : "var(--color-bg-muted)", color: i === 0 ? "var(--color-accent-on)" : "var(--color-text-tertiary)" }}
                       >
                         {i + 1}
                       </span>
-                      <span className="min-w-0 flex-1 truncate font-medium" style={{ color: "var(--color-accent)" }}>
+                      <span className="min-w-0 flex-1 truncate font-medium text-[var(--text-xs)] sm:text-[var(--text-sm)]" style={{ color: "var(--color-accent)" }}>
                         <Link href={p.path} className="hover:underline">{p.path}</Link>
                       </span>
                       <span className="shrink-0 font-semibold tabular-nums text-[var(--text-xs)]" style={{ color: "var(--color-text-secondary)" }}>{p.views.toLocaleString()}</span>
@@ -316,7 +318,7 @@ export default function AdminDashboard() {
           </section>
 
           {/* Daily Usage */}
-          <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-md)] p-[var(--space-5)]" style={inset}>
+          <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-md)] p-[var(--space-4)] sm:p-[var(--space-5)]" style={inset}>
             <div>
               <Label>Daily Usage</Label>
               <h2 className="mt-[var(--space-2)] font-[family-name:var(--font-display)] text-[var(--text-lg)] font-semibold" style={{ color: "var(--color-text)" }}>
@@ -332,11 +334,11 @@ export default function AdminDashboard() {
                   return (
                     <div
                       key={entry.date}
-                      className="flex items-center gap-[var(--space-4)] rounded-[var(--radius-md)] px-[var(--space-4)] py-[var(--space-2)] text-[var(--text-sm)] min-h-[40px]"
+                      className="flex items-center gap-[var(--space-3)] rounded-[var(--radius-md)] px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] min-h-[40px]"
                       style={inset}
                     >
-                      <span className="w-14 shrink-0 font-medium text-[var(--text-xs)]" style={{ color: "var(--color-text-secondary)" }}>{fmtShortDate(entry.date)}</span>
-                      <span className="min-w-0 flex-1 font-medium tabular-nums" style={{ color: "var(--color-text)" }}>
+                      <span className="w-12 shrink-0 font-medium text-[var(--text-xs)]" style={{ color: "var(--color-text-secondary)" }}>{fmtShortDate(entry.date)}</span>
+                      <span className="min-w-0 flex-1 font-medium tabular-nums text-[var(--text-xs)] sm:text-[var(--text-sm)]" style={{ color: "var(--color-text)" }}>
                         {entry.calls} calls
                         {entry.failures > 0 && <span className="ml-1 font-medium" style={{ color: "var(--color-error)" }}>({entry.failures} failed)</span>}
                       </span>
@@ -355,7 +357,7 @@ export default function AdminDashboard() {
         <div className="flex flex-col gap-[var(--space-6)]">
           {/* AI health summary */}
           <div
-            className="flex items-center gap-[var(--space-4)] rounded-[var(--radius-md)] p-[var(--space-4)]"
+            className="flex flex-col sm:flex-row items-start sm:items-center gap-[var(--space-3)] sm:gap-[var(--space-4)] rounded-[var(--radius-md)] p-[var(--space-4)]"
             style={{
               background: ai.successRate >= 95 ? "oklch(96% 0.02 145)" : ai.successRate >= 80 ? "oklch(96% 0.03 85)" : "oklch(96% 0.03 25)",
               border: `1px solid ${ai.successRate >= 95 ? "oklch(88% 0.08 145)" : ai.successRate >= 80 ? "oklch(88% 0.08 85)" : "oklch(88% 0.08 25)"}`,
@@ -370,19 +372,19 @@ export default function AdminDashboard() {
             >
               {ai.successRate}%
             </div>
-            <div>
+            <div className="min-w-0">
               <span className="text-[var(--text-sm)] font-semibold" style={{ color: "var(--color-text)" }}>
                 {ai.successRate >= 95 ? "All systems healthy" : ai.successRate >= 80 ? "Degraded performance" : "Service issues detected"}
               </span>
               <span className="block text-[var(--text-xs)] mt-1" style={{ color: "var(--color-text-secondary)" }}>
-                {fmtCost(ai.estimatedCostUsd)} est. cost · {fmtCost(ai.previousPeriodCostUsd)} prior period · {ai.avgLatencyMs}ms avg latency
+                {fmtCost(ai.estimatedCostUsd)} est. cost &middot; {fmtCost(ai.previousPeriodCostUsd)} prior period &middot; {ai.avgLatencyMs}ms avg latency
               </span>
             </div>
           </div>
 
           {/* Alerts & Failures */}
           <div className="grid gap-[var(--space-6)] lg:grid-cols-2">
-            <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-md)] p-[var(--space-5)]" style={inset}>
+            <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-md)] p-[var(--space-4)] sm:p-[var(--space-5)]" style={inset}>
               <div>
                 <Label>Alerts</Label>
                 <h2 className="mt-[var(--space-2)] font-[family-name:var(--font-display)] text-[var(--text-lg)] font-semibold" style={{ color: "var(--color-text)" }}>
@@ -409,7 +411,7 @@ export default function AdminDashboard() {
               )}
             </section>
 
-            <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-md)] p-[var(--space-5)]" style={inset}>
+            <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-md)] p-[var(--space-4)] sm:p-[var(--space-5)]" style={inset}>
               <div>
                 <Label>Recent Failures</Label>
                 <h2 className="mt-[var(--space-2)] font-[family-name:var(--font-display)] text-[var(--text-lg)] font-semibold" style={{ color: "var(--color-text)" }}>
@@ -438,11 +440,14 @@ export default function AdminDashboard() {
           </div>
 
           {/* Providers, Operations, Models */}
-          <div className="grid gap-[var(--space-6)] lg:grid-cols-3">
+          <div className="grid gap-[var(--space-6)] sm:grid-cols-2 lg:grid-cols-3">
             {ai.topProviders.length > 0 && (
-              <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-md)] p-[var(--space-5)]" style={inset}>
+              <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-md)] p-[var(--space-4)] sm:p-[var(--space-5)]" style={inset}>
                 <div>
                   <Label>Top Providers</Label>
+                  <h2 className="mt-[var(--space-1)] font-[family-name:var(--font-display)] text-[var(--text-base)] font-semibold" style={{ color: "var(--color-text)" }}>
+                    By provider
+                  </h2>
                 </div>
                 <div className="flex flex-col">
                   {ai.topProviders.map((p, i) => (
@@ -456,9 +461,12 @@ export default function AdminDashboard() {
             )}
 
             {ai.topOperations.length > 0 && (
-              <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-md)] p-[var(--space-5)]" style={inset}>
+              <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-md)] p-[var(--space-4)] sm:p-[var(--space-5)]" style={inset}>
                 <div>
                   <Label>Top Operations</Label>
+                  <h2 className="mt-[var(--space-1)] font-[family-name:var(--font-display)] text-[var(--text-base)] font-semibold" style={{ color: "var(--color-text)" }}>
+                    By operation
+                  </h2>
                 </div>
                 <div className="flex flex-col">
                   {ai.topOperations.map((op, i) => {
@@ -479,9 +487,12 @@ export default function AdminDashboard() {
             )}
 
             {ai.topModels.length > 0 && (
-              <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-md)] p-[var(--space-5)]" style={inset}>
+              <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-md)] p-[var(--space-4)] sm:p-[var(--space-5)]" style={inset}>
                 <div>
                   <Label>Top Models</Label>
+                  <h2 className="mt-[var(--space-1)] font-[family-name:var(--font-display)] text-[var(--text-base)] font-semibold" style={{ color: "var(--color-text)" }}>
+                    By model
+                  </h2>
                 </div>
                 <div className="flex flex-col gap-[var(--space-3)]">
                   {ai.topModels.map((m) => (
@@ -500,9 +511,9 @@ export default function AdminDashboard() {
       {/* ══════════════ TAB: ALERTS ══════════════ */}
       {activeTab === "alerts" && alertSettings && (
         <div className="flex flex-col gap-[var(--space-6)]">
-          <section className="flex flex-col gap-[var(--space-6)] rounded-[var(--radius-md)] p-[var(--space-5)]" style={inset}>
+          <section className="flex flex-col gap-[var(--space-5)] rounded-[var(--radius-md)] p-[var(--space-4)] sm:p-[var(--space-5)]" style={inset}>
             {/* Section header */}
-            <div className="flex flex-col gap-[var(--space-4)] lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex flex-col gap-[var(--space-4)] sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <Label>Alert Settings</Label>
                 <h2 className="mt-[var(--space-2)] font-[family-name:var(--font-display)] text-[var(--text-lg)] font-semibold" style={{ color: "var(--color-text)" }}>
@@ -532,12 +543,12 @@ export default function AdminDashboard() {
             </div>
 
             {/* Notification channels */}
-            <div className="grid gap-[var(--space-4)] lg:grid-cols-2">
+            <div className="grid gap-[var(--space-4)] sm:grid-cols-2">
               {([
                 { key: "webhookEnabled" as const, label: "Webhook alerts", desc: "Send alerts to the configured webhook URL.", configured: alertSettings.webhookConfigured },
                 { key: "telegramEnabled" as const, label: "Telegram alerts", desc: "Send compact alerts to the configured Telegram bot.", configured: alertSettings.telegramConfigured },
               ]).map((dest) => (
-                <label key={dest.key} className="flex cursor-pointer items-start gap-[var(--space-3)] rounded-[var(--radius-md)] p-[var(--space-4)]" style={{ ...inset, background: alertSettings[dest.key] ? "color-mix(in oklch, var(--color-bg) 92%, var(--color-accent) 8%)" : inset.background }}>
+                <label key={dest.key} className="flex cursor-pointer items-start gap-[var(--space-3)] rounded-[var(--radius-md)] p-[var(--space-3)] sm:p-[var(--space-4)]" style={{ ...inset, background: alertSettings[dest.key] ? "color-mix(in oklch, var(--color-bg) 92%, var(--color-accent) 8%)" : inset.background }}>
                   <div className="mt-[3px] flex h-4 w-4 shrink-0 items-center justify-center rounded-[3px]" style={{ background: alertSettings[dest.key] ? "var(--color-accent)" : "transparent", border: alertSettings[dest.key] ? "none" : "1.5px solid var(--color-border-strong)" }}>
                     <input
                       type="checkbox"
@@ -567,8 +578,8 @@ export default function AdminDashboard() {
             </div>
 
             {/* Severity & cooldown */}
-            <div className="grid gap-[var(--space-4)] md:grid-cols-2">
-              <label className="flex flex-col gap-[var(--space-2)] rounded-[var(--radius-md)] p-[var(--space-4)]" style={inset}>
+            <div className="grid gap-[var(--space-4)] sm:grid-cols-2">
+              <label className="flex flex-col gap-[var(--space-2)] rounded-[var(--radius-md)] p-[var(--space-3)] sm:p-[var(--space-4)]" style={inset}>
                 <span className="font-[family-name:var(--font-mono)] text-[0.625rem] uppercase tracking-[0.2em]" style={{ color: "var(--color-text-tertiary)" }}>Minimum Severity</span>
                 <select
                   value={alertSettings.minLevel}
@@ -581,8 +592,7 @@ export default function AdminDashboard() {
                   <option value="critical">Critical</option>
                 </select>
               </label>
-              <label className="flex flex-col gap-[var(--space-2)] rounded-[var(--radius-md)] p-[var(--space-4)]" style={inset}>
-                <span className="font-[family-name:var(--font-mono)] text-[0.625rem] uppercase tracking-[0.2em]" style={{ color: "var(--color-text-tertiary)" }}>Cooldown (minutes)</span>
+              <label className="flex flex-col gap-[var(--space-2)] rounded-[var(--radius-md)] p-[var(--space-3)] sm:p-[var(--space-4)]" style={inset}>
                 <input
                   type="number"
                   min={0}
@@ -640,7 +650,7 @@ export default function AdminDashboard() {
         <div className="flex flex-col gap-[var(--space-6)]">
           <div className="grid gap-[var(--space-6)] lg:grid-cols-2">
             {/* Provider breakdown */}
-            <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-md)] p-[var(--space-5)]" style={inset}>
+            <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-md)] p-[var(--space-4)] sm:p-[var(--space-5)]" style={inset}>
               <div>
                 <Label>Provider Breakdown</Label>
                 <h2 className="mt-[var(--space-2)] font-[family-name:var(--font-display)] text-[var(--text-lg)] font-semibold" style={{ color: "var(--color-text)" }}>
@@ -650,8 +660,8 @@ export default function AdminDashboard() {
               {ai.providerBreakdown.length === 0 ? (
                 <p className="text-[var(--text-sm)]" style={{ color: "var(--color-text-tertiary)" }}>No provider data.</p>
               ) : (
-                <div className="overflow-hidden rounded-[var(--radius-md)]" style={{ border: "1px solid var(--color-border)" }}>
-                  <table className="w-full text-[var(--text-sm)]">
+                <div className="overflow-x-auto rounded-[var(--radius-md)]" style={{ border: "1px solid var(--color-border)" }}>
+                  <table className="w-full min-w-[360px] text-[var(--text-sm)]">
                     <thead>
                       <tr style={{ background: "var(--color-bg)" }}>
                         <th className="text-left font-semibold text-[var(--text-xs)] py-[var(--space-3)] px-[var(--space-4)]">Provider</th>
@@ -676,7 +686,7 @@ export default function AdminDashboard() {
             </section>
 
             {/* Model breakdown */}
-            <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-md)] p-[var(--space-5)]" style={inset}>
+            <section className="flex flex-col gap-[var(--space-4)] rounded-[var(--radius-md)] p-[var(--space-4)] sm:p-[var(--space-5)]" style={inset}>
               <div>
                 <Label>Model Breakdown</Label>
                 <h2 className="mt-[var(--space-2)] font-[family-name:var(--font-display)] text-[var(--text-lg)] font-semibold" style={{ color: "var(--color-text)" }}>

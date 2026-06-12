@@ -38,6 +38,7 @@
   --space-2: 0.5rem;
   --space-3: 0.75rem;
   --space-4: 1rem;
+  --space-5: 1.25rem;
   --space-6: 1.5rem;
   --space-8: 2rem;
   --space-12: 3rem;
@@ -163,7 +164,6 @@ h1, h2, h3, h4 {
 
 /* --- Prose (Blog) --- */
 .prose {
-  max-width: var(--measure);
   font-size: var(--text-base);
   line-height: var(--leading-relaxed);
   color: var(--color-text-secondary);
@@ -289,6 +289,459 @@ h1, h2, h3, h4 {
   width: 2rem;
   height: 2px;
   background: var(--color-accent);
+}
+
+/* ============================================================
+   THEME: Dark Modern — applied via [data-theme="dark-modern"]
+   True dark mode: charcoal surfaces with indigo-blue accent,
+   proper elevation hierarchy, warm cream text. No inverted
+   light mode — every value designed for dark backgrounds.
+   ============================================================ */
+
+[data-theme="dark-modern"] {
+  --color-accent: oklch(68% 0.14 265);
+  --color-accent-light: oklch(72% 0.12 265);
+  --color-accent-lighter: oklch(58% 0.08 265);
+  --color-accent-lightest: oklch(22% 0.03 265);
+  --color-accent-dark: oklch(60% 0.16 265);
+  --color-accent-on: oklch(98% 0.01 265);
+
+  --color-bg: oklch(14% 0.012 265);
+  --color-bg-elevated: oklch(18% 0.012 265);
+  --color-bg-subtle: oklch(21% 0.012 265);
+  --color-bg-muted: oklch(25% 0.012 265);
+
+  --color-text: oklch(92% 0.008 265);
+  --color-text-secondary: oklch(72% 0.01 265);
+  --color-text-tertiary: oklch(52% 0.01 265);
+  --color-text-inverse: oklch(10% 0.015 265);
+
+  --color-border: oklch(28% 0.012 265);
+  --color-border-strong: oklch(38% 0.012 265);
+
+  --color-success: oklch(65% 0.15 145);
+  --color-warning: oklch(72% 0.14 75);
+  --color-error: oklch(62% 0.18 25);
+}
+
+[data-theme="dark-modern"] body {
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+[data-theme="dark-modern"] body::before {
+  background-image: radial-gradient(oklch(28% 0.01 265 / 0.12) 1px, transparent 1px);
+}
+
+[data-theme="dark-modern"] ::selection {
+  background: oklch(68% 0.14 265 / 0.3);
+}
+
+[data-theme="dark-modern"] h1,
+[data-theme="dark-modern"] h2,
+[data-theme="dark-modern"] h3,
+[data-theme="dark-modern"] h4 {
+  color: var(--color-text);
+}
+
+[data-theme="dark-modern"] .skip-link {
+  background: var(--color-text);
+  color: var(--color-bg);
+}
+
+[data-theme="dark-modern"] .prose {
+  color: var(--color-text-secondary);
+}
+
+[data-theme="dark-modern"] .prose h1,
+[data-theme="dark-modern"] .prose h2,
+[data-theme="dark-modern"] .prose h3,
+[data-theme="dark-modern"] .prose h4,
+[data-theme="dark-modern"] .prose h5,
+[data-theme="dark-modern"] .prose h6 {
+  color: var(--color-text);
+}
+
+[data-theme="dark-modern"] .prose strong {
+  color: var(--color-text);
+}
+
+[data-theme="dark-modern"] .prose pre {
+  background: oklch(10% 0.015 265);
+  border-color: oklch(24% 0.015 265);
+  color: oklch(82% 0.012 265);
+}
+
+[data-theme="dark-modern"] .prose code {
+  background: var(--color-bg-muted);
+}
+
+[data-theme="dark-modern"] .prose blockquote {
+  background: var(--color-accent-lightest);
+  color: var(--color-text-secondary);
+}
+
+[data-theme="dark-modern"] .card {
+  background: var(--color-bg-elevated);
+  border-color: var(--color-border);
+  color: var(--color-text);
+}
+
+[data-theme="dark-modern"] .card:hover {
+  border-color: var(--color-accent-lighter);
+  box-shadow: 0 4px 24px oklch(68% 0.14 265 / 0.08);
+}
+
+[data-theme="dark-modern"] .tag {
+  background: var(--color-accent-lightest);
+  color: var(--color-accent);
+}
+
+[data-theme="dark-modern"] .tech-chip {
+  background: var(--color-bg-muted);
+  color: var(--color-text-tertiary);
+}
+
+[data-theme="dark-modern"] .section-label {
+  color: var(--color-accent);
+}
+
+[data-theme="dark-modern"] .tiptap {
+  color: var(--color-text);
+}
+
+[data-theme="dark-modern"] .tiptap h1,
+[data-theme="dark-modern"] .tiptap h2,
+[data-theme="dark-modern"] .tiptap h3,
+[data-theme="dark-modern"] .tiptap h4,
+[data-theme="dark-modern"] .tiptap h5,
+[data-theme="dark-modern"] .tiptap h6 {
+  color: var(--color-text);
+}
+
+[data-theme="dark-modern"] .tiptap pre {
+  background: oklch(10% 0.015 265);
+  border-color: oklch(24% 0.015 265);
+  color: oklch(82% 0.012 265);
+}
+
+[data-theme="dark-modern"] .tiptap code {
+  background: var(--color-bg-muted);
+}
+
+[data-theme="dark-modern"] .tiptap blockquote {
+  background: var(--color-accent-lightest);
+  color: var(--color-text-secondary);
+}
+
+[data-theme="dark-modern"] .rte-toolbar {
+  background: var(--color-bg-elevated);
+  border-color: var(--color-border);
+}
+
+[data-theme="dark-modern"] .rte-toolbar button {
+  color: var(--color-text-secondary);
+}
+
+[data-theme="dark-modern"] .rte-toolbar button:hover {
+  background: var(--color-bg-muted);
+  color: var(--color-text);
+}
+
+[data-theme="dark-modern"] .rte-toolbar button.is-active {
+  background: var(--color-accent-lightest);
+  color: var(--color-accent);
+  border-color: var(--color-accent-lighter);
+}
+
+[data-theme="dark-modern"] .reading-progress {
+  background: var(--color-accent);
+}
+
+/* ============================================================
+   THEME: Mono Editorial — applied via [data-theme="mono-editorial"]
+   Pure white canvas, true black text, zero chroma neutrals.
+   Sora headings + Source Sans 3 body. Sharp, editorial, print-like.
+   Single red accent for moments that matter.
+   ============================================================ */
+
+[data-theme="mono-editorial"] {
+  --color-accent: oklch(50% 0.2 18);
+  --color-accent-light: oklch(58% 0.18 18);
+  --color-accent-lighter: oklch(72% 0.1 18);
+  --color-accent-lightest: oklch(96% 0.02 18);
+  --color-accent-dark: oklch(40% 0.22 18);
+  --color-accent-on: oklch(98% 0.005 75);
+
+  --color-bg: oklch(99% 0 0);
+  --color-bg-elevated: oklch(100% 0 0);
+  --color-bg-subtle: oklch(97% 0 0);
+  --color-bg-muted: oklch(94% 0 0);
+
+  --color-text: oklch(10% 0 0);
+  --color-text-secondary: oklch(32% 0 0);
+  --color-text-tertiary: oklch(52% 0 0);
+  --color-text-inverse: oklch(98% 0 0);
+
+  --color-border: oklch(85% 0 0);
+  --color-border-strong: oklch(70% 0 0);
+
+  --color-success: oklch(50% 0.15 145);
+  --color-warning: oklch(65% 0.15 75);
+  --color-error: oklch(50% 0.2 25);
+
+  --font-display: var(--font-sora);
+  --font-body: var(--font-source-sans);
+}
+
+[data-theme="mono-editorial"] body {
+  font-family: var(--font-source-sans), system-ui, sans-serif;
+}
+
+[data-theme="mono-editorial"] body::before {
+  background-image: none;
+}
+
+[data-theme="mono-editorial"] ::selection {
+  background: oklch(10% 0 0 / 0.12);
+}
+
+[data-theme="mono-editorial"] h1,
+[data-theme="mono-editorial"] h2,
+[data-theme="mono-editorial"] h3,
+[data-theme="mono-editorial"] h4 {
+  font-family: var(--font-sora), system-ui, sans-serif;
+  letter-spacing: -0.03em;
+}
+
+[data-theme="mono-editorial"] .prose h1,
+[data-theme="mono-editorial"] .prose h2,
+[data-theme="mono-editorial"] .prose h3,
+[data-theme="mono-editorial"] .prose h4,
+[data-theme="mono-editorial"] .prose h5,
+[data-theme="mono-editorial"] .prose h6 {
+  font-family: var(--font-sora), system-ui, sans-serif;
+}
+
+[data-theme="mono-editorial"] .prose pre {
+  background: oklch(10% 0 0);
+  border-color: oklch(22% 0 0);
+  color: oklch(88% 0 0);
+}
+
+[data-theme="mono-editorial"] .prose blockquote {
+  background: oklch(96% 0 0);
+}
+
+[data-theme="mono-editorial"] .card {
+  background: oklch(100% 0 0);
+  border-color: oklch(85% 0 0);
+}
+
+[data-theme="mono-editorial"] .card:hover {
+  border-color: oklch(10% 0 0);
+  box-shadow: 0 1px 0 0 oklch(10% 0 0);
+}
+
+[data-theme="mono-editorial"] .tag {
+  background: oklch(94% 0 0);
+  color: oklch(10% 0 0);
+  font-family: var(--font-sora), monospace;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+[data-theme="mono-editorial"] .tech-chip {
+  background: oklch(94% 0 0);
+  color: oklch(40% 0 0);
+  font-family: var(--font-sora), monospace;
+  font-weight: 500;
+}
+
+[data-theme="mono-editorial"] .section-label {
+  font-family: var(--font-sora), monospace;
+  color: oklch(10% 0 0);
+}
+
+[data-theme="mono-editorial"] .section-label::before {
+  background: oklch(10% 0 0);
+}
+
+[data-theme="mono-editorial"] .tiptap h1,
+[data-theme="mono-editorial"] .tiptap h2,
+[data-theme="mono-editorial"] .tiptap h3,
+[data-theme="mono-editorial"] .tiptap h4 {
+  font-family: var(--font-sora), system-ui, sans-serif;
+}
+
+[data-theme="mono-editorial"] .tiptap pre {
+  background: oklch(10% 0 0);
+  border-color: oklch(22% 0 0);
+  color: oklch(88% 0 0);
+}
+
+[data-theme="mono-editorial"] .tiptap blockquote {
+  background: oklch(96% 0 0);
+}
+
+[data-theme="mono-editorial"] .rte-toolbar {
+  background: oklch(100% 0 0);
+  border-color: oklch(85% 0 0);
+}
+
+[data-theme="mono-editorial"] .rte-toolbar button {
+  color: oklch(40% 0 0);
+  font-family: var(--font-sora), monospace;
+}
+
+[data-theme="mono-editorial"] .rte-toolbar button:hover {
+  background: oklch(94% 0 0);
+  color: oklch(10% 0 0);
+}
+
+[data-theme="mono-editorial"] .rte-toolbar button.is-active {
+  background: oklch(10% 0 0);
+  color: oklch(98% 0 0);
+  border-color: oklch(10% 0 0);
+}
+
+/* Mono editorial footer — stark black bar */
+[data-theme="mono-editorial"] .footer-surface {
+  --footer-bg: oklch(10% 0 0);
+  --footer-text: oklch(65% 0 0);
+  --footer-heading: oklch(92% 0 0);
+  --footer-link: oklch(70% 0 0);
+  --footer-link-hover: oklch(95% 0 0);
+  --footer-muted: oklch(48% 0 0);
+  --footer-divider: oklch(25% 0 0);
+  --footer-copyright: oklch(40% 0 0);
+}
+
+/* Mono editorial announcement — black bar with white text */
+[data-theme="mono-editorial"] .announcement-surface {
+  --announcement-bg: linear-gradient(90deg, oklch(10% 0 0) 0%, oklch(14% 0 0) 50%, oklch(10% 0 0) 100%);
+  --announcement-text: oklch(95% 0 0);
+}
+
+/* Mono editorial admin — white surfaces, black text */
+[data-theme="mono-editorial"] .admin-sidebar-surface {
+  --admin-bg: oklch(10% 0 0);
+  --admin-border: oklch(22% 0 0);
+  --admin-text: oklch(92% 0 0);
+  --admin-text-secondary: oklch(70% 0 0);
+  --admin-text-tertiary: oklch(52% 0 0);
+  --admin-bg-muted: oklch(20% 0 0);
+  --admin-accent-lightest: oklch(20% 0.02 18);
+  --admin-main-bg: oklch(99% 0 0);
+}
+
+[data-theme="mono-editorial"] .admin-main {
+  background: oklch(99% 0 0) !important;
+  color: oklch(10% 0 0);
+}
+
+[data-theme="mono-editorial"] .admin-main h1,
+[data-theme="mono-editorial"] .admin-main h2,
+[data-theme="mono-editorial"] .admin-main h3,
+[data-theme="mono-editorial"] .admin-main h4 {
+  color: oklch(10% 0 0);
+  font-family: var(--font-sora), system-ui, sans-serif;
+}
+
+[data-theme="mono-editorial"] .admin-main input,
+[data-theme="mono-editorial"] .admin-main textarea,
+[data-theme="mono-editorial"] .admin-main select {
+  background: oklch(100% 0 0);
+  border-color: oklch(82% 0 0);
+  color: oklch(10% 0 0);
+}
+
+[data-theme="mono-editorial"] .admin-main .admin-card {
+  background: oklch(100% 0 0);
+  border-color: oklch(82% 0 0);
+}
+
+/* Theme-aware footer variables */
+.footer-surface {
+  --footer-bg: oklch(12% 0.015 265);
+  --footer-text: oklch(75% 0.01 265);
+  --footer-heading: oklch(92% 0.01 265);
+  --footer-link: oklch(65% 0.01 265);
+  --footer-link-hover: oklch(90% 0.02 265);
+  --footer-muted: oklch(55% 0.015 265);
+  --footer-divider: oklch(25% 0.015 265);
+  --footer-copyright: oklch(45% 0.015 265);
+}
+
+[data-theme="dark-modern"] .footer-surface {
+  --footer-bg: oklch(10% 0.015 265);
+  --footer-text: oklch(58% 0.01 265);
+  --footer-heading: oklch(88% 0.008 265);
+  --footer-link: oklch(62% 0.012 265);
+  --footer-link-hover: oklch(82% 0.015 265);
+  --footer-muted: oklch(45% 0.012 265);
+  --footer-divider: oklch(22% 0.012 265);
+  --footer-copyright: oklch(38% 0.01 265);
+}
+
+/* Theme-aware announcement bar */
+.announcement-surface {
+  --announcement-bg: linear-gradient(90deg, #111 0%, #1a1a1a 50%, #111 100%);
+  --announcement-text: #f5f5f5;
+}
+
+[data-theme="dark-modern"] .announcement-surface {
+  --announcement-bg: linear-gradient(90deg, oklch(12% 0.015 265) 0%, oklch(16% 0.025 265) 50%, oklch(12% 0.015 265) 100%);
+  --announcement-text: oklch(92% 0.008 265);
+}
+
+/* Admin panel — sidebar uses darker surface than main content */
+[data-theme="dark-modern"] .admin-sidebar-surface {
+  --admin-bg: oklch(12% 0.012 265);
+  --admin-border: oklch(24% 0.012 265);
+  --admin-text: oklch(90% 0.008 265);
+  --admin-text-secondary: oklch(68% 0.01 265);
+  --admin-text-tertiary: oklch(50% 0.01 265);
+  --admin-bg-muted: oklch(22% 0.012 265);
+  --admin-accent-lightest: oklch(22% 0.03 265);
+  --admin-main-bg: oklch(14% 0.012 265);
+}
+
+.admin-sidebar-surface {
+  --admin-bg: var(--color-bg-elevated);
+  --admin-border: var(--color-border);
+  --admin-text: var(--color-text);
+  --admin-text-secondary: var(--color-text-secondary);
+  --admin-text-tertiary: var(--color-text-tertiary);
+  --admin-bg-muted: var(--color-bg-muted);
+  --admin-accent-lightest: var(--color-accent-lightest);
+  --admin-main-bg: var(--color-bg);
+}
+
+/* Admin main content — uses CSS vars so inline styles resolve correctly */
+[data-theme="dark-modern"] .admin-main {
+  background: var(--color-bg) !important;
+  color: var(--color-text);
+}
+
+[data-theme="dark-modern"] .admin-main h1,
+[data-theme="dark-modern"] .admin-main h2,
+[data-theme="dark-modern"] .admin-main h3,
+[data-theme="dark-modern"] .admin-main h4 {
+  color: var(--color-text);
+}
+
+[data-theme="dark-modern"] .admin-main input,
+[data-theme="dark-modern"] .admin-main textarea,
+[data-theme="dark-modern"] .admin-main select {
+  background: var(--color-bg-elevated);
+  border-color: var(--color-border);
+  color: var(--color-text);
+}
+
+[data-theme="dark-modern"] .admin-main .admin-card {
+  background: var(--color-bg-elevated);
+  border-color: var(--color-border);
 }
 
 /* --- Utility: Card --- */

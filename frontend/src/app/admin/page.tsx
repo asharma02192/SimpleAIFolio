@@ -13,7 +13,7 @@ function AdminContent() {
 
   if (!isReady) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-[var(--space-4)]" style={{ background: "var(--color-bg)" }}>
+      <div className="admin-main min-h-screen flex items-center justify-center px-[var(--space-4)]" style={{ background: "var(--color-bg)" }}>
         <p className="font-[family-name:var(--font-mono)] text-[var(--text-sm)]" style={{ color: "var(--color-text-tertiary)" }}>
           Loading...
         </p>
@@ -23,7 +23,7 @@ function AdminContent() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-[var(--space-4)]" style={{ background: "var(--color-bg)" }}>
+      <div className="admin-main min-h-screen flex items-center justify-center px-[var(--space-4)]" style={{ background: "var(--color-bg)" }}>
         <div className="w-full max-w-sm">
           <h1 className="font-[family-name:var(--font-display)] text-[var(--text-xl)] font-semibold mb-[var(--space-8)]" style={{ color: "var(--color-text)" }}>
             Admin Login
@@ -97,7 +97,7 @@ function AdminContent() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row" style={{ background: "var(--color-bg)" }}>
+    <div className="admin-main min-h-screen flex flex-col md:flex-row" style={{ background: "var(--color-bg)" }}>
       <AdminSidebar onLogout={logout} />
       <main className="min-w-0 flex-1 overflow-x-hidden p-[var(--space-4)] sm:p-[var(--space-6)] md:p-[var(--space-8)]">
         <AdminDashboard />

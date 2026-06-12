@@ -22,8 +22,8 @@ export default function AdminSidebar({ onLogout }: { onLogout: () => void }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const sidebarSurface = {
-    background: "var(--color-bg-elevated)",
-    borderRight: "1px solid var(--color-border)",
+    background: "var(--admin-bg)",
+    borderRight: "1px solid var(--admin-border)",
   };
 
   const renderSidebarContent = (isMobile = false) => (
@@ -32,19 +32,19 @@ export default function AdminSidebar({ onLogout }: { onLogout: () => void }) {
         <Link
           href="/admin"
           className="font-[family-name:var(--font-display)] text-[var(--text-lg)] font-semibold"
-          style={{ color: "var(--color-text)" }}
+          style={{ color: "var(--admin-text)" }}
         >
           MyPLWeb
         </Link>
         <p
           className="mt-[var(--space-1)] font-[family-name:var(--font-mono)] text-[var(--text-xs)] uppercase tracking-widest"
-          style={{ color: "var(--color-text-tertiary)" }}
+          style={{ color: "var(--admin-text-tertiary)" }}
         >
           Admin
         </p>
       </div>
 
-      <nav className="flex flex-1 flex-col gap-[var(--space-1)]">
+      <nav className="flex flex-1 flex-col gap-[var(--space-1)] overflow-y-auto">
         {adminNavItems.map((item) => {
           const isActive = item.href === "/admin" ? pathname === "/admin" : pathname.startsWith(item.href);
           return (
@@ -56,13 +56,13 @@ export default function AdminSidebar({ onLogout }: { onLogout: () => void }) {
               }}
               className="flex items-center gap-[var(--space-3)] rounded-[var(--radius-sm)] px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] transition-colors motion-reduce:transition-none"
               style={{
-                color: isActive ? "var(--color-accent)" : "var(--color-text-secondary)",
-                background: isActive ? "var(--color-accent-lightest)" : "transparent",
+                color: isActive ? "var(--color-accent)" : "var(--admin-text-secondary)",
+                background: isActive ? "var(--admin-accent-lightest)" : "transparent",
               }}
             >
               <span
                 className="inline-flex h-6 w-6 items-center justify-center rounded-full font-[family-name:var(--font-mono)] text-[0.625rem]"
-                style={{ background: "var(--color-bg-muted)", color: "var(--color-text-secondary)" }}
+                style={{ background: "var(--admin-bg-muted)", color: "var(--admin-text-secondary)" }}
               >
                 {item.icon}
               </span>
@@ -72,14 +72,14 @@ export default function AdminSidebar({ onLogout }: { onLogout: () => void }) {
         })}
       </nav>
 
-      <div className="mt-[var(--space-4)] flex flex-col gap-[var(--space-2)]">
+      <div className="flex flex-col gap-[var(--space-2)] pt-[var(--space-4)]" style={{ borderTop: "1px solid var(--admin-border)" }}>
         <Link
           href="/"
           onClick={() => {
             if (isMobile) setMenuOpen(false);
           }}
           className="px-[var(--space-3)] py-[var(--space-2)] font-[family-name:var(--font-mono)] text-[var(--text-xs)] transition-colors hover:text-[var(--color-accent)] motion-reduce:transition-none"
-          style={{ color: "var(--color-text-tertiary)" }}
+          style={{ color: "var(--admin-text-tertiary)" }}
         >
           View Site &rarr;
         </Link>
@@ -89,7 +89,7 @@ export default function AdminSidebar({ onLogout }: { onLogout: () => void }) {
             onLogout();
           }}
           className="px-[var(--space-3)] py-[var(--space-2)] text-left font-[family-name:var(--font-mono)] text-[var(--text-xs)] transition-colors hover:text-[var(--color-error)] motion-reduce:transition-none"
-          style={{ color: "var(--color-text-tertiary)" }}
+          style={{ color: "var(--admin-text-tertiary)" }}
         >
           Sign Out
         </button>
@@ -100,23 +100,23 @@ export default function AdminSidebar({ onLogout }: { onLogout: () => void }) {
   return (
     <>
       <div
-        className="sticky top-0 z-30 flex items-center justify-between px-[var(--space-4)] py-[var(--space-3)] md:hidden"
-        style={{ background: "var(--color-bg-elevated)", borderBottom: "1px solid var(--color-border)" }}
+        className="admin-sidebar-surface sticky top-0 z-30 flex items-center justify-between px-[var(--space-4)] py-[var(--space-3)] md:hidden"
+        style={{ background: "var(--admin-bg)", borderBottom: "1px solid var(--admin-border)" }}
       >
         <button
           type="button"
           onClick={() => setMenuOpen(true)}
           className="inline-flex min-h-[40px] min-w-[40px] items-center justify-center rounded-[var(--radius-md)] px-[var(--space-3)] font-[family-name:var(--font-mono)] text-[var(--text-xs)] uppercase tracking-wider motion-reduce:transition-none"
-          style={{ background: "var(--color-bg-muted)", color: "var(--color-text)" }}
+          style={{ background: "var(--admin-bg-muted)", color: "var(--admin-text)" }}
           aria-label="Open admin navigation"
         >
           Menu
         </button>
         <div className="min-w-0 text-right">
-          <p className="truncate font-[family-name:var(--font-display)] text-[var(--text-base)] font-semibold" style={{ color: "var(--color-text)" }}>
+          <p className="truncate font-[family-name:var(--font-display)] text-[var(--text-base)] font-semibold" style={{ color: "var(--admin-text)" }}>
             MyPLWeb
           </p>
-          <p className="font-[family-name:var(--font-mono)] text-[var(--text-xs)] uppercase tracking-widest" style={{ color: "var(--color-text-tertiary)" }}>
+          <p className="font-[family-name:var(--font-mono)] text-[var(--text-xs)] uppercase tracking-widest" style={{ color: "var(--admin-text-tertiary)" }}>
             Admin
           </p>
         </div>
@@ -130,18 +130,18 @@ export default function AdminSidebar({ onLogout }: { onLogout: () => void }) {
           aria-label="Close admin navigation overlay"
         />
         <aside
-          className={`absolute inset-y-0 left-0 flex w-[min(18rem,85vw)] flex-col p-[var(--space-4)] shadow-2xl transition-transform motion-reduce:transition-none ${menuOpen ? "translate-x-0" : "-translate-x-full"}`}
+          className={`admin-sidebar-surface absolute inset-y-0 left-0 flex w-[min(18rem,85vw)] flex-col p-[var(--space-4)] shadow-2xl transition-transform motion-reduce:transition-none ${menuOpen ? "translate-x-0" : "-translate-x-full"}`}
           style={sidebarSurface}
         >
           <div className="mb-[var(--space-4)] flex items-center justify-between px-[var(--space-3)]">
-            <span className="font-[family-name:var(--font-mono)] text-[var(--text-xs)] uppercase tracking-widest" style={{ color: "var(--color-text-tertiary)" }}>
+            <span className="font-[family-name:var(--font-mono)] text-[var(--text-xs)] uppercase tracking-widest" style={{ color: "var(--admin-text-tertiary)" }}>
               Navigation
             </span>
             <button
               type="button"
               onClick={() => setMenuOpen(false)}
               className="inline-flex min-h-[40px] min-w-[40px] items-center justify-center rounded-[var(--radius-md)] px-[var(--space-3)] font-[family-name:var(--font-mono)] text-[var(--text-xs)] uppercase tracking-wider"
-              style={{ background: "var(--color-bg-muted)", color: "var(--color-text)" }}
+              style={{ background: "var(--admin-bg-muted)", color: "var(--admin-text)" }}
               aria-label="Close admin navigation"
             >
               Close
@@ -152,7 +152,7 @@ export default function AdminSidebar({ onLogout }: { onLogout: () => void }) {
       </div>
 
       <aside
-        className="hidden w-56 flex-shrink-0 flex-col p-[var(--space-4)] md:sticky md:top-0 md:flex md:min-h-screen"
+        className="admin-sidebar-surface hidden w-56 flex-shrink-0 flex-col p-[var(--space-4)] md:sticky md:top-0 md:flex md:h-screen"
         style={sidebarSurface}
       >
         {renderSidebarContent()}
