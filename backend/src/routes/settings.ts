@@ -17,6 +17,8 @@ router.get("/admin/ai-config", authMiddleware, requireRole("admin"), async (_req
       "internal_ai_model",
       "internal_ai_temperature",
       "internal_ai_max_tokens",
+      "internal_research_provider",
+      "internal_research_api_key",
     ];
     const rows = await prisma.siteSetting.findMany({ where: { key: { in: keys } } });
     const record: Record<string, string | null> = {};
@@ -29,6 +31,11 @@ router.get("/admin/ai-config", authMiddleware, requireRole("admin"), async (_req
       ? apiKey.slice(0, 4) + "••••••••" + apiKey.slice(-4)
       : apiKey ? "••••••••" : "";
 
+    const researchApiKey = record.internal_research_api_key || process.env.RESEARCH_API_KEY?.trim() || "";
+    const maskedResearchKey = researchApiKey.length > 8
+      ? researchApiKey.slice(0, 4) + "••••••••" + researchApiKey.slice(-4)
+      : researchApiKey ? "••••••••" : "";
+
     res.json({
       provider: record.internal_ai_provider || process.env.AI_PROVIDER?.trim() || "openai-compatible",
       apiKeyMasked: maskedKey,
@@ -37,6 +44,9 @@ router.get("/admin/ai-config", authMiddleware, requireRole("admin"), async (_req
       model: record.internal_ai_model || process.env.AI_MODEL?.trim() || "",
       temperature: Number(record.internal_ai_temperature || process.env.AI_TEMPERATURE || "0.7"),
       maxTokens: Number(record.internal_ai_max_tokens || process.env.AI_MAX_TOKENS || "6000"),
+      researchProvider: record.internal_research_provider || process.env.RESEARCH_PROVIDER?.trim() || "disabled",
+      researchApiKeyMasked: maskedResearchKey,
+      researchApiKeySet: Boolean(researchApiKey),
     });
   } catch (err) {
     console.error("Get AI config error:", err);
@@ -47,7 +57,7 @@ router.get("/admin/ai-config", authMiddleware, requireRole("admin"), async (_req
 // PUT /api/admin/ai-config — admin-only, saves AI config with internal_ prefix
 router.put("/admin/ai-config", authMiddleware, requireRole("admin"), async (req: AuthRequest, res) => {
   try {
-    const { provider, apiKey, baseUrl, model, temperature, maxTokens } = req.body as Record<string, unknown>;
+    const { provider, apiKey, baseUrl, model, temperature, maxTokens, researchProvider, researchApiKey } = req.body as Record<string, unknown>;
     const operations = [];
 
     if (typeof provider === "string") {
@@ -106,6 +116,26 @@ router.put("/admin/ai-config", authMiddleware, requireRole("admin"), async (req:
           where: { key: "internal_ai_max_tokens" },
           update: { value: String(Math.round(maxTokens)) },
           create: { key: "internal_ai_max_tokens", value: String(Math.round(maxTokens)) },
+        })
+      );
+    }
+
+    if (typeof researchProvider === "string") {
+      operations.push(
+        prisma.siteSetting.upsert({
+          where: { key: "internal_research_provider" },
+          update: { value: researchProvider },
+          create: { key: "internal_research_provider", value: researchProvider },
+        })
+      );
+    }
+
+    if (typeof researchApiKey === "string" && researchApiKey.trim() && researchApiKey !== "••••••••") {
+      operations.push(
+        prisma.siteSetting.upsert({
+          where: { key: "internal_research_api_key" },
+          update: { value: researchApiKey.trim() },
+          create: { key: "internal_research_api_key", value: researchApiKey.trim() },
         })
       );
     }

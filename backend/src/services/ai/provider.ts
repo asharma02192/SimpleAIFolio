@@ -60,6 +60,8 @@ export async function getDbOverrides(): Promise<Partial<AiProviderConfig>> {
     "internal_ai_model",
     "internal_ai_temperature",
     "internal_ai_max_tokens",
+    "internal_research_provider",
+    "internal_research_api_key",
   ];
 
   let rows: Array<{ key: string; value: string }> = [];
@@ -82,6 +84,8 @@ export async function getDbOverrides(): Promise<Partial<AiProviderConfig>> {
   if (record.internal_ai_model) overrides.model = record.internal_ai_model;
   if (record.internal_ai_temperature) overrides.temperature = normalizeNumber(record.internal_ai_temperature, 0.7);
   if (record.internal_ai_max_tokens) overrides.maxTokens = normalizeNumber(record.internal_ai_max_tokens, 6000);
+  if (record.internal_research_provider) overrides.researchProvider = record.internal_research_provider as ResearchProviderName;
+  if (record.internal_research_api_key) overrides.researchApiKey = record.internal_research_api_key;
 
   return overrides;
 }

@@ -32,6 +32,10 @@ interface AiConfig {
   temperature: number;
   maxTokens: number;
   apiKey?: string;
+  researchProvider?: string;
+  researchApiKeyMasked?: string;
+  researchApiKeySet?: boolean;
+  researchApiKey?: string;
 }
 
 interface McpConfig {
@@ -729,6 +733,46 @@ function SettingsContent() {
                             />
                           </div>
                         </div>
+
+                        <div style={{ borderTop: "1px solid var(--color-border)", margin: "var(--space-4) 0", paddingTop: "var(--space-4)" }}>
+                          <p className={`${labelClass} mb-[var(--space-3)]`} style={{ color: "var(--color-text-tertiary)" }}>Research Provider (Optional)</p>
+                          <div className="grid grid-cols-1 gap-[var(--space-5)] sm:grid-cols-2">
+                            <div>
+                              <label className={labelClass} style={{ color: "var(--color-text-tertiary)" }}>Provider</label>
+                              <select
+                                value={aiConfig.researchProvider || "disabled"}
+                                onChange={(e) => setAiConfig({ ...aiConfig, researchProvider: e.target.value })}
+                                className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-colors"
+                                style={inputStyle}
+                              >
+                                <option value="disabled">Disabled</option>
+                                <option value="mock">Mock (testing only)</option>
+                                <option value="exa">Exa (web search)</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className={labelClass} style={{ color: "var(--color-text-tertiary)" }}>Exa API Key</label>
+                              <input
+                                type="password"
+                                value={aiConfig.researchApiKeySet ? (aiConfig.researchApiKey || aiConfig.researchApiKeyMasked || "") : (aiConfig.researchApiKey || "")}
+                                onChange={(e) => setAiConfig({ ...aiConfig, researchApiKey: e.target.value, researchApiKeyMasked: e.target.value })}
+                                placeholder={aiConfig.researchApiKeySet ? "Key is set — enter a new one to replace" : "Enter your Exa API key"}
+                                className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-colors"
+                                style={aiInputStyle}
+                              />
+                              {aiConfig.researchApiKeySet ? (
+                                <p className="mt-[var(--space-1)] font-[family-name:var(--font-mono)] text-[var(--text-xs)]" style={{ color: "var(--color-text-tertiary)" }}>
+                                  Current: {aiConfig.researchApiKeyMasked}
+                                </p>
+                              ) : (
+                                <p className="mt-[var(--space-1)] font-[family-name:var(--font-mono)] text-[var(--text-xs)]" style={{ color: "var(--color-text-tertiary)" }}>
+                                  Get a key at exa.ai — enables research sources in the AI Blog Studio.
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
                         <div className="rounded-[var(--radius-md)] p-[var(--space-3)] flex items-start gap-[var(--space-2)]" style={{ background: "var(--color-bg)", border: "1px solid var(--color-border)" }}>
                           <span className="text-[var(--text-sm)]" style={{ color: "var(--color-text-tertiary)" }}>🔒</span>
                           <p className="font-[family-name:var(--font-body)] text-[var(--text-xs)]" style={{ color: "var(--color-text-tertiary)" }}>
