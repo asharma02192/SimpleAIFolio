@@ -86,6 +86,8 @@ function SettingsContent() {
   const [mcpConfig, setMcpConfig] = useState<McpConfig | null>(null);
   const [mcpRegenerating, setMcpRegenerating] = useState(false);
   const [mcpCopied, setMcpCopied] = useState<string | null>(null);
+  const [pwForm, setPwForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
+  const [pwSaving, setPwSaving] = useState(false);
   const [skillGroupsText, setSkillGroupsText] = useState("[]");
   const [skillGroupsError, setSkillGroupsError] = useState<string | null>(null);
   const [pageError, setPageError] = useState<string | null>(null);
@@ -257,6 +259,32 @@ function SettingsContent() {
       setTimeout(() => setMcpCopied(null), 2000);
     } catch {
       toast("Failed to copy", "error");
+    }
+  };
+
+  const changePassword = async () => {
+    if (pwSaving) return;
+    if (pwForm.newPassword.length < 8) {
+      toast("New password must be at least 8 characters", "error");
+      return;
+    }
+    if (pwForm.newPassword !== pwForm.confirmPassword) {
+      toast("Passwords do not match", "error");
+      return;
+    }
+    setPwSaving(true);
+    try {
+      await adminApiRequest("/api/auth/change-password", {
+        method: "PUT",
+        body: JSON.stringify({ currentPassword: pwForm.currentPassword, newPassword: pwForm.newPassword }),
+      });
+      setPwForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+      toast("Password changed successfully", "success");
+    } catch (error) {
+      const message = getAdminErrorMessage(error, "Failed to change password.");
+      toast(message, "error");
+    } finally {
+      setPwSaving(false);
     }
   };
 
@@ -740,6 +768,37 @@ function SettingsContent() {
                         Loading MCP configuration...
                       </p>
                     )}
+                  </section>
+
+                  <section className="rounded-[var(--radius-lg)] p-[var(--space-6)]" style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)" }}>
+                    <div className="mb-[var(--space-5)]">
+                      <p className="font-[family-name:var(--font-mono)] text-[0.625rem] uppercase tracking-[0.2em] mb-[var(--space-1)]" style={{ color: "var(--color-accent)" }}>Account</p>
+                      <h2 className="font-[family-name:var(--font-display)] text-[var(--text-lg)] font-700" style={{ color: "var(--color-text)" }}>
+                        Change Password
+                      </h2>
+                    </div>
+                    <div className="flex flex-col gap-[var(--space-4)] max-w-md">
+                      <div>
+                        <label className={labelClass} style={{ color: "var(--color-text-tertiary)" }}>Current Password</label>
+                        <input type="password" value={pwForm.currentPassword} onChange={(e) => setPwForm({ ...pwForm, currentPassword: e.target.value })} autoComplete="current-password" className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-colors" style={inputStyle} />
+                      </div>
+                      <div>
+                        <label className={labelClass} style={{ color: "var(--color-text-tertiary)" }}>New Password</label>
+                        <input type="password" value={pwForm.newPassword} onChange={(e) => setPwForm({ ...pwForm, newPassword: e.target.value })} autoComplete="new-password" placeholder="At least 8 characters" className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-colors" style={inputStyle} />
+                      </div>
+                      <div>
+                        <label className={labelClass} style={{ color: "var(--color-text-tertiary)" }}>Confirm New Password</label>
+                        <input type="password" value={pwForm.confirmPassword} onChange={(e) => setPwForm({ ...pwForm, confirmPassword: e.target.value })} autoComplete="new-password" className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-colors" style={inputStyle} />
+                      </div>
+                      <button
+                        onClick={changePassword}
+                        disabled={pwSaving || !pwForm.currentPassword || !pwForm.newPassword || !pwForm.confirmPassword}
+                        className="inline-flex min-h-[40px] items-center justify-center self-start rounded-[var(--radius-md)] px-5 py-2.5 font-[family-name:var(--font-body)] text-[var(--text-sm)] font-500 transition-all duration-150 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+                        style={{ background: "var(--color-accent)", color: "var(--color-accent-on)" }}
+                      >
+                        {pwSaving ? "Changing..." : "Change Password"}
+                      </button>
+                    </div>
                   </section>
                 </>
               )}

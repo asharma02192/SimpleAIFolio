@@ -198,6 +198,51 @@ export function createAuthRouter({ prismaClient = prisma }: { prismaClient?: Aut
     res.status(204).send();
   });
 
+  // PUT /api/auth/change-password — change admin password
+  router.put("/change-password", authMiddleware, async (req: AuthRequest, res) => {
+    try {
+      const { currentPassword, newPassword } = req.body;
+
+      if (!currentPassword || !newPassword) {
+        res.status(400).json({ error: "Current password and new password are required" });
+        return;
+      }
+
+      if (typeof newPassword !== "string" || newPassword.length < 8) {
+        res.status(400).json({ error: "New password must be at least 8 characters" });
+        return;
+      }
+
+      const user = await prisma.user.findUnique({ where: { id: req.userId! } });
+      if (!user) {
+        res.status(404).json({ error: "User not found" });
+        return;
+      }
+
+      const valid = await bcrypt.compare(currentPassword, user.password);
+      if (!valid) {
+        res.status(401).json({ error: "Current password is incorrect" });
+        return;
+      }
+
+      const hashed = await bcrypt.hash(newPassword, 12);
+      await prisma.user.update({
+        where: { id: req.userId! },
+        data: { password: hashed },
+      });
+
+      logInfo("Password changed successfully", { ...getRequestLogMeta(req), userId: req.userId });
+      res.json({ success: true });
+    } catch (error) {
+      logError("Password change failed", {
+        ...getRequestLogMeta(req),
+        userId: req.userId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      res.status(500).json({ error: "Failed to change password" });
+    }
+  });
+
   return router;
 }
 
