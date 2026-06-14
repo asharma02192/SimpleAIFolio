@@ -307,7 +307,7 @@ export async function handleAiWriterTool(name: string, args: Record<string, unkn
         });
       }
       if (status === 503) return fail("AI provider not configured.");
-      if (status === 400) return fail("Generate and approve a brief first.");
+      if (status === 400) return fail(data);
       return fail(data);
     }
 

@@ -3,6 +3,7 @@ const AUTH_EMAIL = process.env.MCP_AUTH_EMAIL || "";
 const AUTH_PASSWORD = process.env.MCP_AUTH_PASSWORD || "";
 const ENV_TOKEN = process.env.MCP_API_TOKEN || "";
 const MCP_CONFIG_URL = process.env.MCP_MCP_CONFIG_URL || "";
+const API_TIMEOUT_MS = Number(process.env.MCP_API_TIMEOUT_MS || "120000");
 
 let cachedToken: string | null = ENV_TOKEN || null;
 let tokenExpiry = 0;
@@ -102,7 +103,7 @@ export async function apiRequest<T = unknown>(
   const payload = body !== undefined ? JSON.stringify(body) : undefined;
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 30000);
+  const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
 
   try {
     const res = await fetch(url.toString(), {
