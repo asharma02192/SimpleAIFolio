@@ -9,7 +9,9 @@ import {
   ReadResourceRequestSchema,
   ListPromptsRequestSchema,
   GetPromptRequestSchema,
+  isInitializeRequest,
 } from "@modelcontextprotocol/sdk/types.js";
+import type { StreamableHTTPServerTransport as StreamableHTTPServerTransportType } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { postTools, handlePostTool } from "./tools/posts.js";
 import { categoryTools, handleCategoryTool } from "./tools/categories.js";
 import { tagTools, handleTagTool } from "./tools/tags.js";
@@ -144,6 +146,8 @@ async function main() {
     const { StreamableHTTPServerTransport } = await import("@modelcontextprotocol/sdk/server/streamableHttp.js");
     const { randomUUID } = await import("node:crypto");
 
+    const transports = new Map<string, StreamableHTTPServerTransportType>();
+
     const httpServer = createServer(async (req, res) => {
       if (req.method === "GET" && req.url === "/health") {
         res.writeHead(200, { "Content-Type": "application/json" });
@@ -151,11 +155,11 @@ async function main() {
         return;
       }
 
-      if (req.method === "POST" && req.url === "/mcp") {
+      if (req.url === "/mcp" && ["POST", "GET", "DELETE"].includes(req.method || "")) {
         const remoteApiKey = await getRemoteApiKey();
         if (remoteApiKey) {
           const authHeader = req.headers["authorization"] || "";
-          const providedKey = authHeader.replace(/^Bearer\s+/i, "");
+          const providedKey = String(authHeader).replace(/^Bearer\s+/i, "");
           if (providedKey !== remoteApiKey) {
             res.writeHead(401, { "Content-Type": "application/json" });
             res.end(JSON.stringify({ error: "Invalid API key" }));
@@ -164,14 +168,60 @@ async function main() {
         }
 
         let body = "";
-        for await (const chunk of req) body += chunk;
+        if (req.method === "POST") {
+          for await (const chunk of req) body += chunk;
+        }
         const parsedBody = body ? JSON.parse(body) : undefined;
 
-        const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: () => randomUUID() });
-        const requestServer = createMcpServer();
-        await requestServer.connect(transport);
-        await transport.handleRequest(req, res, parsedBody);
-        return;
+        const sessionIdHeader = req.headers["mcp-session-id"];
+        const sessionId = Array.isArray(sessionIdHeader) ? sessionIdHeader[0] : sessionIdHeader;
+
+        try {
+          const existingTransport = sessionId ? transports.get(sessionId) : undefined;
+
+          if (existingTransport) {
+            await existingTransport.handleRequest(req, res, parsedBody);
+            return;
+          }
+
+          if (req.method === "POST" && !sessionId && isInitializeRequest(parsedBody)) {
+            const transport = new StreamableHTTPServerTransport({
+              sessionIdGenerator: () => randomUUID(),
+              onsessioninitialized: (newSessionId: string) => {
+                transports.set(newSessionId, transport);
+              },
+            });
+
+            transport.onclose = () => {
+              const closedSessionId = transport.sessionId;
+              if (closedSessionId) transports.delete(closedSessionId);
+            };
+
+            const requestServer = createMcpServer();
+            await requestServer.connect(transport);
+            await transport.handleRequest(req, res, parsedBody);
+            return;
+          }
+
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({
+            jsonrpc: "2.0",
+            error: { code: -32000, message: "Bad Request: No valid session ID provided" },
+            id: null,
+          }));
+          return;
+        } catch (error) {
+          process.stderr.write(`Error handling MCP request: ${error instanceof Error ? error.message : String(error)}\n`);
+          if (!res.headersSent) {
+            res.writeHead(500, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({
+              jsonrpc: "2.0",
+              error: { code: -32603, message: "Internal server error" },
+              id: null,
+            }));
+          }
+          return;
+        }
       }
 
       res.writeHead(404, { "Content-Type": "application/json" });
@@ -180,7 +230,7 @@ async function main() {
 
     httpServer.listen(httpPort, () => {
       process.stderr.write(`SimpleAIFolio MCP server running on HTTP :${httpPort}\n`);
-      process.stderr.write(`  POST /mcp   — MCP protocol endpoint\n`);
+      process.stderr.write(`  POST /mcp   — MCP protocol endpoint (stateful)\n`);
       process.stderr.write(`  GET  /health — Health check\n`);
     });
   } else {
