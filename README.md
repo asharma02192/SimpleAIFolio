@@ -146,7 +146,7 @@ No manual data entry needed.
 
 ## Connecting AI Tools via MCP
 
-The MCP (Model Context Protocol) server exposes 59 tools that let AI assistants manage your site. Here's how to connect each tool:
+The MCP (Model Context Protocol) server exposes 62 tools that let AI assistants manage your site. Here's how to connect each tool:
 
 ### Find Your Connection Details
 
@@ -238,7 +238,7 @@ Once connected, just talk naturally:
 | "How many newsletter subscribers do I have?" | Instant count + list |
 | "Add a new project called 'AI Chatbot'" | Project created with tech stack |
 
-See [`mcp-server/README.md`](./mcp-server/README.md) for the complete list of 59 tools, 6 resources, and 6 prompts.
+See [`mcp-server/README.md`](./mcp-server/README.md) for the complete list of 62 tools, 6 resources, and 6 prompts.
 
 ---
 
@@ -486,7 +486,7 @@ MCP_AUTH_PASSWORD=your-password \
 node dist/index.js --test
 ```
 
-This runs 70 end-to-end tests covering all 59 tools, 6 resources, and 6 prompts.
+This runs 73 end-to-end tests covering all 62 tools, 6 resources, and 6 prompts.
 
 ---
 
@@ -528,7 +528,7 @@ SimpleAIFolio/
 │
 ├── mcp-server/                # MCP server for AI tool integration
 │   ├── src/
-│   │   ├── tools/            # 59 tools (12 files)
+│   │   ├── tools/            # 62 tools (12 files)
 │   │   ├── resources.ts      # 6 readable resources
 │   │   ├── prompts.ts        # 6 prompt templates
 │   │   ├── client.ts         # Backend API client (JWT auth)
@@ -549,18 +549,23 @@ SimpleAIFolio/
 ### Website (Public)
 - Responsive homepage with hero section, skills showcase, project highlights, and recent blog posts
 - Blog with syntax-highlighted code blocks (Shiki), table of contents, reading progress bar
+- JSON-LD structured data (BlogPosting schema) for SEO rich snippets
 - Post interactions: emoji reactions, comments, social sharing buttons (X, LinkedIn)
 - Page view tracking with view counts displayed on posts
 - Dynamic Open Graph images generated per blog post
 - XML sitemap and RSS feed for SEO
 - Full-text search across posts and projects
+- Lazy-loaded images for fast page rendering
 - Contact form with admin inbox
 - Newsletter signup in footer
+- Custom 404 page
 - Three themes: Light Minimal, Dark Modern, Mono Editorial
 
 ### Admin CMS (`/admin`)
-- Dashboard with analytics (page views, top pages, AI usage stats, cost tracking)
-- Post editor with scheduling, bulk select/delete, status filter, markdown import
+- Dashboard with analytics (page views, top pages, AI usage stats, cost tracking, scheduled posts count)
+- Post editor with scheduling, bulk select/delete, status filter, search, pagination, markdown import
+- Draft autosave (3-second debounce with saving indicator)
+- Comment moderation page (approve/pending/spam with status filters and pagination)
 - Category and tag management
 - Project portfolio management with tech stacks and featured flagging
 - Experience timeline editor
@@ -568,8 +573,25 @@ SimpleAIFolio/
 - Contact message inbox with read/unread tracking
 - Newsletter subscriber management
 - Script snippet manager (inject GA4, GTM, Facebook Pixel, etc.)
-- Site settings: bio, skills, social links, announcement bar, theme selector
+- Site settings with sub-tabs: General, Social, AI, MCP, Account
+  - General: theme selector, site info, logo URL
+  - Social: social links, announcement bar
+  - AI: AI provider configuration (OpenAI-compatible)
+  - MCP: MCP server API key and connection details
+  - Account: profile editing (name/email), password change
+- User management with role-based access control
 - MCP server configuration with API key management
+
+### Multi-User Support
+Three roles with different access levels:
+
+| Role | Access |
+|------|--------|
+| **Admin** | Everything — all pages, settings, user management, MCP, AI config |
+| **Editor** | Posts, projects, media, comments, categories, tags (no settings/users) |
+| **Author** | Create and edit their own posts |
+
+**How users join:** Admins add users directly from Admin > Users (name, email, password, role). The new user logs in at `/admin` with those credentials. Users can change their own password from Settings > Account.
 
 ### AI Blog Studio (`/admin/ai-writer`)
 - Conversation-based blog writing with AI
@@ -581,8 +603,10 @@ SimpleAIFolio/
 - Verification flags for factual claims
 - One-click save to CMS
 
-### MCP Server (59 tools, 6 resources, 6 prompts)
+### MCP Server (62 tools, 6 resources, 6 prompts)
 - Full CRUD for posts, categories, tags, projects, experience, snippets
+- Comment moderation (list all, update status: approve/pending/spam)
+- User profile management (update name/email)
 - Analytics dashboard, page views, top pages
 - Newsletter subscriber management
 - Contact message management
