@@ -24,11 +24,11 @@ export default function HeroSection({
             </p>
 
             {heroStats.length > 0 && (
-              <div className="flex flex-wrap gap-x-[var(--space-8)] gap-y-[var(--space-4)] mt-[var(--space-10)]">
+              <div className="flex flex-wrap gap-x-[var(--space-12)] gap-y-[var(--space-6)] mt-[var(--space-12)]">
                 {heroStats.map((stat) => (
-                  <div key={stat.label}>
-                    <span className="font-[family-name:var(--font-display)] text-[var(--text-base)] font-700 block" style={{ color: "var(--color-accent)" }}>{stat.value}</span>
-                    <span className="font-[family-name:var(--font-body)] text-[var(--text-xs)]" style={{ color: "var(--color-text-tertiary)" }}>{stat.label}</span>
+                  <div key={stat.label} className="min-w-[5rem]">
+                    <span className="font-[family-name:var(--font-display)] text-[var(--text-lg)] font-700 block" style={{ color: "var(--color-accent)" }}>{stat.value}</span>
+                    <span className="font-[family-name:var(--font-body)] text-[var(--text-xs)] mt-[var(--space-1)] block" style={{ color: "var(--color-text-tertiary)" }}>{stat.label}</span>
                   </div>
                 ))}
               </div>
