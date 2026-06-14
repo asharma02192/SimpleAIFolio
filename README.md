@@ -49,11 +49,13 @@ git clone https://github.com/asharma02192/SimpleAIFolio.git
 cd SimpleAIFolio
 ```
 
-### Step 2: Create your configuration file
+### Step 2: Create your configuration file (required)
 
 ```bash
 cp .env.example .env
 ```
+
+**You must do this before starting Docker** — the stack will not start without it.
 
 Open `.env` in your editor and set these **required** values:
 

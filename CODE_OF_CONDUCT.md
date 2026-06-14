@@ -24,7 +24,7 @@ Examples of unacceptable behavior:
 
 ## Enforcement
 
-Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the project maintainers at **conduct@simpleaifolio.dev**.
+Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the project maintainers by [opening a private discussion](https://github.com/asharma02192/SimpleAIFolio/discussions) or contacting a maintainer directly via GitHub.
 
 All complaints will be reviewed and investigated and will result in a response that is deemed necessary and appropriate to the circumstances.
 

@@ -5,7 +5,7 @@
 If you discover a security vulnerability, please report it responsibly:
 
 1. **Do NOT open a public GitHub issue**
-2. Email: **security@simpleaifolio.dev** (or send a private message to the maintainers)
+2. Use **[GitHub Private Security Advisories](https://github.com/asharma02192/SimpleAIFolio/security/advisories/new)** to report privately
 3. Include:
    - Description of the vulnerability
    - Steps to reproduce
