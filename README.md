@@ -1,142 +1,228 @@
-# MyPLWeb - Personal Portfolio & Blog Platform
+# MyPLWeb — Portfolio & Blog Platform with MCP Server
 
-A portfolio site and blog with an admin CMS.
+A full-stack personal portfolio and blog platform with a built-in admin CMS, AI blog studio, and an MCP server that lets you manage your entire site from any AI tool (Claude Code, ChatGPT, Cursor).
 
-## Architecture
+## Features
 
-```text
-frontend/  Next.js 16 (App Router, SSR/ISR, Tailwind CSS)
-backend/   Express 5 + Prisma 7 + PostgreSQL
-```
+**Website**
+- Portfolio homepage with hero, skills, projects, and recent posts
+- Blog with syntax highlighting, table of contents, reading progress bar, reactions, comments, and social sharing
+- Contact page with form
+- Project detail pages
+- Full-text search across posts and projects
+- SEO: dynamic sitemap, Open Graph images, RSS feed
+- 3 built-in themes (light, dark, monochrome)
 
-## Required Environment Variables
+**Admin CMS** (`/admin`)
+- Dashboard with analytics, AI usage stats, and ops alerts
+- Post editor with scheduling, bulk actions, markdown import
+- Categories, tags, projects, experience timeline
+- Media library with image optimization (WebP + thumbnails)
+- Contact message inbox
+- Newsletter subscriber management
+- Tracking pixel / script snippet manager
+- Site settings (bio, skills, social links, theme, announcement bar)
 
-Backend:
-- `DATABASE_URL`
-- `JWT_SECRET`
-- `PORT`
-- `FRONTEND_URL`
-- `FRONTEND_INTERNAL_URL` (optional but recommended for backend-triggered frontend revalidation in Docker/multi-service setups)
-- `REVALIDATE_SECRET` (required if you want explicit frontend cache invalidation after publish/settings/project changes)
-- `ALLOW_INSECURE_JWT_SECRET` (optional local-only override for Docker dev)
-- `INSTALL_SECRET` (optional, only if one-time setup should be enabled)
-- `AI_PROVIDER`
-- `AI_API_KEY` (required for live AI providers)
-- `AI_BASE_URL` (required for live OpenAI-compatible providers)
-- `AI_MODEL` (required for live OpenAI-compatible providers)
-- `AI_TEMPERATURE` (optional)
-- `AI_MAX_TOKENS` (optional)
-- `AI_RATE_LIMIT_WINDOW_MS` (optional)
-- `AI_RATE_LIMIT_MAX` (optional)
-- `AI_ALERT_WEBHOOK_URL` (optional, enables outbound AI ops alerts to a webhook)
-- `TELEGRAM_BOT_TOKEN` (optional, enables Telegram delivery for AI ops alerts)
-- `TELEGRAM_CHAT_ID` (optional, required with `TELEGRAM_BOT_TOKEN`)
-- `AI_ALERT_MIN_LEVEL` (optional, `info`, `warning`, or `critical`)
-- `AI_ALERT_COOLDOWN_MS` (optional)
-- `AI_ALERT_FAILURE_THRESHOLD` (optional)
-- `AI_ALERT_HIGH_LATENCY_MS` (optional)
-- `AI_ALERT_LATENCY_THRESHOLD` (optional)
-- `AI_ALERT_LOOKBACK_MS` (optional)
-- `AI_ALERT_COST_LOOKBACK_MS` (optional)
-- `AI_ALERT_COST_SPIKE_MULTIPLIER` (optional)
-- `AI_ALERT_COST_SPIKE_MIN_USD` (optional)
-- `AI_ALERT_COST_SPIKE_MIN_DELTA_USD` (optional)
-- `RATE_LIMIT_STORE` (optional, `memory` to force local in-memory limiting; otherwise the backend uses the database store when available)
-- `RESEARCH_PROVIDER` (optional, supported: `disabled`, `exa`, `mock`)
-- `RESEARCH_API_KEY` (optional)
+**AI Blog Studio** (`/admin/ai-writer`)
+- Conversation-based blog post generation
+- Structured content briefs from a topic
+- Full draft generation with SEO scores
+- AI rewrite proposals (10 actions)
+- Research sources with approval workflow
+- Internal link suggestions
 
-Frontend:
-- `NEXT_PUBLIC_API_URL`
-- `NEXT_PUBLIC_SITE_URL`
-- `API_INTERNAL_URL`
-- `REVALIDATE_SECRET` (server-side only; must match backend when using the revalidation route)
-
-Use:
-- `backend/.env.example`
-- `frontend/.env.example`
-
-Docker Compose notes:
-- The backend container loads AI and research settings from `backend/.env`.
-- Compose-level URL overrides such as `FRONTEND_URL`, `NEXT_PUBLIC_API_URL`, and `NEXT_PUBLIC_SITE_URL` still come from the repo root shell environment or a repo-root `.env` file if you need to override the local Docker defaults.
-- Backend-triggered frontend revalidation uses `FRONTEND_INTERNAL_URL` plus a shared `REVALIDATE_SECRET`.
-- Valid research provider values are `disabled`, `mock`, and `exa`.
+**MCP Server** (59 tools, 6 resources, 6 prompts)
+- Connect any AI tool to manage your entire site
+- Blog post CRUD, scheduling, publishing
+- Portfolio onboarding agent (`setup-portfolio` prompt)
+- Content audit, weekly summary, draft review prompts
+- Auto-deploys with Docker, API key managed from admin settings
 
 ## Quick Start
 
-### Backend
-
 ```bash
-cd backend
-npm install
-npx prisma migrate dev --name init
-npm run db:seed
-npm run dev
+git clone https://github.com/yourusername/myplweb.git
+cd myplweb
+cp .env.example .env
+# Edit .env — set DB_PASSWORD, JWT_SECRET, admin credentials
+docker compose up -d --build
 ```
 
-### Frontend
+That's it. The site will be available at:
+- **Website**: http://localhost:3200
+- **Admin CMS**: http://localhost:3200/admin
+- **API**: http://localhost:3201/api/health
+- **MCP Server**: http://localhost:3100/health
 
-```bash
-cd frontend
-npm install
-npm run dev
+## First-Time Setup
+
+After deploying, you have two options to configure your portfolio:
+
+### Option A: Admin Panel
+Go to **Admin > Settings** and fill in your name, bio, skills, social links, and theme.
+
+### Option B: AI Onboarding (Recommended)
+Connect an AI tool (Claude Code, ChatGPT, Cursor) to the MCP server and say:
+
+> "Set up my portfolio"
+
+The onboarding agent will interview you and populate the entire site automatically. See the MCP Server section below.
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Frontend | Next.js 16, React 19, Tailwind CSS v4 |
+| Backend | Express 5, Prisma 7, PostgreSQL 16 |
+| MCP Server | TypeScript, @modelcontextprotocol/sdk |
+| Infrastructure | Docker, Docker Compose |
+
+## Architecture
+
+```
+┌─────────────┐     ┌─────────────┐     ┌───────────────┐
+│  Frontend   │────▶│  Backend    │────▶│  PostgreSQL   │
+│  Next.js    │     │  Express    │     │               │
+│  :3200      │     │  :3201      │     │  :5432        │
+└─────────────┘     └──────┬──────┘     └───────────────┘
+                           │
+                    ┌──────▼──────┐
+                    │  MCP Server │
+                    │  :3100      │
+                    └─────────────┘
 ```
 
-### Docker
+All three services are defined in `docker-compose.yml` and deploy together.
 
-```bash
-docker compose up --build
+## MCP Server
+
+The MCP server lets you control your site from any AI tool that supports MCP.
+
+### Connecting
+
+Go to **Admin > Settings > Site Wide > MCP Server** to find your:
+- Connection URL
+- API key (masked, with copy button)
+- Regenerate key button
+
+### Supported AI Tools
+
+**Claude Code / Desktop (stdio)**
+```json
+{
+  "mcpServers": {
+    "myplweb": {
+      "command": "node",
+      "args": ["./mcp-server/dist/index.js"],
+      "env": {
+        "MCP_API_URL": "http://localhost:3201",
+        "MCP_AUTH_EMAIL": "admin@example.com",
+        "MCP_AUTH_PASSWORD": "your-password"
+      }
+    }
+  }
+}
 ```
 
-## Access
-
-- Public site: `http://localhost:3200`
-- Admin CMS: `http://localhost:3200/admin`
-- API: `http://localhost:3201/api/health`
-
-## Testing
-
-Backend API tests:
-
-```bash
-cd backend
-npm test
+**Cursor / ChatGPT / Windsurf (HTTP)**
+```
+URL: http://your-server:3100/mcp
+Header: Authorization: Bearer your-api-key
 ```
 
-Optional live research verification:
+### Available Operations
+
+| Category | Count | Examples |
+|----------|-------|---------|
+| Posts | 12 | list, get, create, update, delete, publish, schedule |
+| Categories | 4 | list, create, update, delete |
+| Tags | 4 | list, create, update, delete |
+| Projects | 5 | list, get, create, update, delete |
+| Media | 3 | list, upload, delete |
+| Settings | 3 | get, update, trigger scheduler |
+| Experience | 4 | list, create, update, delete |
+| AI Writer | 10 | create conversation, generate brief/draft, rewrite, save |
+| Analytics | 4 | dashboard stats, page views, top pages, alerts |
+| Newsletter | 3 | list, add, remove subscribers |
+| Contact | 3 | list, mark read, delete messages |
+| Snippets | 4 | list, create, update, delete tracking scripts |
+
+See [`mcp-server/README.md`](./mcp-server/README.md) for full details.
+
+## Configuration
+
+### Environment Variables
+
+Copy `.env.example` to `.env` and configure:
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `DB_PASSWORD` | Yes | — | PostgreSQL password |
+| `JWT_SECRET` | Yes | — | JWT signing secret (use `openssl rand -hex 32`) |
+| `REVALIDATE_SECRET` | Yes | — | Frontend cache invalidation secret |
+| `SEED_ADMIN_EMAIL` | Yes | — | Admin login email |
+| `SEED_ADMIN_PASSWORD` | Yes | — | Admin login password |
+| `SEED_ADMIN_NAME` | No | `Admin` | Admin display name |
+| `NEXT_PUBLIC_API_URL` | No | `http://localhost:3201` | Public API URL |
+| `NEXT_PUBLIC_SITE_URL` | No | `http://localhost:3200` | Public site URL |
+
+AI Writer settings are configured from the admin panel (Settings > AI Configuration), not env vars.
+
+### Custom Domain (Production)
+
+1. Update `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_SITE_URL` in your `.env`
+2. Point your domain to the server
+3. Put a reverse proxy (nginx/Caddy) in front for HTTPS
+4. For the MCP server, proxy `mcp.yourdomain.com/mcp` to `localhost:3100`
+
+## Development
 
 ```bash
-cd backend
-npm run verify:research
+# Backend
+cd backend && npm install && npm run dev
+
+# Frontend
+cd frontend && npm install && npm run dev
+
+# MCP Server
+cd mcp-server && npm install && npm run dev
 ```
 
-The live research verification only runs when `RESEARCH_PROVIDER=exa` and `RESEARCH_API_KEY` are both present. Otherwise it exits cleanly without making a live provider call.
-The verifier now loads `backend/.env` automatically when you run it from the backend folder.
-
-Frontend Playwright smoke tests:
+### Testing
 
 ```bash
-cd frontend
-npm run test:e2e
+# Backend tests
+cd backend && npm test
+
+# Frontend e2e tests
+cd frontend && npm run test:e2e
+
+# MCP Server tests (requires running backend)
+cd mcp-server && MCP_AUTH_EMAIL=admin@example.com MCP_AUTH_PASSWORD=your-pass node dist/index.js --test
 ```
 
-Optional test env overrides:
-- `PLAYWRIGHT_BASE_URL`
-- `PLAYWRIGHT_API_URL`
-- `E2E_ADMIN_EMAIL`
-- `E2E_ADMIN_PASSWORD`
+## Project Structure
 
-## Production Notes
+```
+myplweb/
+├── frontend/          # Next.js 16 app (SSR/ISR, Tailwind v4)
+│   ├── src/app/       # App Router pages
+│   ├── src/components/# React components
+│   └── src/lib/       # Config, utilities
+├── backend/           # Express 5 API
+│   ├── src/routes/    # API route handlers
+│   ├── src/services/  # AI, research, revalidation services
+│   ├── prisma/        # Schema + migrations
+│   └── docker-entrypoint.sh
+├── mcp-server/        # MCP server for AI tool integration
+│   ├── src/tools/     # 59 MCP tools
+│   ├── src/resources.ts
+│   └── src/prompts.ts
+├── docker-compose.yml # All services
+├── .env.example       # Configuration template
+└── LICENSE
+```
 
-- The backend now validates required env vars at startup and will fail fast if critical values are missing.
-- `JWT_SECRET` must not use the placeholder default in production.
-- Local Docker compose uses `ALLOW_INSECURE_JWT_SECRET=true` so the bundled dev stack can still boot without a custom secret.
-- `INSTALL_SECRET` should only be set when intentionally enabling the one-time setup flow.
-- Login, setup, and analytics tracking now have basic rate limiting.
-- AI Blog Studio is admin-only and runs from backend routes under `/api/admin/ai`.
-- Publishing and major CMS updates can now trigger explicit frontend revalidation instead of waiting for the normal public cache window.
-- Do not expose AI secrets in frontend env vars. Use backend-only `AI_*` configuration.
-- For local Docker development, the bundled stack uses `AI_PROVIDER=mock` so the AI writer can be exercised without a live external model.
-- Research is also backend-only. Keep `RESEARCH_PROVIDER=disabled` unless a server-side provider such as `exa` is configured with `RESEARCH_API_KEY`.
-- AI Blog Studio source approval is admin-only. Only approved sources can be included in the optional References block when saving an AI draft into the CMS.
-- Rewrite proposals are stored and applied server-side by proposal ID; the browser does not directly overwrite stored draft content.
-- Optional AI ops alerts can be enabled with `AI_ALERT_WEBHOOK_URL` and/or Telegram via `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`. Destinations stay off by default even when credentials are configured; enable them manually from `Admin > Analytics`. Severity level, cooldown window, and daily digest can also be adjusted from the same admin screen. The backend sends cooldown-protected alerts for repeated provider failures, sustained latency, and cost spikes without exposing any secrets to the browser.
+## License
+
+[MIT](./LICENSE)

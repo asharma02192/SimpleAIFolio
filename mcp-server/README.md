@@ -36,7 +36,7 @@ Add to your Claude Code MCP settings:
   "mcpServers": {
     "myplweb": {
       "command": "node",
-      "args": ["D:/MyPLWeb/mcp-server/dist/index.js"],
+      "args": ["./mcp-server/dist/index.js"],
       "env": {
         "MCP_API_URL": "http://localhost:3201",
         "MCP_AUTH_EMAIL": "admin@myplweb.com",
@@ -56,7 +56,7 @@ Add to `claude_desktop_config.json`:
   "mcpServers": {
     "myplweb": {
       "command": "node",
-      "args": ["D:/MyPLWeb/mcp-server/dist/index.js"],
+      "args": ["./mcp-server/dist/index.js"],
       "env": {
         "MCP_API_URL": "http://localhost:3201",
         "MCP_AUTH_EMAIL": "admin@myplweb.com",
@@ -240,7 +240,7 @@ docker compose -f docker-compose.mcp.yml up -d --build
   "mcpServers": {
     "myplweb": {
       "command": "node",
-      "args": ["D:/MyPLWeb/mcp-server/dist/index.js"],
+      "args": ["./mcp-server/dist/index.js"],
       "env": {
         "MCP_API_URL": "http://localhost:3201",
         "MCP_AUTH_EMAIL": "admin@myplweb.com",
