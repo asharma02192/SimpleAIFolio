@@ -331,6 +331,7 @@ export interface AnalyticsDashboardData {
   topPages: { path: string; views: number }[];
   totalPosts: number;
   publishedPosts: number;
+  scheduledPosts?: number;
   totalProjects: number;
   aiOps: AiOpsDashboard;
 }

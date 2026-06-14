@@ -24,25 +24,49 @@ function PostsContent() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const perPage = 20;
 
-  useEffect(() => {
-    apiFetch("/api/posts?status=all&perPage=100")
+  const fetchPosts = useCallback((p: number, s: StatusFilter, q: string) => {
+    setLoading(true);
+    const params = new URLSearchParams({ status: "all", perPage: String(perPage), page: String(p) });
+    if (s !== "ALL") params.set("search", s.toLowerCase());
+    if (q) params.set("search", q);
+    apiFetch(`/api/posts?${params}`)
       .then((r) => r.json())
-      .then((d) => setPosts(d.data || []))
+      .then((d) => {
+        let filtered = d.data || [];
+        if (s !== "ALL") filtered = filtered.filter((post: Post) => post.status === s);
+        setPosts(filtered);
+        setTotal(d.total || 0);
+        setTotalPages(Math.max(1, Math.ceil((d.total || 0) / perPage)));
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
 
-  const filteredPosts = statusFilter === "ALL" ? posts : posts.filter((p) => p.status === statusFilter);
+  useEffect(() => {
+    fetchPosts(page, statusFilter, search);
+  }, [page, statusFilter, search, fetchPosts]);
 
-  const allSelected = filteredPosts.length > 0 && filteredPosts.every((p) => selected.has(p.id));
-  const someSelected = filteredPosts.some((p) => selected.has(p.id)) && !allSelected;
+  const onSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setPage(1);
+    setSearch(searchInput.trim());
+  };
+
+  const allSelected = posts.length > 0 && posts.every((p) => selected.has(p.id));
+  const someSelected = posts.some((p) => selected.has(p.id)) && !allSelected;
 
   const toggleAll = () => {
     if (allSelected) {
       setSelected(new Set());
     } else {
-      setSelected(new Set(filteredPosts.map((p) => p.id)));
+      setSelected(new Set(posts.map((p) => p.id)));
     }
   };
 
@@ -108,10 +132,10 @@ function PostsContent() {
           </div>
         )}
 
-        <div className="mb-[var(--space-4)]">
+        <div className="mb-[var(--space-4)] flex flex-col gap-[var(--space-3)] sm:flex-row sm:items-center">
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+            onChange={(e) => { setStatusFilter(e.target.value as StatusFilter); setPage(1); }}
             className="font-[family-name:var(--font-mono)] text-[var(--text-sm)] px-[var(--space-3)] py-[var(--space-2)] outline-none"
             style={{
               background: "var(--color-bg)",
@@ -125,14 +149,31 @@ function PostsContent() {
             <option value="PUBLISHED">Published</option>
             <option value="SCHEDULED">Scheduled</option>
           </select>
+          <form onSubmit={onSearchSubmit} className="flex-1 flex gap-[var(--space-2)]">
+            <input
+              type="text"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Search posts..."
+              className="flex-1 font-[family-name:var(--font-body)] text-[var(--text-sm)] px-[var(--space-3)] py-[var(--space-2)] outline-none"
+              style={{ background: "var(--color-bg)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", color: "var(--color-text)" }}
+            />
+            <button type="submit" className="font-[family-name:var(--font-mono)] text-[var(--text-sm)] px-4 py-[var(--space-2)] transition-colors" style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", color: "var(--color-text)" }}>
+              Search
+            </button>
+          </form>
         </div>
 
         {loading ? (
-          <p className="font-[family-name:var(--font-mono)] text-[var(--text-sm)]" style={{ color: "var(--color-text-tertiary)" }}>Loading...</p>
-        ) : filteredPosts.length === 0 ? (
+          <div className="flex flex-col gap-[var(--space-3)]">
+            {[1,2,3].map((i) => (
+              <div key={i} className="h-[60px] rounded-[var(--radius-md)] animate-pulse" style={{ background: "var(--color-bg-elevated)" }} />
+            ))}
+          </div>
+        ) : posts.length === 0 ? (
           <div className="py-[var(--space-16)] text-center">
             <p className="text-[var(--text-sm)] mb-[var(--space-4)]" style={{ color: "var(--color-text-tertiary)" }}>
-              {statusFilter !== "ALL" ? `No ${statusFilter.toLowerCase()} posts.` : "No posts yet. Create your first one."}
+              {search ? `No posts matching "${search}".` : statusFilter !== "ALL" ? `No ${statusFilter.toLowerCase()} posts.` : "No posts yet. Create your first one."}
             </p>
             {statusFilter === "ALL" && (
               <Link
@@ -158,10 +199,10 @@ function PostsContent() {
                 className="cursor-pointer"
               />
               <span className="font-[family-name:var(--font-mono)] text-[var(--text-xs)] uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>
-                {filteredPosts.length} post{filteredPosts.length !== 1 ? "s" : ""}
+                {total} post{total !== 1 ? "s" : ""}
               </span>
             </div>
-            {filteredPosts.map((post) => (
+            {posts.map((post) => (
               <div
                 key={post.id}
                 className="flex flex-col gap-[var(--space-3)] py-[var(--space-4)] sm:flex-row sm:items-center sm:justify-between"
@@ -214,7 +255,31 @@ function PostsContent() {
                   </button>
                 </div>
               </div>
-            ))}
+             ))}
+           </div>
+         )}
+
+        {totalPages > 1 && (
+          <div className="mt-[var(--space-6)] flex items-center justify-between">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1}
+              className="font-[family-name:var(--font-mono)] text-[var(--text-sm)] px-4 py-2 transition-colors disabled:opacity-30"
+              style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", color: "var(--color-text)" }}
+            >
+              ← Prev
+            </button>
+            <span className="font-[family-name:var(--font-mono)] text-[var(--text-xs)]" style={{ color: "var(--color-text-tertiary)" }}>
+              Page {page} of {totalPages}
+            </span>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages}
+              className="font-[family-name:var(--font-mono)] text-[var(--text-sm)] px-4 py-2 transition-colors disabled:opacity-30"
+              style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", color: "var(--color-text)" }}
+            >
+              Next →
+            </button>
           </div>
         )}
       </main>

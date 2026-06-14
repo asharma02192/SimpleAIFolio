@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { AuthProvider, logoutAdmin } from "@/lib/auth";
 import { adminApiRequest, getAdminErrorMessage } from "@/lib/admin-api";
@@ -35,6 +35,8 @@ export default function PostEditorContent({ postId }: { postId?: string }) {
   const [editorError, setEditorError] = useState<string | null>(null);
   const [pickerField, setPickerField] = useState<"featuredImage" | "ogImage" | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [autosaveStatus, setAutosaveStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [form, setForm] = useState<PostData>({
     title: "",
     slug: "",
@@ -93,7 +95,7 @@ export default function PostEditorContent({ postId }: { postId?: string }) {
   const generateSlug = (title: string) =>
     title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
-  const save = useCallback(async (status?: "DRAFT" | "PUBLISHED" | "SCHEDULED") => {
+  const save = useCallback(async (status?: "DRAFT" | "PUBLISHED" | "SCHEDULED", opts?: { silent?: boolean }) => {
     if (saving) return;
 
     if (!form.title.trim()) {
@@ -125,7 +127,9 @@ export default function PostEditorContent({ postId }: { postId?: string }) {
         body: JSON.stringify(payload),
       });
       setLastSaved(new Date().toLocaleTimeString());
-      toast("Post saved", "success");
+      if (!opts?.silent) {
+        toast("Post saved", "success");
+      }
       if (!postId && saved.id) {
         await new Promise((r) => setTimeout(r, 1000));
         window.location.href = `/admin/posts/${saved.id}/edit`;
@@ -140,14 +144,23 @@ export default function PostEditorContent({ postId }: { postId?: string }) {
     }
   }, [form, postId, saving, toast]);
 
-  // Auto-save every 30s (only if there's a title and existing post)
+  // Auto-save 3s after the user stops typing (only for existing posts)
   useEffect(() => {
     if (!postId) return;
-    const interval = setInterval(() => {
-      if (form.title.trim() && form.body.trim()) save();
-    }, 30000);
-    return () => clearInterval(interval);
-  }, [form, save, postId]);
+    if (!form.title.trim()) return;
+
+    if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+
+    autosaveTimer.current = setTimeout(async () => {
+      setAutosaveStatus("saving");
+      await save(form.status, { silent: true });
+      setAutosaveStatus("saved");
+    }, 3000);
+
+    return () => {
+      if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+    };
+  }, [form, postId, save]);
 
   const updateForm = (updates: Partial<PostData>) =>
     setForm((prev) => ({ ...prev, ...updates }));
@@ -210,6 +223,16 @@ export default function PostEditorContent({ postId }: { postId?: string }) {
               {lastSaved && (
                 <span className="font-[family-name:var(--font-mono)] text-[var(--text-xs)]" style={{ color: "var(--color-text-tertiary)" }}>
                   Saved {lastSaved}
+                </span>
+              )}
+              {postId && autosaveStatus === "saving" && (
+                <span className="font-[family-name:var(--font-mono)] text-[var(--text-xs)]" style={{ color: "var(--color-text-tertiary)" }}>
+                  Saving…
+                </span>
+              )}
+              {postId && autosaveStatus === "saved" && !saving && (
+                <span className="font-[family-name:var(--font-mono)] text-[var(--text-xs)]" style={{ color: "var(--color-text-tertiary)" }}>
+                  Saved
                 </span>
               )}
               {editorError && (

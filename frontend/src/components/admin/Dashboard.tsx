@@ -244,6 +244,7 @@ export default function AdminDashboard() {
         style={surface}
       >
         <Metric label="Posts" value={data.publishedPosts.toLocaleString()} sub={`${data.totalPosts} total`} />
+        <Metric label="Scheduled" value={(data.scheduledPosts ?? 0).toLocaleString()} sub="awaiting publish" />
         <Metric label="Projects" value={data.totalProjects.toLocaleString()} />
         <Metric label={`Views (${fmtWindow(ai.windowDays)})`} value={data.totalViews.toLocaleString()} sub={`${data.recentViews} in last 7d`} />
         <Metric label="AI Calls" value={ai.totalCalls.toLocaleString()} sub={`${ai.failures} failures`} />

@@ -4,7 +4,7 @@ import PageWrapper from "@/components/PageWrapper";
 export default function NotFound() {
   return (
     <PageWrapper>
-      <div className="max-w-[var(--max-width)] mx-auto px-[var(--space-4)] md:px-[var(--space-8)] py-[var(--space-24)] text-center">
+      <div className="flex min-h-[60vh] flex-col items-center justify-center px-[var(--space-4)] text-center">
         <p
           className="font-[family-name:var(--font-mono)] text-[var(--text-xs)] uppercase tracking-widest mb-[var(--space-4)]"
           style={{ color: "var(--color-accent)" }}
@@ -18,17 +18,17 @@ export default function NotFound() {
           Page not found
         </h1>
         <p
-          className="text-[var(--text-sm)] mb-[var(--space-8)] max-w-[var(--measure)] mx-auto"
-          style={{ color: "var(--color-text-secondary)" }}
+          className="font-[family-name:var(--font-body)] text-[var(--text-sm)] mb-[var(--space-8)]"
+          style={{ color: "var(--color-text-tertiary)" }}
         >
-          The page you&apos;re looking for doesn&apos;t exist or has been moved.
+          The page you&rsquo;re looking for doesn&rsquo;t exist or has been moved.
         </p>
         <Link
           href="/"
-          className="font-[family-name:var(--font-mono)] text-[var(--text-xs)] uppercase tracking-wider"
-          style={{ color: "var(--color-accent)" }}
+          className="inline-flex items-center justify-center rounded-[var(--radius-md)] px-[var(--space-6)] py-[var(--space-3)] font-[family-name:var(--font-mono)] text-[var(--text-xs)] uppercase tracking-wider transition-opacity hover:opacity-90"
+          style={{ background: "var(--color-accent)", color: "var(--color-accent-on)" }}
         >
-          Back to home &rarr;
+          &larr; Back to home
         </Link>
       </div>
     </PageWrapper>

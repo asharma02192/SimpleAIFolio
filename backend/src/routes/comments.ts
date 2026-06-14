@@ -1,15 +1,16 @@
 import { Router } from "express";
 import prisma from "../utils/db";
 import { authMiddleware, AuthRequest } from "../middleware/auth";
-import { trimmedString } from "../utils/express";
+import { param, trimmedString } from "../utils/express";
 
 const router = Router();
 
+// Public: get approved comments for a post
 router.get("/posts/:postId/comments", async (req, res) => {
   try {
-    const postId = (req.params as Record<string, string>).postId;
+    const postId = param(req, "postId");
     const comments = await prisma.comment.findMany({
-      where: { postId },
+      where: { postId, status: "approved" },
       orderBy: { createdAt: "asc" },
     });
     res.json(comments);
@@ -21,7 +22,7 @@ router.get("/posts/:postId/comments", async (req, res) => {
 
 router.post("/posts/:postId/comments", async (req, res) => {
   try {
-    const postId = (req.params as Record<string, string>).postId;
+    const postId = param(req, "postId");
     const { author, content, parentId } = req.body;
     if (!trimmedString(author) || !trimmedString(content)) {
       res.status(400).json({ error: "Name and comment are required" });
@@ -38,6 +39,7 @@ router.post("/posts/:postId/comments", async (req, res) => {
         content: trimmedString(content).slice(0, 2000),
         postId,
         parentId: trimmedString(parentId) || null,
+        status: "approved",
       },
     });
     res.status(201).json(comment);
@@ -47,9 +49,63 @@ router.post("/posts/:postId/comments", async (req, res) => {
   }
 });
 
+// Admin: list all comments with filters
+router.get("/admin/comments", authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const status = (req.query.status as string) || "all";
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const perPage = Math.min(100, Math.max(1, parseInt(req.query.perPage as string) || 20));
+
+    const where = status !== "all" ? { status } : {};
+    const [comments, total] = await Promise.all([
+      prisma.comment.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * perPage,
+        take: perPage,
+        include: {
+          post: { select: { id: true, title: true, slug: true } },
+        },
+      }),
+      prisma.comment.count({ where }),
+    ]);
+
+    res.json({
+      data: comments,
+      total,
+      page,
+      perPage,
+      totalPages: Math.ceil(total / perPage),
+    });
+  } catch (err) {
+    console.error("List comments error:", err);
+    res.status(500).json({ error: "Failed to fetch comments" });
+  }
+});
+
+// Admin: update comment status (approve/pending/spam)
+router.put("/admin/comments/:id/status", authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const id = param(req, "id");
+    const { status } = req.body;
+    if (!["approved", "pending", "spam"].includes(status)) {
+      res.status(400).json({ error: "Status must be approved, pending, or spam" });
+      return;
+    }
+    const comment = await prisma.comment.update({
+      where: { id },
+      data: { status },
+    });
+    res.json(comment);
+  } catch (err) {
+    console.error("Update comment status error:", err);
+    res.status(500).json({ error: "Failed to update comment" });
+  }
+});
+
 router.delete("/admin/comments/:id", authMiddleware, async (req: AuthRequest, res) => {
   try {
-    const id = (req.params as Record<string, string>).id;
+    const id = param(req, "id");
     await prisma.comment.delete({ where: { id } });
     res.status(204).send();
   } catch (err) {

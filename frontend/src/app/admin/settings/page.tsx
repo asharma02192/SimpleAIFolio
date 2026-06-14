@@ -8,6 +8,7 @@ import { UIProvider, useUI } from "@/components/admin/Toast";
 
 interface Settings {
   site_title?: string;
+  logo_url?: string;
   tagline?: string;
   description?: string;
   author_name?: string;
@@ -45,6 +46,7 @@ interface McpConfig {
 
 const defaultSettings: Settings = {
   site_title: "",
+  logo_url: "",
   tagline: "",
   description: "",
   author_name: "",
@@ -474,6 +476,7 @@ function SettingsContent() {
                     </div>
                     <div className="flex flex-col gap-[var(--space-5)]">
                       <div><label className={labelClass} style={{ color: "var(--color-text-tertiary)" }}>Site Title</label><input value={settings.site_title || ""} onChange={(e) => set("site_title", e.target.value)} className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-colors" style={inputStyle} /></div>
+                      <div><label className={labelClass} style={{ color: "var(--color-text-tertiary)" }}>Logo URL (optional)</label><input value={settings.logo_url || ""} onChange={(e) => set("logo_url", e.target.value)} placeholder="/uploads/logo.webp" className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-colors" style={inputStyle} /></div>
                       <div><label className={labelClass} style={{ color: "var(--color-text-tertiary)" }}>Tagline</label><input value={settings.tagline || ""} onChange={(e) => set("tagline", e.target.value)} className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-colors" style={inputStyle} /></div>
                       <div><label className={labelClass} style={{ color: "var(--color-text-tertiary)" }}>Description</label><textarea value={settings.description || ""} onChange={(e) => set("description", e.target.value)} rows={2} className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-colors" style={inputStyle} /></div>
                       <div><label className={labelClass} style={{ color: "var(--color-text-tertiary)" }}>Author Name</label><input value={settings.author_name || ""} onChange={(e) => set("author_name", e.target.value)} className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-colors" style={inputStyle} /></div>

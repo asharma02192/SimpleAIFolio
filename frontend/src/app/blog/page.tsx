@@ -141,6 +141,7 @@ export default async function BlogPage({
                     <img
                       src={`${API_BASE}${post.featuredImage}`}
                       alt={post.title}
+                      loading="lazy"
                       className="mb-[var(--space-4)] w-full"
                       style={{ maxHeight: "200px", objectFit: "cover", borderRadius: "var(--radius-md)" }}
                     />

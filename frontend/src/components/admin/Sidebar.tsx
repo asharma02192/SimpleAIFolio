@@ -17,6 +17,7 @@ const adminNavItems = [
   { href: "/admin/settings", label: "Settings", icon: "S" },
   { href: "/admin/snippets", label: "Snippets", icon: "</>" },
   { href: "/admin/contact", label: "Messages", icon: "@" },
+  { href: "/admin/comments", label: "Comments", icon: "C" },
   { href: "/admin/newsletter", label: "Newsletter", icon: "NL" },
 ];
 

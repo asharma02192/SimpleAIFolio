@@ -298,6 +298,8 @@ export default async function BlogPostPage({
 }) {
   const { slug } = await params;
   const { preview: previewToken } = await searchParams;
+  const settings = await fetchSettings();
+  const siteUrl = getSiteUrl();
 
   let post: Post | null = null;
   let relatedPosts: Post[] = [];
@@ -355,6 +357,29 @@ export default async function BlogPostPage({
 
   return (
     <PageWrapper>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "BlogPosting",
+            headline: post.title,
+            description: post.excerpt || post.metaDescription || post.title,
+            datePublished: post.publishedAt || undefined,
+            author: {
+              "@type": "Person",
+              name: settings.siteConfig.authorName || undefined,
+            },
+            ...(post.featuredImage
+              ? { image: `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3201"}${post.featuredImage}` }
+              : {}),
+            mainEntityOfPage: {
+              "@type": "WebPage",
+              "@id": `${siteUrl}/blog/${post.slug}`,
+            },
+          }),
+        }}
+      />
       <ReadingProgressBar />
       <article className="max-w-[var(--max-width)] mx-auto px-[var(--space-4)] md:px-[var(--space-8)] py-[var(--space-16)]">
         <Link
@@ -407,6 +432,7 @@ export default async function BlogPostPage({
             <img
               src={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3201"}${post.featuredImage}`}
               alt={post.title}
+              loading="lazy"
               style={{
                 width: "100%",
                 maxHeight: "480px",

@@ -160,6 +160,7 @@ export function createAnalyticsRouter({ prismaClient = prisma }: { prismaClient?
       topPages,
       totalPosts,
       publishedPosts,
+      scheduledPosts,
       totalProjects,
       totalAiCalls,
       totalAiFailures,
@@ -185,6 +186,7 @@ export function createAnalyticsRouter({ prismaClient = prisma }: { prismaClient?
         }),
         prismaClient.post.count(),
         prismaClient.post.count({ where: { status: "PUBLISHED" } }),
+        prismaClient.post.count({ where: { status: "SCHEDULED" } }),
         prismaClient.project.count(),
         prismaClient.aiUsageEvent.count({ where: { createdAt: { gte: periodStart } } }),
         prismaClient.aiUsageEvent.count({ where: { createdAt: { gte: periodStart }, success: false } }),
@@ -370,6 +372,7 @@ export function createAnalyticsRouter({ prismaClient = prisma }: { prismaClient?
       })),
       totalPosts,
       publishedPosts,
+      scheduledPosts,
       totalProjects,
       aiOps: {
         windowDays,
