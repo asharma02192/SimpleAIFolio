@@ -457,31 +457,58 @@ async function resolveTagIds(prismaClient: AdminAiPrisma, suggestions: string[])
   });
 
   const resolvedIds: string[] = [];
+  const resolvedIdSet = new Set<string>();
 
   for (const suggestion of suggestions) {
     const normalized = suggestion.trim();
     if (!normalized) continue;
 
     const normalizedSlug = slugify(normalized);
+    if (!normalizedSlug) continue;
+
     const existing = existingTags.find((tag: { name: string; slug: string }) =>
       tag.slug.toLowerCase() === normalizedSlug || tag.name.toLowerCase() === normalized.toLowerCase()
     );
 
     if (existing) {
-      resolvedIds.push(existing.id);
+      if (!resolvedIdSet.has(existing.id)) {
+        resolvedIds.push(existing.id);
+        resolvedIdSet.add(existing.id);
+      }
       continue;
     }
 
-    const created = await prismaClient.tag.create({
-      data: {
-        name: normalized,
-        slug: normalizedSlug,
-      },
-      select: { id: true },
-    });
+    try {
+      const created = await prismaClient.tag.create({
+        data: {
+          name: normalized,
+          slug: normalizedSlug,
+        },
+        select: { id: true },
+      });
 
-    resolvedIds.push(created.id);
-    existingTags.push({ id: created.id, name: normalized, slug: normalizedSlug });
+      resolvedIds.push(created.id);
+      resolvedIdSet.add(created.id);
+      existingTags.push({ id: created.id, name: normalized, slug: normalizedSlug });
+    } catch (createError) {
+      if (isPrismaErrorCode(createError, "P2002")) {
+        const recovered = await prismaClient.tag.findFirst({
+          where: {
+            OR: [
+              { slug: normalizedSlug },
+              { name: normalized },
+            ],
+          },
+          select: { id: true },
+        });
+        if (recovered && !resolvedIdSet.has(recovered.id)) {
+          resolvedIds.push(recovered.id);
+          resolvedIdSet.add(recovered.id);
+        }
+      } else {
+        throw createError;
+      }
+    }
   }
 
   return resolvedIds;

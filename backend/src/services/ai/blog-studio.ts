@@ -813,6 +813,7 @@ export function createBlogStudioAiService({
         onAttempt: async (result, attempt) => {
           await onTelemetry?.({ operation: "draft_generate", result, attempt });
         },
+        maxAttempts: 3,
       });
 
       return normalizeDraft(parsed, input.topic);
