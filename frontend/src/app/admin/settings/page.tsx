@@ -67,6 +67,14 @@ const sections = [
   { id: "site", label: "Site Wide" },
 ] as const;
 
+const siteSubTabs = [
+  { id: "general", label: "General" },
+  { id: "social", label: "Social" },
+  { id: "ai", label: "AI" },
+  { id: "mcp", label: "MCP" },
+  { id: "account", label: "Account" },
+] as const;
+
 export default function SettingsPage() {
   return (
     <AuthProvider>
@@ -95,6 +103,7 @@ function SettingsContent() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [activeSection, setActiveSection] = useState<(typeof sections)[number]["id"]>("home");
+  const [activeSiteSubTab, setActiveSiteSubTab] = useState<(typeof siteSubTabs)[number]["id"]>("general");
 
   useEffect(() => {
     if (!token) return;
@@ -439,18 +448,41 @@ function SettingsContent() {
               )}
 
               {activeSection === "site" && (
-                 <>
-                  <section className="rounded-[var(--radius-lg)] p-[var(--space-6)]" style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)" }}>
-                    <div className="mb-[var(--space-5)]">
-                      <p className="font-[family-name:var(--font-mono)] text-[0.625rem] uppercase tracking-[0.2em] mb-[var(--space-1)]" style={{ color: "var(--color-accent)" }}>Appearance</p>
-                      <h2 className="font-[family-name:var(--font-display)] text-[var(--text-lg)] font-700" style={{ color: "var(--color-text)" }}>
-                        Theme
-                      </h2>
-                      <p className="mt-[var(--space-1)] font-[family-name:var(--font-body)] text-[var(--text-sm)]" style={{ color: "var(--color-text-tertiary)" }}>
-                        Choose the visual theme for your website. Changes apply after saving.
-                      </p>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-[var(--space-4)]">
+                <>
+                {/* Sub-tab navigation */}
+                <div className="mb-[var(--space-6)] flex flex-wrap gap-[var(--space-2)]">
+                  {siteSubTabs.map((tab) => {
+                    const active = activeSiteSubTab === tab.id;
+                    return (
+                      <button
+                        key={tab.id}
+                        onClick={() => setActiveSiteSubTab(tab.id)}
+                        className="rounded-[var(--radius-md)] px-[var(--space-4)] py-[var(--space-2)] font-[family-name:var(--font-body)] text-[var(--text-sm)] font-500 transition-all duration-150"
+                        style={{
+                          background: active ? "var(--color-accent)" : "var(--color-bg-elevated)",
+                          border: `1px solid ${active ? "var(--color-accent)" : "var(--color-border)"}`,
+                          color: active ? "var(--color-accent-on)" : "var(--color-text-secondary)",
+                        }}
+                      >
+                        {tab.label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {activeSiteSubTab === "general" && (
+                  <>
+                   <section className="rounded-[var(--radius-lg)] p-[var(--space-6)]" style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)" }}>
+                     <div className="mb-[var(--space-5)]">
+                       <p className="font-[family-name:var(--font-mono)] text-[0.625rem] uppercase tracking-[0.2em] mb-[var(--space-1)]" style={{ color: "var(--color-accent)" }}>Appearance</p>
+                       <h2 className="font-[family-name:var(--font-display)] text-[var(--text-lg)] font-700" style={{ color: "var(--color-text)" }}>
+                         Theme
+                       </h2>
+                       <p className="mt-[var(--space-1)] font-[family-name:var(--font-body)] text-[var(--text-sm)]" style={{ color: "var(--color-text-tertiary)" }}>
+                         Choose the visual theme for your website. Changes apply after saving.
+                       </p>
+                     </div>
+                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-[var(--space-4)]">
                       {([
                         { id: "light-minimal", name: "Light Minimal", desc: "Warm light background with indigo accents and Bricolage headings" },
                         { id: "dark-modern", name: "Dark Modern", desc: "Dark charcoal with indigo accent, cream text, and Bricolage headings" },
@@ -510,8 +542,12 @@ function SettingsContent() {
                       <div><label className={labelClass} style={{ color: "var(--color-text-tertiary)" }}>Author Name</label><input value={settings.author_name || ""} onChange={(e) => set("author_name", e.target.value)} className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-colors" style={inputStyle} /></div>
                     </div>
                   </section>
+                  </>
+                )}
 
-                  <section className="rounded-[var(--radius-lg)] p-[var(--space-6)]" style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)" }}>
+                {activeSiteSubTab === "social" && (
+                  <>
+                   <section className="rounded-[var(--radius-lg)] p-[var(--space-6)]" style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)" }}>
                     <div className="mb-[var(--space-5)]">
                       <p className="font-[family-name:var(--font-mono)] text-[0.625rem] uppercase tracking-[0.2em] mb-[var(--space-1)]" style={{ color: "var(--color-accent)" }}>Site Wide</p>
                       <h2 className="font-[family-name:var(--font-display)] text-[var(--text-lg)] font-700" style={{ color: "var(--color-text)" }}>
@@ -560,7 +596,11 @@ function SettingsContent() {
                       ) : null}
                     </div>
                   </section>
+                  </>
+                )}
 
+                {activeSiteSubTab === "ai" && (
+                  <>
                   <section className="rounded-[var(--radius-lg)] p-[var(--space-6)]" style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)" }}>
                     <div className="mb-[var(--space-5)] flex flex-col gap-[var(--space-3)] sm:flex-row sm:items-center sm:justify-between">
                       <div>
@@ -681,7 +721,11 @@ function SettingsContent() {
                       </p>
                     )}
                   </section>
+                  </>
+                )}
 
+                {activeSiteSubTab === "mcp" && (
+                  <>
                   {/* ── MCP Server ── */}
                   <section className="rounded-[var(--radius-lg)] p-[var(--space-6)]" style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)" }}>
                     <div className="mb-[var(--space-5)] flex flex-col gap-[var(--space-3)] sm:flex-row sm:items-center sm:justify-between">
@@ -769,7 +813,11 @@ function SettingsContent() {
                       </p>
                     )}
                   </section>
+                  </>
+                )}
 
+                {activeSiteSubTab === "account" && (
+                  <>
                   <section className="rounded-[var(--radius-lg)] p-[var(--space-6)]" style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)" }}>
                     <div className="mb-[var(--space-5)]">
                       <p className="font-[family-name:var(--font-mono)] text-[0.625rem] uppercase tracking-[0.2em] mb-[var(--space-1)]" style={{ color: "var(--color-accent)" }}>Account</p>
@@ -800,6 +848,8 @@ function SettingsContent() {
                       </button>
                     </div>
                   </section>
+                  </>
+                )}
                 </>
               )}
 
