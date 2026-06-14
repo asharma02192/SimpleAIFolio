@@ -15,7 +15,7 @@ export default async function PageWrapper({
   return (
     <>
       <AnnouncementBar announcement={resolvedSettings.announcement} />
-      <Navigation siteTitle={resolvedSettings.siteConfig.title} />
+      <Navigation siteTitle={resolvedSettings.siteConfig.title} logoUrl={resolvedSettings.siteConfig.logoUrl} />
       <main id="main" className="flex-1">
         {children}
       </main>

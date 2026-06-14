@@ -7,8 +7,10 @@ import { navLinks } from "@/lib/config";
 
 export default function Navigation({
   siteTitle,
+  logoUrl,
 }: {
   siteTitle: string;
+  logoUrl?: string;
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -28,16 +30,20 @@ export default function Navigation({
           className="font-[family-name:var(--font-display)] text-[1.375rem] font-800 tracking-tight flex items-center gap-2"
           style={{ color: "var(--color-text)" }}
         >
-          <span
-            className="inline-flex items-center justify-center w-8 h-8 text-[var(--text-sm)] font-700"
-            style={{
-              background: "var(--color-accent)",
-              color: "var(--color-accent-on)",
-              borderRadius: "var(--radius-sm)",
-            }}
-          >
-            {brandLetter}
-          </span>
+          {logoUrl ? (
+            <img src={logoUrl} alt={siteTitle} className="h-8 w-auto rounded-[var(--radius-sm)]" style={{ maxHeight: "32px" }} />
+          ) : (
+            <span
+              className="inline-flex items-center justify-center w-8 h-8 text-[var(--text-sm)] font-700"
+              style={{
+                background: "var(--color-accent)",
+                color: "var(--color-accent-on)",
+                borderRadius: "var(--radius-sm)",
+              }}
+            >
+              {brandLetter}
+            </span>
+          )}
           {siteTitle}
         </Link>
 

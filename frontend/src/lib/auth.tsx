@@ -3,9 +3,17 @@
 import { createContext, useCallback, useContext, useEffect, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 
+interface AuthUser {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+}
+
 interface AuthContextType {
   token: string | null;
   userRole: string | null;
+  user: AuthUser | null;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   isAuthenticated: boolean;
@@ -15,6 +23,7 @@ interface AuthContextType {
 interface SessionSnapshot {
   isAuthenticated: boolean;
   isReady: boolean;
+  user: AuthUser | null;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -26,6 +35,7 @@ const SESSION_TOKEN = "session";
 let snapshot: SessionSnapshot = {
   isAuthenticated: false,
   isReady: false,
+  user: null,
 };
 
 let pendingSessionRefresh: Promise<boolean> | null = null;
@@ -48,9 +58,7 @@ function getSessionChannel() {
 }
 
 function emitSessionChange() {
-  if (!canUseWindow()) return;
-  window.dispatchEvent(new Event(SESSION_EVENT));
-  getSessionChannel()?.postMessage({ type: "session-changed" });
+  getSessionChannel()?.postMessage(snapshot);
 }
 
 function setSnapshot(next: SessionSnapshot) {
@@ -58,60 +66,61 @@ function setSnapshot(next: SessionSnapshot) {
   emitSessionChange();
 }
 
-function subscribeToSessionChanges(callback: () => void) {
-  if (!canUseWindow()) {
-    return () => {};
-  }
-
-  const onWindowEvent = () => callback();
-  const channel = getSessionChannel();
-  const onChannelMessage = () => callback();
-
-  window.addEventListener(SESSION_EVENT, onWindowEvent);
-  channel?.addEventListener("message", onChannelMessage);
-
-  return () => {
-    window.removeEventListener(SESSION_EVENT, onWindowEvent);
-    channel?.removeEventListener("message", onChannelMessage);
-  };
-}
-
 function getSnapshot() {
   return snapshot;
 }
 
 function getServerSnapshot(): SessionSnapshot {
-  return { isAuthenticated: false, isReady: false };
+  return {
+    isAuthenticated: false,
+    isReady: false,
+    user: null,
+  };
 }
 
-export async function refreshAdminSession() {
-  if (!canUseWindow()) {
-    return false;
+function subscribeToSessionChanges(callback: () => void) {
+  const channel = getSessionChannel();
+
+  if (channel) {
+    const handler = () => callback();
+    channel.addEventListener("message", handler);
+    return () => channel.removeEventListener("message", handler);
   }
 
-  if (pendingSessionRefresh) {
-    return pendingSessionRefresh;
-  }
+  return () => {};
+}
+
+async function refreshAdminSession(): Promise<boolean> {
+  if (pendingSessionRefresh) return pendingSessionRefresh;
 
   pendingSessionRefresh = (async () => {
     try {
       const res = await fetch(`${API_URL}/api/auth/me`, {
         credentials: "include",
-        cache: "no-store",
       });
 
-      const isAuthenticated = res.ok;
+      if (!res.ok) {
+        setSnapshot({ isAuthenticated: false, isReady: true, user: null });
+
+        if (canUseWindow()) {
+          localStorage.removeItem("admin_token");
+          localStorage.removeItem("admin_role");
+        }
+
+        return false;
+      }
+
+      const data = await res.json();
+
       setSnapshot({
-        isAuthenticated,
+        isAuthenticated: true,
         isReady: true,
+        user: data.user,
       });
 
-      return isAuthenticated;
+      return true;
     } catch {
-      setSnapshot({
-        isAuthenticated: false,
-        isReady: true,
-      });
+      setSnapshot({ isAuthenticated: false, isReady: true, user: null });
       return false;
     } finally {
       pendingSessionRefresh = null;
@@ -138,6 +147,7 @@ export async function clearAdminSession(options?: { notifyBackend?: boolean; red
   setSnapshot({
     isAuthenticated: false,
     isReady: true,
+    user: null,
   });
 
   if (canUseWindow()) {
@@ -177,36 +187,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error(err.error || "Login failed");
     }
 
-    const data = await res.json();
-    if (data.token && canUseWindow()) {
-      localStorage.setItem("admin_token", data.token);
-    }
-    if (data.user?.role && canUseWindow()) {
-      localStorage.setItem("admin_role", data.user.role);
-    }
-
-    setSnapshot({
-      isAuthenticated: true,
-      isReady: true,
-    });
+    await refreshAdminSession();
   }, []);
 
   const logout = useCallback(async () => {
     await clearAdminSession({ notifyBackend: true });
     router.push("/admin");
-    router.refresh();
   }, [router]);
 
-  const userRole = (() => {
-    if (!session.isAuthenticated || !canUseWindow()) return null;
-    return localStorage.getItem("admin_role") || "admin";
-  })();
+  const userRole = session.user?.role ?? null;
 
   return (
     <AuthContext.Provider
       value={{
         token: session.isAuthenticated ? SESSION_TOKEN : null,
         userRole,
+        user: session.user,
         login,
         logout,
         isAuthenticated: session.isAuthenticated,
@@ -236,16 +232,9 @@ function mergeHeaders(options?: RequestInit) {
 }
 
 export async function apiFetch(path: string, options?: RequestInit) {
-  const res = await fetch(`${API_URL}${path}`, {
+  return fetch(`${API_URL}${path}`, {
     ...options,
-    credentials: "include",
     headers: mergeHeaders(options),
+    credentials: "include",
   });
-
-  if (res.status === 401) {
-    await clearAdminSession({ notifyBackend: false, redirectToLogin: true });
-    throw new Error("Unauthorized");
-  }
-
-  return res;
 }

@@ -94,6 +94,18 @@ router.put("/:id", async (req: AuthRequest, res) => {
       return;
     }
 
+    // Prevent removing the last admin
+    if (data.role && data.role !== "admin") {
+      const targetUser = await prisma.user.findUnique({ where: { id }, select: { role: true } });
+      if (targetUser?.role === "admin") {
+        const adminCount = await prisma.user.count({ where: { role: "admin" } });
+        if (adminCount <= 1) {
+          res.status(400).json({ error: "At least one administrator must remain" });
+          return;
+        }
+      }
+    }
+
     const user = await prisma.user.update({
       where: { id },
       data,
@@ -107,17 +119,60 @@ router.put("/:id", async (req: AuthRequest, res) => {
   }
 });
 
-// DELETE /api/admin/users/:id — delete user
+// DELETE /api/admin/users/:id — delete user (requires replacement author)
 router.delete("/:id", async (req: AuthRequest, res) => {
   try {
     const id = param(req, "id");
+    const { replacementUserId } = req.body || {};
 
     if (id === req.userId) {
       res.status(400).json({ error: "You cannot delete your own account" });
       return;
     }
 
-    await prisma.user.delete({ where: { id } });
+    const targetUser = await prisma.user.findUnique({ where: { id }, select: { role: true } });
+    if (!targetUser) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+
+    // Prevent deleting the last admin
+    if (targetUser.role === "admin") {
+      const adminCount = await prisma.user.count({ where: { role: "admin" } });
+      if (adminCount <= 1) {
+        res.status(400).json({ error: "At least one administrator must remain" });
+        return;
+      }
+    }
+
+    // Check if user owns posts
+    const postCount = await prisma.post.count({ where: { authorId: id } });
+
+    if (postCount > 0) {
+      if (!replacementUserId) {
+        res.status(400).json({ error: "User owns posts. Provide a replacementUserId to reassign posts." });
+        return;
+      }
+
+      if (replacementUserId === id) {
+        res.status(400).json({ error: "Replacement user cannot be the user being deleted" });
+        return;
+      }
+
+      const replacement = await prisma.user.findUnique({ where: { id: replacementUserId }, select: { id: true } });
+      if (!replacement) {
+        res.status(404).json({ error: "Replacement user not found" });
+        return;
+      }
+
+      await prisma.$transaction([
+        prisma.post.updateMany({ where: { authorId: id }, data: { authorId: replacementUserId } }),
+        prisma.user.delete({ where: { id } }),
+      ]);
+    } else {
+      await prisma.user.delete({ where: { id } });
+    }
+
     res.status(204).send();
   } catch (err) {
     console.error("Delete user error:", err);

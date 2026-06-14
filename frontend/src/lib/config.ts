@@ -208,6 +208,7 @@ function buildSettings(data: JsonRecord): PublicSettings {
       tagline: (data.tagline as string) || siteConfig.tagline,
       description: (data.description as string) || siteConfig.description,
       authorName: (data.author_name as string) || siteConfig.authorName,
+      logoUrl: (data.logo_url as string) || undefined,
       socialLinks: parseSocialLinks(data.social_links),
     },
     bioHero: (data.bio_hero as string) || "",

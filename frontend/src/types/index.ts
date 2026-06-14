@@ -60,6 +60,7 @@ export interface SiteConfig {
   tagline: string;
   description: string;
   authorName: string;
+  logoUrl?: string;
   socialLinks: {
     github?: string;
     linkedin?: string;

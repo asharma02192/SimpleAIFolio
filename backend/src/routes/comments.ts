@@ -52,7 +52,13 @@ router.post("/posts/:postId/comments", async (req, res) => {
 // Admin: list all comments with filters
 router.get("/admin/comments", authMiddleware, async (req: AuthRequest, res) => {
   try {
-    const status = (req.query.status as string) || "all";
+    const rawStatus = (req.query.status as string) || "all";
+    const validStatuses = ["all", "approved", "pending", "spam"];
+    if (!validStatuses.includes(rawStatus)) {
+      res.status(400).json({ error: "Invalid comment status" });
+      return;
+    }
+    const status = rawStatus;
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
     const perPage = Math.min(100, Math.max(1, parseInt(req.query.perPage as string) || 20));
 
@@ -75,7 +81,7 @@ router.get("/admin/comments", authMiddleware, async (req: AuthRequest, res) => {
       total,
       page,
       perPage,
-      totalPages: Math.ceil(total / perPage),
+      totalPages: Math.max(1, Math.ceil(total / perPage)),
     });
   } catch (err) {
     console.error("List comments error:", err);

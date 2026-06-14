@@ -45,6 +45,15 @@ export function createPostsRouter({ prismaClient = prisma }: { prismaClient?: Po
       where.publishedAt = { not: null };
     }
 
+    const postStatus = trimmedString(req.query.postStatus as string)?.toUpperCase();
+    if (isAdmin && postStatus) {
+      if (!["DRAFT", "PUBLISHED", "SCHEDULED"].includes(postStatus)) {
+        res.status(400).json({ error: "Invalid post status" });
+        return;
+      }
+      where.status = postStatus;
+    }
+
     if (category) {
       where.category = { slug: category };
     }

@@ -34,16 +34,14 @@ function PostsContent() {
   const fetchPosts = useCallback((p: number, s: StatusFilter, q: string) => {
     setLoading(true);
     const params = new URLSearchParams({ status: "all", perPage: String(perPage), page: String(p) });
-    if (s !== "ALL") params.set("search", s.toLowerCase());
+    if (s !== "ALL") params.set("postStatus", s);
     if (q) params.set("search", q);
     apiFetch(`/api/posts?${params}`)
       .then((r) => r.json())
       .then((d) => {
-        let filtered = d.data || [];
-        if (s !== "ALL") filtered = filtered.filter((post: Post) => post.status === s);
-        setPosts(filtered);
+        setPosts(d.data || []);
         setTotal(d.total || 0);
-        setTotalPages(Math.max(1, Math.ceil((d.total || 0) / perPage)));
+        setTotalPages(Math.max(1, d.totalPages || 1));
       })
       .catch(console.error)
       .finally(() => setLoading(false));
