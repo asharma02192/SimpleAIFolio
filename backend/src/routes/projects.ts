@@ -1,11 +1,12 @@
 ﻿import { Router } from "express";
 import prisma from "../utils/db";
 import { isPrismaErrorCode, param, trimmedString } from "../utils/express";
-import { authMiddleware, AuthRequest, requireRole } from "../middleware/auth";
+import { authMiddleware, AuthRequest, requireRoleWithClient } from "../middleware/auth";
 import { triggerFrontendRevalidation } from "../services/revalidate";
 
 type ProjectsPrisma = {
   project: any;
+  user: any;
 };
 
 export function createProjectsRouter({ prismaClient = prisma }: { prismaClient?: ProjectsPrisma } = {}) {
@@ -23,7 +24,7 @@ export function createProjectsRouter({ prismaClient = prisma }: { prismaClient?:
     }
   });
 
-  router.post("/", authMiddleware, requireRole("admin", "editor"), async (req: AuthRequest, res) => {
+  router.post("/", authMiddleware, requireRoleWithClient(prismaClient, "admin", "editor"), async (req: AuthRequest, res) => {
     try {
       const { techStack, liveUrl, githubUrl, featured, order, thumbnail } = req.body;
       const title = trimmedString(req.body.title);
@@ -54,7 +55,7 @@ export function createProjectsRouter({ prismaClient = prisma }: { prismaClient?:
     }
   });
 
-  router.put("/:id", authMiddleware, requireRole("admin", "editor"), async (req: AuthRequest, res) => {
+  router.put("/:id", authMiddleware, requireRoleWithClient(prismaClient, "admin", "editor"), async (req: AuthRequest, res) => {
     try {
       const { title, description, techStack, liveUrl, githubUrl, featured, order, thumbnail } = req.body;
       const project = await prismaClient.project.update({
@@ -82,7 +83,7 @@ export function createProjectsRouter({ prismaClient = prisma }: { prismaClient?:
     }
   });
 
-  router.delete("/:id", authMiddleware, requireRole("admin", "editor"), async (req: AuthRequest, res) => {
+  router.delete("/:id", authMiddleware, requireRoleWithClient(prismaClient, "admin", "editor"), async (req: AuthRequest, res) => {
     try {
       await prismaClient.project.delete({ where: { id: param(req, "id") } });
       await triggerFrontendRevalidation({ type: "project" });

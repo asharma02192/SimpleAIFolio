@@ -130,6 +130,7 @@ test("analytics dashboard includes AI ops summary", async () => {
         return { key: where.key, value: storedAlertSettings };
       },
     },
+    user: { findUnique: async () => ({ role: "admin", name: "Admin" }) },
   };
 
   const app = createTestApp("/api/analytics", createAnalyticsRouter({ prismaClient: prismaClient as any }));
@@ -181,6 +182,7 @@ test("analytics alert settings default to disabled and can be updated", async ()
         return { key: where.key, value: storedAlertSettings };
       },
     },
+    user: { findUnique: async () => ({ role: "admin", name: "Admin" }) },
   };
 
   const app = createTestApp("/api/analytics", createAnalyticsRouter({ prismaClient: prismaClient as any }));

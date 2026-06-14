@@ -13,6 +13,15 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
   ]),
+  {
+    rules: {
+      // This app performs remote data loading and DOM-derived state
+      // synchronization in React effects, which is intentional.
+      // The rule flags async setState in effects as errors, but these
+      // patterns are valid for client-side data fetching.
+      "react-hooks/set-state-in-effect": "off",
+    },
+  },
 ]);
 
 export default eslintConfig;

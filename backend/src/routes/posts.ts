@@ -1,11 +1,11 @@
 ﻿import { Router } from "express";
 import prisma from "../utils/db";
 import { isPrismaErrorCode, param, trimmedString } from "../utils/express";
-import { authMiddleware, AuthRequest, getAuthToken, verifyAuthToken, requireRole, requireOwnershipOrRole } from "../middleware/auth";
+import { authMiddleware, AuthRequest, getAuthToken, verifyAuthToken, requireRoleWithClient, requireOwnershipOrRoleWithClient } from "../middleware/auth";
 import { getRequestLogMeta, logError, logWarn } from "../utils/logging";
 import { triggerFrontendRevalidation } from "../services/revalidate";
 
-type PostPrisma = { post: any };
+type PostPrisma = { post: any; user: any; };
 
 export function createPostsRouter({ prismaClient = prisma }: { prismaClient?: PostPrisma } = {}) {
   const router = Router();
@@ -128,7 +128,7 @@ export function createPostsRouter({ prismaClient = prisma }: { prismaClient?: Po
   });
 
   // POST /api/posts/import-markdown - admin, parse markdown to HTML
-  router.post("/import-markdown", authMiddleware, requireRole("admin", "editor"), async (req: AuthRequest, res) => {
+  router.post("/import-markdown", authMiddleware, requireRoleWithClient(prismaClient, "admin", "editor"), async (req: AuthRequest, res) => {
     try {
       const { markdown } = req.body;
       if (!trimmedString(markdown)) {
@@ -175,7 +175,7 @@ export function createPostsRouter({ prismaClient = prisma }: { prismaClient?: Po
   });
 
   // POST /api/posts - admin, create post
-  router.post("/", authMiddleware, requireRole("admin", "editor", "author"), async (req: AuthRequest, res) => {
+  router.post("/", authMiddleware, requireRoleWithClient(prismaClient, "admin", "editor", "author"), async (req: AuthRequest, res) => {
     try {
       const { excerpt, body, categoryId, tagIds, status, featuredImage, metaTitle, metaDescription, ogImage, scheduledAt } = req.body;
       const title = trimmedString(req.body.title);
@@ -240,7 +240,7 @@ export function createPostsRouter({ prismaClient = prisma }: { prismaClient?: Po
   });
 
   // PUT /api/posts/:id - admin, update post
-  router.put("/:id", authMiddleware, requireOwnershipOrRole("admin", "editor"), async (req: AuthRequest, res) => {
+  router.put("/:id", authMiddleware, requireOwnershipOrRoleWithClient(prismaClient, "admin", "editor"), async (req: AuthRequest, res) => {
     try {
       const { title, slug, excerpt, body, categoryId, tagIds, status, featuredImage, metaTitle, metaDescription, ogImage, scheduledAt } = req.body;
 
@@ -311,7 +311,7 @@ export function createPostsRouter({ prismaClient = prisma }: { prismaClient?: Po
   });
 
   // DELETE /api/posts/:id - admin
-  router.delete("/:id", authMiddleware, requireOwnershipOrRole("admin", "editor"), async (req: AuthRequest, res) => {
+  router.delete("/:id", authMiddleware, requireOwnershipOrRoleWithClient(prismaClient, "admin", "editor"), async (req: AuthRequest, res) => {
     try {
       const existing = await prismaClient.post.findUnique({ where: { id: param(req, "id") } });
       if (!existing) {
@@ -339,7 +339,7 @@ export function createPostsRouter({ prismaClient = prisma }: { prismaClient?: Po
   });
 
   // POST /api/posts/:id/preview-token - admin, generate preview token
-  router.post("/:id/preview-token", authMiddleware, requireOwnershipOrRole("admin", "editor"), async (req: AuthRequest, res) => {
+  router.post("/:id/preview-token", authMiddleware, requireOwnershipOrRoleWithClient(prismaClient, "admin", "editor"), async (req: AuthRequest, res) => {
     try {
       const { randomUUID } = await import("crypto");
       const token = randomUUID();

@@ -155,6 +155,20 @@ function MediaContent() {
     }
   };
 
+  const copyUrl = async (e: React.MouseEvent, url: string, name: string) => {
+    e.stopPropagation();
+    try {
+      const fullUrl = `${API_URL}${url}`;
+      await navigator.clipboard.writeText(fullUrl);
+      setCopied(name);
+      setError(null);
+      toast("URL copied to clipboard", "success");
+      window.setTimeout(() => setCopied(""), 1500);
+    } catch {
+      toast("Could not copy URL", "error");
+    }
+  };
+
   return (
     <div className="admin-main min-h-screen flex flex-col md:flex-row" style={{ background: "var(--color-bg)" }}>
       <AdminSidebar onLogout={logoutAdmin} />
@@ -221,7 +235,7 @@ function MediaContent() {
             {uploading ? "Please wait until the current upload finishes." : "Drag and drop, or click to browse"}
           </p>
           <label
-            className="inline-flex cursor-pointer items-center justify-center gap-[var(--space-2)] rounded-[var(--radius-md)] px-[var(--space-5)] py-[var(--space-2.5)] font-[family-name:var(--font-body)] text-[var(--text-sm)] font-500 transition-all duration-150 hover:brightness-110"
+            className="inline-flex cursor-pointer items-center justify-center gap-[var(--space-2)] rounded-[var(--radius-md)] px-[var(--space-5)] py-[0.625rem] font-[family-name:var(--font-body)] text-[var(--text-sm)] font-500 transition-all duration-150 hover:brightness-110"
             style={{
               background: "var(--color-accent)",
               color: "var(--color-accent-on)",
@@ -283,9 +297,13 @@ function MediaContent() {
                 />
                 <div className="absolute inset-0 z-10 bg-black/15 transition-colors group-hover:bg-black/35 md:bg-black/0">
                   <div className="flex h-full items-end justify-between gap-[var(--space-2)] p-[var(--space-2)]">
-                    <span className="rounded-[var(--radius-sm)] bg-black/60 px-[var(--space-2)] py-[0.125rem] font-[family-name:var(--font-mono)] text-[var(--text-xs)] text-white opacity-100 md:opacity-0 md:group-hover:opacity-100">
+                    <button
+                      type="button"
+                      onClick={(event) => copyUrl(event, file.url, file.name)}
+                      className="pointer-events-auto rounded-[var(--radius-sm)] bg-black/60 px-[var(--space-2)] py-[0.125rem] font-[family-name:var(--font-mono)] text-[var(--text-xs)] text-white opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity cursor-pointer"
+                    >
                       {copied === file.name ? "Copied!" : "Copy URL"}
-                    </span>
+                    </button>
                     <button
                       type="button"
                       onClick={(event) => {

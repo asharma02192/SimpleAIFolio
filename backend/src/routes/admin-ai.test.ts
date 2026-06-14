@@ -314,6 +314,9 @@ function createFixture() {
     pageView: {
       groupBy: async () => [],
     },
+    user: {
+      findUnique: async () => ({ role: "admin", name: "Admin" }),
+    },
   };
 
   function seedConversation(overrides?: Partial<ConversationState>) {
@@ -683,6 +686,9 @@ test("research failure does not break the conversation state", async () => {
 });
 
 test("draft generation uses approved research only and stores the draft", async () => {
+  process.env.RESEARCH_PROVIDER = "exa";
+  process.env.RESEARCH_API_KEY = "test-exa-key";
+
   const fixture = createFixture();
   const conversation = fixture.seedConversation();
   fixture.state.messages.push({
@@ -898,6 +904,10 @@ test("draft review notes and internal link suggestions are applied server-side",
     fixture.state.drafts.get(conversation.id).contentHtml,
     /<a[^>]+href="\/blog\/published-guide"[^>]*>published guide<\/a>/i
   );
+
+  // Clean up env vars
+  delete process.env.RESEARCH_PROVIDER;
+  delete process.env.RESEARCH_API_KEY;
 });
 
 test("rejecting or applying an invalid rewrite proposal is safe", async () => {

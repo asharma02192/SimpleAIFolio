@@ -4,27 +4,28 @@
 #   cp .env.example .env  (edit with production values)
 #   docker compose -f docker-compose.prod.yml up -d --build
 #
-# This file is self-contained — does NOT require docker-compose.yml.
-# It configures secure network isolation:
-#   - Internal network for inter-service communication (db, frontend, mcp)
-#   - Egress network for backend to reach external APIs (OpenAI, webhooks, etc.)
-#   - External proxy network for the reverse proxy gateway
+# Network topology:
+#   app (internal)     — db, backend, frontend, mcp, gateway (no internet)
+#   egress (bridge)    — backend only (OpenAI, Exa, webhooks)
+#   proxy (external)   — gateway + external reverse proxy (Nginx Proxy Manager)
 #
-# No host ports are published. Use a reverse proxy (nginx/Caddy) for external access.
-# The proxy must be on the same network as defined by EXTERNAL_PROXY_NETWORK.
+# No host ports published. The gateway listens on port 80 inside the proxy network.
+# The external reverse proxy (NPM, Caddy) handles TLS termination.
+
+name: simpleaifolio
 
 services:
   db:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: SimpleAIFolio
-      POSTGRES_USER: SimpleAIFolio
+      POSTGRES_DB: simpleaifolio
+      POSTGRES_USER: simpleaifolio
       POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - simpleaifolio_pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U SimpleAIFolio"]
+      test: ["CMD-SHELL", "pg_isready -U simpleaifolio"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -40,15 +41,23 @@ services:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://SimpleAIFolio:${DB_PASSWORD:?Set DB_PASSWORD in .env}@db:5432/SimpleAIFolio
+      DATABASE_URL: postgresql://simpleaifolio:${DB_PASSWORD:?Set DB_PASSWORD in .env}@db:5432/simpleaifolio
       JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
-      ALLOW_INSECURE_JWT_SECRET: "true"
       PORT: 3001
-      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3200}
+      FRONTEND_URL: ${FRONTEND_URL:-https://yourdomain.com}
       FRONTEND_INTERNAL_URL: http://frontend:3000
       REVALIDATE_SECRET: ${REVALIDATE_SECRET:?Set REVALIDATE_SECRET in .env}
       AI_ALERT_WEBHOOK_URL: ${AI_ALERT_WEBHOOK_URL:-}
       AI_ALERT_MIN_LEVEL: ${AI_ALERT_MIN_LEVEL:-warning}
+      AI_ALERT_COOLDOWN_MS: ${AI_ALERT_COOLDOWN_MS:-300000}
+      AI_ALERT_FAILURE_THRESHOLD: ${AI_ALERT_FAILURE_THRESHOLD:-3}
+      AI_ALERT_HIGH_LATENCY_MS: ${AI_ALERT_HIGH_LATENCY_MS:-15000}
+      AI_ALERT_LATENCY_THRESHOLD: ${AI_ALERT_LATENCY_THRESHOLD:-3}
+      AI_ALERT_LOOKBACK_MS: ${AI_ALERT_LOOKBACK_MS:-900000}
+      AI_ALERT_COST_LOOKBACK_MS: ${AI_ALERT_COST_LOOKBACK_MS:-3600000}
+      AI_ALERT_COST_SPIKE_MULTIPLIER: ${AI_ALERT_COST_SPIKE_MULTIPLIER:-1.5}
+      AI_ALERT_COST_SPIKE_MIN_USD: ${AI_ALERT_COST_SPIKE_MIN_USD:-1}
+      AI_ALERT_COST_SPIKE_MIN_DELTA_USD: ${AI_ALERT_COST_SPIKE_MIN_DELTA_USD:-0.5}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
       RUN_SEED_ON_STARTUP: "true"
@@ -56,30 +65,41 @@ services:
       SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?Set SEED_ADMIN_PASSWORD in .env}
       SEED_ADMIN_NAME: ${SEED_ADMIN_NAME:-Admin}
     volumes:
-      - uploads:/app/uploads
+      - simpleaifolio_uploads:/app/uploads
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3001/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     networks:
       - app
       - egress
-      - proxy
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3201}
-        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3200}
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://yourdomain.com}
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-https://yourdomain.com}
     restart: unless-stopped
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     environment:
       API_INTERNAL_URL: http://backend:3001
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3201}
-      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3200}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://yourdomain.com}
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-https://yourdomain.com}
       REVALIDATE_SECRET: ${REVALIDATE_SECRET:?Set REVALIDATE_SECRET in .env}
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     networks:
       - app
-      - proxy
 
   mcp-server:
     build:
@@ -87,7 +107,8 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     environment:
       MCP_API_URL: http://backend:3001
       MCP_AUTH_EMAIL: ${SEED_ADMIN_EMAIL:?Set SEED_ADMIN_EMAIL in .env}
@@ -98,24 +119,40 @@ services:
     networks:
       - app
 
+  gateway:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - app
+      - proxy
+
 networks:
-  # Internal network — no internet access. DB, frontend, and MCP stay isolated.
   app:
     name: simpleaifolio_app
     internal: true
 
-  # Egress network — gives the backend outbound internet access for:
-  # OpenAI/compatible APIs, research providers, Telegram alerts, webhooks
   egress:
     name: simpleaifolio_egress
     driver: bridge
 
-  # External proxy network — your reverse proxy (nginx/Caddy) must join this.
-  # Set EXTERNAL_PROXY_NETWORK in .env to match your proxy's network name.
   proxy:
     name: ${EXTERNAL_PROXY_NETWORK:-proxy_default}
     external: true
 
 volumes:
-  pgdata:
-  uploads:
+  simpleaifolio_pgdata:
+    name: simpleaifolio_pgdata
+  simpleaifolio_uploads:
+    name: simpleaifolio_uploads

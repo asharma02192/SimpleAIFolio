@@ -40,6 +40,7 @@ let snapshot: SessionSnapshot = {
 
 let pendingSessionRefresh: Promise<boolean> | null = null;
 let sessionChannel: BroadcastChannel | null = null;
+const sessionListeners = new Set<() => void>();
 
 function canUseWindow() {
   return typeof window !== "undefined";
@@ -58,6 +59,9 @@ function getSessionChannel() {
 }
 
 function emitSessionChange() {
+  // Notify same-tab listeners directly (BroadcastChannel does not deliver to sender)
+  sessionListeners.forEach((l) => l());
+  // Notify cross-tab listeners via BroadcastChannel
   getSessionChannel()?.postMessage(snapshot);
 }
 
@@ -79,15 +83,21 @@ function getServerSnapshot(): SessionSnapshot {
 }
 
 function subscribeToSessionChanges(callback: () => void) {
-  const channel = getSessionChannel();
+  // Register same-tab listener
+  sessionListeners.add(callback);
 
+  // Register cross-tab listener
+  const channel = getSessionChannel();
   if (channel) {
     const handler = () => callback();
     channel.addEventListener("message", handler);
-    return () => channel.removeEventListener("message", handler);
+    return () => {
+      sessionListeners.delete(callback);
+      channel.removeEventListener("message", handler);
+    };
   }
 
-  return () => {};
+  return () => sessionListeners.delete(callback);
 }
 
 async function refreshAdminSession(): Promise<boolean> {

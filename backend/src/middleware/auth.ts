@@ -9,6 +9,15 @@ export interface AuthRequest extends Request {
   userName?: string;
 }
 
+interface AuthorizationPrisma {
+  user: {
+    findUnique: (args: { where: { id: string }; select: Record<string, boolean> }) => Promise<{ role: string; name: string } | null>;
+  };
+  post?: {
+    findUnique: (args: { where: { id: string }; select: Record<string, boolean> }) => Promise<{ authorId: string } | null>;
+  };
+}
+
 function readCookieToken(req: Request) {
   const cookieHeader = req.headers.cookie;
   if (!cookieHeader) return null;
@@ -58,7 +67,7 @@ export function authMiddleware(
   }
 }
 
-export function requireRole(...roles: string[]) {
+export function requireRoleWithClient(prismaClient: { user: { findUnique: (...args: unknown[]) => Promise<{ role: string; name: string } | null> } }, ...roles: string[]) {
   return async (req: AuthRequest, res: Response, next: NextFunction) => {
     if (!req.userId) {
       res.status(401).json({ error: "Not authenticated" });
@@ -66,10 +75,10 @@ export function requireRole(...roles: string[]) {
     }
 
     try {
-      const user = await prisma.user.findUnique({
+      const user = await prismaClient.user.findUnique({
         where: { id: req.userId },
         select: { role: true, name: true },
-      });
+      } as unknown as Parameters<typeof prismaClient.user.findUnique>[0]);
 
       if (!user) {
         res.status(401).json({ error: "User not found" });
@@ -97,7 +106,7 @@ export function requireRole(...roles: string[]) {
   };
 }
 
-export function requireOwnershipOrRole(...roles: string[]) {
+export function requireOwnershipOrRoleWithClient(prismaClient: { user: { findUnique: (...args: unknown[]) => Promise<{ role: string; name: string } | null> }; post?: { findUnique: (...args: unknown[]) => Promise<{ authorId: string } | null> } }, ...roles: string[]) {
   return async (req: AuthRequest, res: Response, next: NextFunction) => {
     if (!req.userId) {
       res.status(401).json({ error: "Not authenticated" });
@@ -105,10 +114,10 @@ export function requireOwnershipOrRole(...roles: string[]) {
     }
 
     try {
-      const user = await prisma.user.findUnique({
+      const user = await prismaClient.user.findUnique({
         where: { id: req.userId },
         select: { role: true, name: true },
-      });
+      } as unknown as Parameters<typeof prismaClient.user.findUnique>[0]);
 
       if (!user) {
         res.status(401).json({ error: "User not found" });
@@ -124,11 +133,11 @@ export function requireOwnershipOrRole(...roles: string[]) {
       }
 
       const resourceId = (req.params as Record<string, string>).id;
-      if (resourceId) {
-        const post = await prisma.post.findUnique({
+      if (resourceId && prismaClient.post) {
+        const post = await prismaClient.post.findUnique({
           where: { id: resourceId },
           select: { authorId: true },
-        });
+        } as unknown as Parameters<typeof prismaClient.post.findUnique>[0]);
         if (post && post.authorId === req.userId) {
           next();
           return;
@@ -140,4 +149,12 @@ export function requireOwnershipOrRole(...roles: string[]) {
       res.status(500).json({ error: "Failed to verify permissions" });
     }
   };
+}
+
+export function requireRole(...roles: string[]) {
+  return requireRoleWithClient(prisma as any, ...roles);
+}
+
+export function requireOwnershipOrRole(...roles: string[]) {
+  return requireOwnershipOrRoleWithClient(prisma as any, ...roles);
 }

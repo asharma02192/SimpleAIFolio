@@ -1,4 +1,4 @@
-import test, { beforeEach, afterEach } from "node:test";
+﻿import test, { beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import jwt from "jsonwebtoken";
 import request from "supertest";
@@ -45,6 +45,7 @@ test("duplicate category create returns 409", async () => {
       update: async () => ({}),
       delete: async () => ({}),
     },
+    user: { findUnique: async () => ({ role: "admin", name: "Admin" }) },
   };
 
   const app = createTestApp("/api/categories", createCategoriesRouter({ prismaClient }));
@@ -69,6 +70,7 @@ test("missing category delete returns 404", async () => {
         throw error;
       },
     },
+    user: { findUnique: async () => ({ role: "admin", name: "Admin" }) },
   };
 
   const app = createTestApp("/api/categories", createCategoriesRouter({ prismaClient }));
@@ -92,6 +94,7 @@ test("duplicate tag create returns 409", async () => {
       update: async () => ({}),
       delete: async () => ({}),
     },
+    user: { findUnique: async () => ({ role: "admin", name: "Admin" }) },
   };
 
   const app = createTestApp("/api/tags", createTagsRouter({ prismaClient }));
@@ -116,6 +119,7 @@ test("missing tag delete returns 404", async () => {
         throw error;
       },
     },
+    user: { findUnique: async () => ({ role: "admin", name: "Admin" }) },
   };
 
   const app = createTestApp("/api/tags", createTagsRouter({ prismaClient }));
@@ -139,6 +143,7 @@ test("missing project update returns 404", async () => {
       },
       delete: async () => ({}),
     },
+    user: { findUnique: async () => ({ role: "admin", name: "Admin" }) },
   };
 
   const app = createTestApp("/api/projects", createProjectsRouter({ prismaClient }));
@@ -161,6 +166,7 @@ test("project create validates required fields", async () => {
       update: async () => ({}),
       delete: async () => ({}),
     },
+    user: { findUnique: async () => ({ role: "admin", name: "Admin" }) },
   };
 
   const app = createTestApp("/api/projects", createProjectsRouter({ prismaClient }));

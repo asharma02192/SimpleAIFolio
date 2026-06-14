@@ -13,7 +13,7 @@ type PostRecord = {
   slug: string;
   excerpt: string | null;
   featuredImage: string | null;
-  status: "PUBLISHED" | "DRAFT";
+  status: string;
   publishedAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -73,11 +73,23 @@ function createPrismaClient() {
           if (where?.status === "PUBLISHED") {
             return dataset.filter((post) => post.status === "PUBLISHED" && post.publishedAt);
           }
+          if (where?.status === "DRAFT") {
+            return dataset.filter((post) => post.status === "DRAFT");
+          }
+          if (where?.status === "SCHEDULED") {
+            return dataset.filter((post) => post.status === "SCHEDULED");
+          }
           return dataset;
         },
         count: async ({ where }: { where?: Record<string, unknown> }) => {
           if (where?.status === "PUBLISHED") {
             return dataset.filter((post) => post.status === "PUBLISHED" && post.publishedAt).length;
+          }
+          if (where?.status === "DRAFT") {
+            return dataset.filter((post) => post.status === "DRAFT").length;
+          }
+          if (where?.status === "SCHEDULED") {
+            return dataset.filter((post) => post.status === "SCHEDULED").length;
           }
           return dataset.length;
         },
@@ -85,6 +97,9 @@ function createPrismaClient() {
         create: async () => draftPost,
         update: async () => draftPost,
         delete: async () => draftPost,
+      },
+      user: {
+        findUnique: async () => ({ role: "admin", name: "Admin" }),
       },
     },
   };
@@ -137,4 +152,46 @@ test("GET /api/posts?status=all returns draft posts for valid authenticated requ
   assert.equal(response.status, 200);
   assert.equal(response.body.data.length, 2);
   assert.ok(response.body.data.some((post: { slug: string }) => post.slug === "draft-post"));
+});
+
+test("GET /api/posts?status=all&postStatus=DRAFT returns only draft posts", async () => {
+  const { client } = createPrismaClient();
+  const app = createTestApp("/api/posts", createPostsRouter({ prismaClient: client }));
+  const token = jwt.sign({ userId: "user-1" }, process.env.JWT_SECRET!, { expiresIn: "1h" });
+
+  const response = await request(app)
+    .get("/api/posts?status=all&postStatus=DRAFT")
+    .set("Authorization", `Bearer ${token}`);
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.data.length, 1);
+  assert.equal(response.body.data[0].slug, "draft-post");
+  assert.equal(response.body.total, 1);
+});
+
+test("GET /api/posts?status=all&postStatus=PUBLISHED returns only published posts", async () => {
+  const { client } = createPrismaClient();
+  const app = createTestApp("/api/posts", createPostsRouter({ prismaClient: client }));
+  const token = jwt.sign({ userId: "user-1" }, process.env.JWT_SECRET!, { expiresIn: "1h" });
+
+  const response = await request(app)
+    .get("/api/posts?status=all&postStatus=PUBLISHED")
+    .set("Authorization", `Bearer ${token}`);
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.data.length, 1);
+  assert.equal(response.body.data[0].slug, "published-post");
+});
+
+test("GET /api/posts?status=all&postStatus=INVALID returns 400", async () => {
+  const { client } = createPrismaClient();
+  const app = createTestApp("/api/posts", createPostsRouter({ prismaClient: client }));
+  const token = jwt.sign({ userId: "user-1" }, process.env.JWT_SECRET!, { expiresIn: "1h" });
+
+  const response = await request(app)
+    .get("/api/posts?status=all&postStatus=INVALID")
+    .set("Authorization", `Bearer ${token}`);
+
+  assert.equal(response.status, 400);
+  assert.equal(response.body.error, "Invalid post status");
 });
