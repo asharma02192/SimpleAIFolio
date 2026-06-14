@@ -58,7 +58,7 @@ export default function Navigation({
               <li key={link.href}>
                 <Link
                   href={link.href}
-                  className="font-[family-name:var(--font-body)] text-[var(--text-sm)] font-500 px-[var(--space-4)] py-[var(--space-2)] transition-all"
+                  className="nav-link font-[family-name:var(--font-body)] text-[var(--text-sm)] font-500 px-[var(--space-4)] py-[var(--space-2)] transition-all duration-150"
                   style={{
                     color: isActive
                       ? "var(--color-accent)"
@@ -66,6 +66,8 @@ export default function Navigation({
                     background: isActive ? "var(--color-accent-lightest)" : "transparent",
                     borderRadius: "var(--radius-md)",
                   }}
+                  onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = "var(--color-bg-elevated)"; }}
+                  onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
                 >
                   {link.label}
                 </Link>
@@ -131,7 +133,7 @@ export default function Navigation({
                 <Link
                   href={link.href}
                   onClick={() => setMobileOpen(false)}
-                  className="font-[family-name:var(--font-body)] text-[var(--text-base)] font-500 block px-[var(--space-3)] py-[var(--space-3)]"
+                  className="font-[family-name:var(--font-body)] text-[var(--text-base)] font-500 block px-[var(--space-3)] py-[var(--space-3)] transition-colors duration-150"
                   style={{
                     color: isActive
                       ? "var(--color-accent)"
@@ -139,6 +141,8 @@ export default function Navigation({
                     background: isActive ? "var(--color-accent-lightest)" : "transparent",
                     borderRadius: "var(--radius-md)",
                   }}
+                  onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = "var(--color-bg-muted)"; }}
+                  onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
                 >
                   {link.label}
                 </Link>

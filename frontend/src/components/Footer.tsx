@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import NewsletterSignup from "./NewsletterSignup";
 import type { SiteConfig } from "@/types";
@@ -60,10 +62,12 @@ export default function Footer({
                 <li key={page}>
                   <Link
                     href={`/${page.toLowerCase()}`}
-                    className="font-[family-name:var(--font-body)] text-[var(--text-sm)] transition-colors"
+                    className="font-[family-name:var(--font-body)] text-[var(--text-sm)] transition-colors duration-150"
                     style={{ color: "var(--footer-link)" }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = "var(--footer-link-hover)"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = "var(--footer-link)"; }}
                   >
-                    <span className="hover-span">{page}</span>
+                    {page}
                   </Link>
                 </li>
               ))}
@@ -98,8 +102,10 @@ export default function Footer({
                     <a
                       key={name}
                       href={name === "email" ? `mailto:${url}` : url}
-                      className="font-[family-name:var(--font-body)] text-[var(--text-sm)] capitalize transition-colors"
+                      className="font-[family-name:var(--font-body)] text-[var(--text-sm)] capitalize transition-colors duration-150"
                       style={{ color: "var(--footer-link)" }}
+                      onMouseEnter={(e) => { e.currentTarget.style.color = "var(--footer-link-hover)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.color = "var(--footer-link)"; }}
                       {...(name !== "email"
                         ? { target: "_blank", rel: "noopener noreferrer" }
                         : {})}
