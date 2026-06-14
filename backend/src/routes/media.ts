@@ -1,10 +1,10 @@
-import { NextFunction, Response, Router } from "express";
+﻿import { NextFunction, Response, Router } from "express";
 import multer from "multer";
 import sharp from "sharp";
 import path from "path";
 import { v4 as uuid } from "uuid";
 import fs from "fs";
-import { authMiddleware, AuthRequest } from "../middleware/auth";
+import { authMiddleware, AuthRequest, requireRole } from "../middleware/auth";
 import { param } from "../utils/express";
 import { getRequestLogMeta, logError, logWarn } from "../utils/logging";
 
@@ -74,7 +74,7 @@ function uploadSingleImage(req: AuthRequest, res: Response, next: NextFunction) 
 }
 
 // POST /api/media/upload â€” admin, upload and optimize image
-router.post("/upload", authMiddleware, uploadSingleImage, async (req: AuthRequest, res) => {
+router.post("/upload", authMiddleware, requireRole("admin", "editor"), uploadSingleImage, async (req: AuthRequest, res) => {
   if (!req.file) {
     res.status(400).json({ error: "No file provided" });
     return;
@@ -120,7 +120,7 @@ router.post("/upload", authMiddleware, uploadSingleImage, async (req: AuthReques
 });
 
 // GET /api/media â€” admin, list uploaded files
-router.get("/", authMiddleware, async (_req: AuthRequest, res) => {
+router.get("/", authMiddleware, requireRole("admin", "editor"), async (_req: AuthRequest, res) => {
   const files = fs.readdirSync(uploadDir)
     .filter((file) => file.endsWith(".webp") && !file.includes("-thumb."))
     .map((file) => ({
@@ -135,7 +135,7 @@ router.get("/", authMiddleware, async (_req: AuthRequest, res) => {
 });
 
 // DELETE /api/media/:filename â€” admin
-router.delete("/:filename", authMiddleware, async (req: AuthRequest, res) => {
+router.delete("/:filename", authMiddleware, requireRole("admin", "editor"), async (req: AuthRequest, res) => {
   const filename = param(req, "filename");
   const filePath = path.join(uploadDir, filename);
   const thumbPath = path.join(uploadDir, filename.replace(/\.webp$/, "-thumb.webp"));

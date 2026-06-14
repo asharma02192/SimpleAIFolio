@@ -1,6 +1,6 @@
-import { Router } from "express";
+﻿import { Router } from "express";
 import prisma from "../utils/db";
-import { authMiddleware, AuthRequest } from "../middleware/auth";
+import { authMiddleware, AuthRequest, requireRole } from "../middleware/auth";
 import { trimmedString } from "../utils/express";
 
 const router = Router();
@@ -27,7 +27,7 @@ router.post("/contact", async (req, res) => {
   }
 });
 
-router.get("/admin/contact", authMiddleware, async (_req: AuthRequest, res) => {
+router.get("/admin/contact", authMiddleware, requireRole("admin", "editor"), async (_req: AuthRequest, res) => {
   try {
     const messages = await prisma.contactMessage.findMany({
       orderBy: { createdAt: "desc" },
@@ -39,7 +39,7 @@ router.get("/admin/contact", authMiddleware, async (_req: AuthRequest, res) => {
   }
 });
 
-router.put("/admin/contact/:id/read", authMiddleware, async (req: AuthRequest, res) => {
+router.put("/admin/contact/:id/read", authMiddleware, requireRole("admin", "editor"), async (req: AuthRequest, res) => {
   try {
     const id = (req.params as Record<string, string>).id;
     const msg = await prisma.contactMessage.update({
@@ -53,7 +53,7 @@ router.put("/admin/contact/:id/read", authMiddleware, async (req: AuthRequest, r
   }
 });
 
-router.delete("/admin/contact/:id", authMiddleware, async (req: AuthRequest, res) => {
+router.delete("/admin/contact/:id", authMiddleware, requireRole("admin", "editor"), async (req: AuthRequest, res) => {
   try {
     const id = (req.params as Record<string, string>).id;
     await prisma.contactMessage.delete({ where: { id } });

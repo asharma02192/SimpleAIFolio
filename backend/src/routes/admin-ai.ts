@@ -1,6 +1,6 @@
 import { Router } from "express";
 import prisma from "../utils/db";
-import { authMiddleware, type AuthRequest } from "../middleware/auth";
+import { authMiddleware, type AuthRequest, requireRole } from "../middleware/auth";
 import { createRateLimiter } from "../middleware/rate-limit";
 import { getRequestLogMeta, logError, logInfo } from "../utils/logging";
 import { isPrismaErrorCode, param, trimmedString } from "../utils/express";
@@ -881,6 +881,7 @@ export function createAdminAiRouter({
   });
 
   router.use(authMiddleware);
+  router.use(requireRole("admin", "editor"));
 
   router.get("/conversations", async (req: AuthRequest, res) => {
     try {

@@ -1,10 +1,10 @@
-import { Router } from "express";
+﻿import { Router } from "express";
 import prisma from "../utils/db";
-import { authMiddleware, AuthRequest } from "../middleware/auth";
+import { authMiddleware, AuthRequest, requireRole } from "../middleware/auth";
 
 const router = Router();
 
-router.post("/publish-due", authMiddleware, async (req: AuthRequest, res) => {
+router.post("/publish-due", authMiddleware, requireRole("admin"), async (req: AuthRequest, res) => {
   try {
     const result = await prisma.post.updateMany({
       where: {

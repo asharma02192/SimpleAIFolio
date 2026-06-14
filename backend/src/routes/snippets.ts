@@ -1,7 +1,7 @@
-import { Router } from "express";
+﻿import { Router } from "express";
 import prisma from "../utils/db";
 import { isPrismaErrorCode, param, trimmedString } from "../utils/express";
-import { authMiddleware, AuthRequest } from "../middleware/auth";
+import { authMiddleware, AuthRequest, requireRole } from "../middleware/auth";
 import { triggerFrontendRevalidation } from "../services/revalidate";
 
 const router = Router();
@@ -22,7 +22,7 @@ router.get("/snippets", async (_req, res) => {
   }
 });
 
-router.get("/admin/snippets", authMiddleware, async (_req: AuthRequest, res) => {
+router.get("/admin/snippets", authMiddleware, requireRole("admin"), async (_req: AuthRequest, res) => {
   try {
     const snippets = await prisma.scriptSnippet.findMany({
       orderBy: { order: "asc" },
@@ -34,7 +34,7 @@ router.get("/admin/snippets", authMiddleware, async (_req: AuthRequest, res) => 
   }
 });
 
-router.post("/admin/snippets", authMiddleware, async (req: AuthRequest, res) => {
+router.post("/admin/snippets", authMiddleware, requireRole("admin"), async (req: AuthRequest, res) => {
   try {
     const { name, location, code, enabled, order } = req.body;
     if (!trimmedString(name)) {
@@ -67,7 +67,7 @@ router.post("/admin/snippets", authMiddleware, async (req: AuthRequest, res) => 
   }
 });
 
-router.put("/admin/snippets/:id", authMiddleware, async (req: AuthRequest, res) => {
+router.put("/admin/snippets/:id", authMiddleware, requireRole("admin"), async (req: AuthRequest, res) => {
   try {
     const { name, location, code, enabled, order } = req.body;
     const loc = trimmedString(location);
@@ -97,7 +97,7 @@ router.put("/admin/snippets/:id", authMiddleware, async (req: AuthRequest, res) 
   }
 });
 
-router.delete("/admin/snippets/:id", authMiddleware, async (req: AuthRequest, res) => {
+router.delete("/admin/snippets/:id", authMiddleware, requireRole("admin"), async (req: AuthRequest, res) => {
   try {
     await prisma.scriptSnippet.delete({ where: { id: param(req, "id") } });
     await triggerFrontendRevalidation({ type: "settings" });

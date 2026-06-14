@@ -1,7 +1,7 @@
-import { Router } from "express";
+﻿import { Router } from "express";
 import prisma from "../utils/db";
 import { isPrismaErrorCode, param, trimmedString } from "../utils/express";
-import { authMiddleware, AuthRequest } from "../middleware/auth";
+import { authMiddleware, AuthRequest, requireRole } from "../middleware/auth";
 import { triggerFrontendRevalidation } from "../services/revalidate";
 
 type CategoriesPrisma = {
@@ -29,7 +29,7 @@ export function createCategoriesRouter({ prismaClient = prisma }: { prismaClient
     }
   });
 
-  router.post("/", authMiddleware, async (req: AuthRequest, res) => {
+  router.post("/", authMiddleware, requireRole("admin", "editor"), async (req: AuthRequest, res) => {
     try {
       const { description } = req.body;
       const name = trimmedString(req.body.name);
@@ -55,7 +55,7 @@ export function createCategoriesRouter({ prismaClient = prisma }: { prismaClient
     }
   });
 
-  router.put("/:id", authMiddleware, async (req: AuthRequest, res) => {
+  router.put("/:id", authMiddleware, requireRole("admin", "editor"), async (req: AuthRequest, res) => {
     try {
       const { name, slug, description } = req.body;
       const category = await prismaClient.category.update({
@@ -82,7 +82,7 @@ export function createCategoriesRouter({ prismaClient = prisma }: { prismaClient
     }
   });
 
-  router.delete("/:id", authMiddleware, async (req: AuthRequest, res) => {
+  router.delete("/:id", authMiddleware, requireRole("admin", "editor"), async (req: AuthRequest, res) => {
     try {
       await prismaClient.category.delete({ where: { id: param(req, "id") } });
       await triggerFrontendRevalidation({ type: "taxonomy" });

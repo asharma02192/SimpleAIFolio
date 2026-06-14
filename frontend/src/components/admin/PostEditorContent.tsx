@@ -37,6 +37,8 @@ export default function PostEditorContent({ postId }: { postId?: string }) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [autosaveStatus, setAutosaveStatus] = useState<"idle" | "saving" | "saved">("idle");
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isDirtyRef = useRef(false);
+  const isSavingRef = useRef(false);
   const [form, setForm] = useState<PostData>({
     title: "",
     slug: "",
@@ -84,6 +86,7 @@ export default function PostEditorContent({ postId }: { postId?: string }) {
             featuredImage: (post.featuredImage as string) || "",
             ogImage: (post.ogImage as string) || "",
           });
+          isDirtyRef.current = false;
         })
         .catch((err) => {
           console.error(err);
@@ -144,17 +147,29 @@ export default function PostEditorContent({ postId }: { postId?: string }) {
     }
   }, [form, postId, saving, toast]);
 
-  // Auto-save 3s after the user stops typing (only for existing posts)
+  // Debounced autosave — only fires when form is dirty, 3s after last change
   useEffect(() => {
     if (!postId) return;
+    if (!isDirtyRef.current) return;
     if (!form.title.trim()) return;
 
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
 
+    const status = form.status;
     autosaveTimer.current = setTimeout(async () => {
+      if (!isDirtyRef.current || isSavingRef.current) return;
+      isDirtyRef.current = false;
+      isSavingRef.current = true;
       setAutosaveStatus("saving");
-      await save(form.status, { silent: true });
-      setAutosaveStatus("saved");
+      try {
+        await save(status, { silent: true });
+        setAutosaveStatus("saved");
+      } catch {
+        isDirtyRef.current = true;
+        setAutosaveStatus("idle");
+      } finally {
+        isSavingRef.current = false;
+      }
     }, 3000);
 
     return () => {
@@ -162,8 +177,11 @@ export default function PostEditorContent({ postId }: { postId?: string }) {
     };
   }, [form, postId, save]);
 
-  const updateForm = (updates: Partial<PostData>) =>
+  const updateForm = (updates: Partial<PostData>) => {
+    isDirtyRef.current = true;
+    setAutosaveStatus("idle");
     setForm((prev) => ({ ...prev, ...updates }));
+  };
 
   const handleMarkdownImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

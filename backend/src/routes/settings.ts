@@ -1,14 +1,14 @@
-import { Router } from "express";
+﻿import { Router } from "express";
 import { randomUUID } from "crypto";
 import prisma from "../utils/db";
 import { isPrismaErrorCode, param, trimmedString } from "../utils/express";
-import { authMiddleware, AuthRequest } from "../middleware/auth";
+import { authMiddleware, AuthRequest, requireRole } from "../middleware/auth";
 import { triggerFrontendRevalidation } from "../services/revalidate";
 
 const router = Router();
 
 // GET /api/admin/ai-config — admin-only, returns AI config with masked API key
-router.get("/admin/ai-config", authMiddleware, async (_req: AuthRequest, res) => {
+router.get("/admin/ai-config", authMiddleware, requireRole("admin"), async (_req: AuthRequest, res) => {
   try {
     const keys = [
       "internal_ai_provider",
@@ -45,7 +45,7 @@ router.get("/admin/ai-config", authMiddleware, async (_req: AuthRequest, res) =>
 });
 
 // PUT /api/admin/ai-config — admin-only, saves AI config with internal_ prefix
-router.put("/admin/ai-config", authMiddleware, async (req: AuthRequest, res) => {
+router.put("/admin/ai-config", authMiddleware, requireRole("admin"), async (req: AuthRequest, res) => {
   try {
     const { provider, apiKey, baseUrl, model, temperature, maxTokens } = req.body as Record<string, unknown>;
     const operations = [];
@@ -144,7 +144,7 @@ router.get("/settings", async (_req, res) => {
 });
 
 // PUT /api/settings — admin, bulk update
-router.put("/settings", authMiddleware, async (req: AuthRequest, res) => {
+router.put("/settings", authMiddleware, requireRole("admin"), async (req: AuthRequest, res) => {
   try {
     const updates = Object.fromEntries(
       Object.entries(req.body as Record<string, unknown>).filter(([key]) => !key.startsWith("internal_"))
@@ -179,7 +179,7 @@ router.get("/experience", async (_req, res) => {
 });
 
 // POST /api/experience — admin, create
-router.post("/experience", authMiddleware, async (req: AuthRequest, res) => {
+router.post("/experience", authMiddleware, requireRole("admin", "editor"), async (req: AuthRequest, res) => {
   try {
     const { role, period, description, order } = req.body;
     if (!trimmedString(role)) {
@@ -203,7 +203,7 @@ router.post("/experience", authMiddleware, async (req: AuthRequest, res) => {
 });
 
 // PUT /api/experience/:id — admin, update
-router.put("/experience/:id", authMiddleware, async (req: AuthRequest, res) => {
+router.put("/experience/:id", authMiddleware, requireRole("admin", "editor"), async (req: AuthRequest, res) => {
   try {
     const { role, period, description, order } = req.body;
     const exp = await prisma.experience.update({
@@ -228,7 +228,7 @@ router.put("/experience/:id", authMiddleware, async (req: AuthRequest, res) => {
 });
 
 // DELETE /api/experience/:id — admin, delete
-router.delete("/experience/:id", authMiddleware, async (req: AuthRequest, res) => {
+router.delete("/experience/:id", authMiddleware, requireRole("admin", "editor"), async (req: AuthRequest, res) => {
   try {
     await prisma.experience.delete({ where: { id: param(req, "id") } });
     await triggerFrontendRevalidation({ type: "experience" });
@@ -276,7 +276,7 @@ router.get("/mcp-config", async (_req, res) => {
 });
 
 // GET /api/admin/mcp-config — admin, returns masked key + connection info
-router.get("/admin/mcp-config", authMiddleware, async (req: AuthRequest, res) => {
+router.get("/admin/mcp-config", authMiddleware, requireRole("admin"), async (req: AuthRequest, res) => {
   try {
     const apiKey = await getOrCreateMcpApiKey();
     const siteUrl = process.env.FRONTEND_URL || `http://localhost:${process.env.PORT || 3000}`;
@@ -300,7 +300,7 @@ router.get("/admin/mcp-config", authMiddleware, async (req: AuthRequest, res) =>
 });
 
 // POST /api/admin/mcp-config/regenerate — admin, generates a new API key
-router.post("/admin/mcp-config/regenerate", authMiddleware, async (_req: AuthRequest, res) => {
+router.post("/admin/mcp-config/regenerate", authMiddleware, requireRole("admin"), async (_req: AuthRequest, res) => {
   try {
     const key = `mcp_${randomUUID().replace(/-/g, "")}`;
     await prisma.siteSetting.upsert({

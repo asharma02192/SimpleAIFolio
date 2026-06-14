@@ -1,6 +1,6 @@
-import { Router } from "express";
+﻿import { Router } from "express";
 import prisma from "../utils/db";
-import { authMiddleware, AuthRequest } from "../middleware/auth";
+import { authMiddleware, AuthRequest, requireRole } from "../middleware/auth";
 import { param, trimmedString } from "../utils/express";
 
 const router = Router();
@@ -50,7 +50,7 @@ router.post("/posts/:postId/comments", async (req, res) => {
 });
 
 // Admin: list all comments with filters
-router.get("/admin/comments", authMiddleware, async (req: AuthRequest, res) => {
+router.get("/admin/comments", authMiddleware, requireRole("admin", "editor"), async (req: AuthRequest, res) => {
   try {
     const rawStatus = (req.query.status as string) || "all";
     const validStatuses = ["all", "approved", "pending", "spam"];
@@ -90,7 +90,7 @@ router.get("/admin/comments", authMiddleware, async (req: AuthRequest, res) => {
 });
 
 // Admin: update comment status (approve/pending/spam)
-router.put("/admin/comments/:id/status", authMiddleware, async (req: AuthRequest, res) => {
+router.put("/admin/comments/:id/status", authMiddleware, requireRole("admin", "editor"), async (req: AuthRequest, res) => {
   try {
     const id = param(req, "id");
     const { status } = req.body;
@@ -109,7 +109,7 @@ router.put("/admin/comments/:id/status", authMiddleware, async (req: AuthRequest
   }
 });
 
-router.delete("/admin/comments/:id", authMiddleware, async (req: AuthRequest, res) => {
+router.delete("/admin/comments/:id", authMiddleware, requireRole("admin", "editor"), async (req: AuthRequest, res) => {
   try {
     const id = param(req, "id");
     await prisma.comment.delete({ where: { id } });

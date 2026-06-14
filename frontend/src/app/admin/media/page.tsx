@@ -155,22 +155,6 @@ function MediaContent() {
     }
   };
 
-  const copyUrl = async (url: string, name: string) => {
-    try {
-      const fullUrl = `${API_URL}${url}`;
-      await navigator.clipboard.writeText(fullUrl);
-      setCopied(name);
-      setError(null);
-      toast("URL copied to clipboard", "success");
-      window.setTimeout(() => setCopied(""), 2000);
-    } catch (copyError) {
-      console.error(copyError);
-      const message = "Could not copy the media URL. Please try again.";
-      setError(message);
-      toast(message, "error");
-    }
-  };
-
   return (
     <div className="admin-main min-h-screen flex flex-col md:flex-row" style={{ background: "var(--color-bg)" }}>
       <AdminSidebar onLogout={logoutAdmin} />

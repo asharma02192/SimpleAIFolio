@@ -1,6 +1,6 @@
-import { Router } from "express";
+﻿import { Router } from "express";
 import prisma from "../utils/db";
-import { authMiddleware, AuthRequest } from "../middleware/auth";
+import { authMiddleware, AuthRequest, requireRole } from "../middleware/auth";
 import { param, trimmedString } from "../utils/express";
 import { createRateLimiter } from "../middleware/rate-limit";
 
@@ -63,7 +63,7 @@ router.post("/newsletter/unsubscribe", async (req, res) => {
   }
 });
 
-router.get("/admin/newsletter", authMiddleware, async (req: AuthRequest, res) => {
+router.get("/admin/newsletter", authMiddleware, requireRole("admin", "editor"), async (req: AuthRequest, res) => {
   try {
     const subscribers = await prisma.newsletterSubscriber.findMany({
       orderBy: { createdAt: "desc" },
@@ -75,7 +75,7 @@ router.get("/admin/newsletter", authMiddleware, async (req: AuthRequest, res) =>
   }
 });
 
-router.delete("/admin/newsletter/:id", authMiddleware, async (req: AuthRequest, res) => {
+router.delete("/admin/newsletter/:id", authMiddleware, requireRole("admin", "editor"), async (req: AuthRequest, res) => {
   try {
     const id = param(req, "id");
     await prisma.newsletterSubscriber.delete({ where: { id } });

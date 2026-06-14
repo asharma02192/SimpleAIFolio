@@ -1,6 +1,6 @@
-import { Router } from "express";
+﻿import { Router } from "express";
 import prisma from "../utils/db";
-import { authMiddleware, AuthRequest } from "../middleware/auth";
+import { authMiddleware, AuthRequest, requireRole } from "../middleware/auth";
 import { createRateLimiter } from "../middleware/rate-limit";
 import { getRequestLogMeta, logError, logWarn } from "../utils/logging";
 import { sendAiOpsTestAlert } from "../services/ops-alerts";
@@ -479,18 +479,18 @@ export function createAnalyticsRouter({ prismaClient = prisma }: { prismaClient?
   });
 
   // GET /api/analytics/pages - admin, compatibility endpoint
-  router.get("/pages", authMiddleware, async (req: AuthRequest, res) => {
+  router.get("/pages", authMiddleware, requireRole("admin", "editor"), async (req: AuthRequest, res) => {
     const summary = await getAnalyticsSummary(parseWindowDays(req.query.windowDays));
     res.json(summary.topPages);
   });
 
   // GET /api/analytics/dashboard - admin
-  router.get("/dashboard", authMiddleware, async (req: AuthRequest, res) => {
+  router.get("/dashboard", authMiddleware, requireRole("admin", "editor"), async (req: AuthRequest, res) => {
     const summary = await getAnalyticsSummary(parseWindowDays(req.query.windowDays));
     res.json(summary);
   });
 
-  router.get("/alert-settings", authMiddleware, async (_req: AuthRequest, res) => {
+  router.get("/alert-settings", authMiddleware, requireRole("admin", "editor"), async (_req: AuthRequest, res) => {
     try {
       res.json(await getAlertSettings());
     } catch (error) {
@@ -498,7 +498,7 @@ export function createAnalyticsRouter({ prismaClient = prisma }: { prismaClient?
     }
   });
 
-  router.put("/alert-settings", authMiddleware, async (req: AuthRequest, res) => {
+  router.put("/alert-settings", authMiddleware, requireRole("admin", "editor"), async (req: AuthRequest, res) => {
     try {
       const webhookEnabled = req.body?.webhookEnabled === true;
       const telegramEnabled = req.body?.telegramEnabled === true;
@@ -521,7 +521,7 @@ export function createAnalyticsRouter({ prismaClient = prisma }: { prismaClient?
     }
   });
 
-  router.post("/alert-settings/test", authMiddleware, async (_req: AuthRequest, res) => {
+  router.post("/alert-settings/test", authMiddleware, requireRole("admin", "editor"), async (_req: AuthRequest, res) => {
     try {
       const result = await sendAiOpsTestAlert({ prismaClient });
       if (!result.delivered) {

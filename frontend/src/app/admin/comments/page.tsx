@@ -39,7 +39,7 @@ function CommentsContent() {
       .finally(() => setLoading(false));
   }, [page, statusFilter]);
 
-  useEffect(() => { fetchComments(); }, [fetchComments]);
+  useEffect(() => { void fetchComments(); }, [page, statusFilter, fetchComments]);
 
   const updateStatus = async (id: string, status: string) => {
     await apiFetch(`/api/admin/comments/${id}/status`, { method: "PUT", body: JSON.stringify({ status }) });

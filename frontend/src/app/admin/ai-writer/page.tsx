@@ -1721,14 +1721,16 @@ function WriterContent() {
                               </button>
                               {showInternalLinks && (
                                 <div className="mt-[var(--space-3)] flex flex-col gap-[var(--space-2)]">
-                                  {draft.internalLinkSuggestions.map((link, linkIndex) => (
-                                    <div key={`${link.slug}-${link.anchorText}`} className="rounded-[var(--radius-md)] border px-[var(--space-3)] py-[var(--space-3)]" style={{ borderColor: (link as any).applied ? "var(--color-accent)" : "var(--color-border)", opacity: (link as any).applied ? 0.7 : 1 }}>
+                                  {draft.internalLinkSuggestions.map((link, linkIndex) => {
+                                    const applied = "applied" in link && link.applied === true;
+                                    return (
+                                    <div key={`${link.slug}-${link.anchorText}`} className="rounded-[var(--radius-md)] border px-[var(--space-3)] py-[var(--space-3)]" style={{ borderColor: applied ? "var(--color-accent)" : "var(--color-border)", opacity: applied ? 0.7 : 1 }}>
                                       <p className="text-[var(--text-sm)] font-semibold" style={{ color: "var(--color-text)" }}>{link.title}</p>
                                       <p className="mt-1 text-[var(--text-xs)]" style={{ color: "var(--color-text-tertiary)" }}>
                                         Anchor: {link.anchorText} — /blog/{link.slug}
                                       </p>
                                       <p className="mt-[var(--space-2)] text-[var(--text-sm)]" style={{ color: "var(--color-text-secondary)" }}>{link.reason}</p>
-                                      {(link as any).applied ? (
+                                      {applied ? (
                                         <p className="mt-[var(--space-3)] text-[var(--text-xs)] font-500" style={{ color: "var(--color-accent)" }}>Applied</p>
                                       ) : (
                                         <button
@@ -1742,7 +1744,8 @@ function WriterContent() {
                                         </button>
                                       )}
                                     </div>
-                                  ))}
+                                    );
+                                  })}
                                 </div>
                               )}
                             </div>
