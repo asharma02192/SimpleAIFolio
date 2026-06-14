@@ -22,7 +22,7 @@ function extractJsonCandidate(raw: string) {
 
   const arrayStart = trimmed.indexOf("[");
   const arrayEnd = trimmed.lastIndexOf("]");
-  if (arrayStart >= arrayStart && arrayEnd > arrayStart) {
+  if (arrayStart >= 0 && arrayEnd > arrayStart) {
     return trimmed.slice(arrayStart, arrayEnd + 1);
   }
 
