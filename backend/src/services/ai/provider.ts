@@ -92,7 +92,7 @@ export async function getDbOverrides(): Promise<Partial<AiProviderConfig>> {
 
 export function getAiProviderConfig(): AiProviderConfig {
   const provider = (process.env.AI_PROVIDER?.trim() || "disabled") as AiProviderName;
-  const researchProvider = (process.env.RESEARCH_PROVIDER?.trim() || "disabled") as ResearchProviderName;
+  const researchProvider = (process.env.RESEARCH_PROVIDER?.trim() || "exa") as ResearchProviderName;
 
   return {
     provider,

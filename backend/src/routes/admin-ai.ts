@@ -1504,7 +1504,23 @@ export function createAdminAiRouter({
         return;
       }
 
+      // Require Exa research to be configured for draft generation
+      const envConfig = getAiProviderConfig();
+      const dbOverrides = await getDbOverrides();
+      const researchProvider = dbOverrides.researchProvider || envConfig.researchProvider;
+      const researchApiKey = dbOverrides.researchApiKey || envConfig.researchApiKey;
+
+      if (researchProvider !== "exa" || !researchApiKey) {
+        res.status(400).json({ error: "Exa research API is required for content generation. Configure it in Admin > Settings > AI Configuration." });
+        return;
+      }
+
+      // Require research to be run before drafting
       const storedResearch = toResearchPayload(conversation.research);
+      if (!storedResearch || storedResearch.sources.length === 0) {
+        res.status(400).json({ error: "Run research before generating a draft. Use the Research button to fetch sources from Exa." });
+        return;
+      }
       const research = prepareResearchForGeneration(storedResearch);
       const historicalContext = await getHistoricalEngagementContext(prismaClient);
 

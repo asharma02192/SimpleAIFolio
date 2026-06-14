@@ -44,7 +44,7 @@ router.get("/admin/ai-config", authMiddleware, requireRole("admin"), async (_req
       model: record.internal_ai_model || process.env.AI_MODEL?.trim() || "",
       temperature: Number(record.internal_ai_temperature || process.env.AI_TEMPERATURE || "0.7"),
       maxTokens: Number(record.internal_ai_max_tokens || process.env.AI_MAX_TOKENS || "6000"),
-      researchProvider: record.internal_research_provider || process.env.RESEARCH_PROVIDER?.trim() || "disabled",
+      researchProvider: record.internal_research_provider || process.env.RESEARCH_PROVIDER?.trim() || "exa",
       researchApiKeyMasked: maskedResearchKey,
       researchApiKeySet: Boolean(researchApiKey),
     });

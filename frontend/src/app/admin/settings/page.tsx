@@ -740,14 +740,13 @@ function SettingsContent() {
                             <div>
                               <label className={labelClass} style={{ color: "var(--color-text-tertiary)" }}>Provider</label>
                               <select
-                                value={aiConfig.researchProvider || "disabled"}
+                                value={aiConfig.researchProvider || "exa"}
                                 onChange={(e) => setAiConfig({ ...aiConfig, researchProvider: e.target.value })}
                                 className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-colors"
                                 style={inputStyle}
                               >
-                                <option value="disabled">Disabled</option>
+                                <option value="exa">Exa (required for AI writer)</option>
                                 <option value="mock">Mock (testing only)</option>
-                                <option value="exa">Exa (web search)</option>
                               </select>
                             </div>
                             <div>
