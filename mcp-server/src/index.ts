@@ -351,6 +351,29 @@ async function runTests() {
     assert(result.isError, "Expected error when confirm=false");
   });
 
+  await test("list_all_comments returns paginated results", async () => {
+    const result = await handlePostTool("list_all_comments", {});
+    const data = JSON.parse(result.content[0]?.text || "{}");
+    assert(typeof data.total === "number", "Expected total count");
+    assert(Array.isArray(data.data), "Expected data array");
+  });
+
+  await test("list_all_comments with status filter", async () => {
+    const result = await handlePostTool("list_all_comments", { status: "approved" });
+    const data = JSON.parse(result.content[0]?.text || "{}");
+    assert(typeof data.total === "number", "Expected total count");
+  });
+
+  await test("update_comment_status validates status", async () => {
+    const result = await handlePostTool("update_comment_status", { id: "fake-id", status: "invalid" });
+    assert(result.isError, "Expected error for invalid status");
+  });
+
+  await test("change_password rejects short password", async () => {
+    const result = await handlePostTool("change_password", { currentPassword: "test", newPassword: "short" });
+    assert(result.isError, "Expected error for short password");
+  });
+
   // ── Phase 2: Categories, Tags, Projects, Media, Settings, Experience ──
 
   // Categories
@@ -756,8 +779,8 @@ async function runTests() {
   });
 
   // Tool count check
-  await test("all 59 tools, 6 resources, 6 prompts registered", async () => {
-    assert(allTools.length === 59, `Expected 59 tools, got ${allTools.length}`);
+  await test("all 62 tools, 6 resources, 6 prompts registered", async () => {
+    assert(allTools.length === 62, `Expected 62 tools, got ${allTools.length}`);
     assert(resourceDefs.length === 6, `Expected 6 resources`);
     assert(promptDefs.length === 6, `Expected 6 prompts`);
   });

@@ -169,6 +169,42 @@ export const postTools: Tool[] = [
       },
     },
   },
+  {
+    name: "list_all_comments",
+    description: "List all comments across all posts with optional status filter. Includes post title for context. Use for comment moderation.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        status: { type: "string", enum: ["approved", "pending", "spam", "all"], default: "all", description: "Filter by comment status" },
+        page: { type: "number", default: 1 },
+        perPage: { type: "number", default: 20 },
+      },
+    },
+  },
+  {
+    name: "update_comment_status",
+    description: "Change a comment's moderation status. Use 'approved' to publish, 'pending' to hide, 'spam' to flag.",
+    inputSchema: {
+      type: "object",
+      required: ["id", "status"],
+      properties: {
+        id: { type: "string", description: "Comment ID (UUID)" },
+        status: { type: "string", enum: ["approved", "pending", "spam"], description: "New status for the comment" },
+      },
+    },
+  },
+  {
+    name: "change_password",
+    description: "Change the admin account password. Requires the current password for verification. New password must be at least 8 characters.",
+    inputSchema: {
+      type: "object",
+      required: ["currentPassword", "newPassword"],
+      properties: {
+        currentPassword: { type: "string", description: "Current admin password" },
+        newPassword: { type: "string", description: "New password (min 8 characters)" },
+      },
+    },
+  },
 ];
 
 export async function handlePostTool(name: string, args: Record<string, unknown>): Promise<ToolResult> {
@@ -298,6 +334,28 @@ export async function handlePostTool(name: string, args: Record<string, unknown>
       const { status, data } = await apiRequest("DELETE", `/api/admin/comments/${args.id}`);
       if (status !== 204) return error(data);
       return text({ success: true, deleted: true, id: args.id });
+    }
+
+    case "list_all_comments": {
+      const params = new URLSearchParams();
+      if (args.status && args.status !== "all") params.set("status", String(args.status));
+      if (args.page) params.set("page", String(args.page));
+      if (args.perPage) params.set("perPage", String(args.perPage));
+      const { status, data } = await apiRequest<{ data: unknown[]; total: number; page: number; perPage: number; totalPages: number }>("GET", `/api/admin/comments?${params}`);
+      if (status !== 200) return error(data);
+      return text(data);
+    }
+
+    case "update_comment_status": {
+      const { status, data } = await apiRequest("PUT", `/api/admin/comments/${args.id}/status`, { status: args.status });
+      if (status !== 200) return error(data);
+      return text({ success: true, id: args.id, status: args.status });
+    }
+
+    case "change_password": {
+      const { status, data } = await apiRequest("PUT", "/api/auth/change-password", { currentPassword: args.currentPassword, newPassword: args.newPassword });
+      if (status !== 200) return error(data);
+      return text({ success: true, message: "Password changed successfully." });
     }
 
     default:
