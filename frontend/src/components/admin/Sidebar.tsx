@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -37,7 +37,7 @@ export default function AdminSidebar({ onLogout }: { onLogout: () => void }) {
           className="font-[family-name:var(--font-display)] text-[var(--text-lg)] font-semibold"
           style={{ color: "var(--admin-text)" }}
         >
-          MyPLWeb
+          SimpleAIFolio
         </Link>
         <p
           className="mt-[var(--space-1)] font-[family-name:var(--font-mono)] text-[var(--text-xs)] uppercase tracking-widest"
@@ -117,7 +117,7 @@ export default function AdminSidebar({ onLogout }: { onLogout: () => void }) {
         </button>
         <div className="min-w-0 text-right">
           <p className="truncate font-[family-name:var(--font-display)] text-[var(--text-base)] font-semibold" style={{ color: "var(--admin-text)" }}>
-            MyPLWeb
+            SimpleAIFolio
           </p>
           <p className="font-[family-name:var(--font-mono)] text-[var(--text-xs)] uppercase tracking-widest" style={{ color: "var(--admin-text-tertiary)" }}>
             Admin

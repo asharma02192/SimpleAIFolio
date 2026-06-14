@@ -1,4 +1,4 @@
-# MyPLWeb — Portfolio & Blog Platform with MCP Server
+﻿# SimpleAIFolio — Portfolio & Blog Platform with MCP Server
 
 A full-stack personal portfolio and blog platform with a built-in admin CMS, AI blog studio, and an MCP server that lets you manage your entire site from any AI tool (Claude Code, ChatGPT, Cursor).
 
@@ -41,8 +41,8 @@ A full-stack personal portfolio and blog platform with a built-in admin CMS, AI 
 ## Quick Start
 
 ```bash
-git clone https://github.com/yourusername/myplweb.git
-cd myplweb
+git clone https://github.com/yourusername/SimpleAIFolio.git
+cd SimpleAIFolio
 cp .env.example .env
 # Edit .env — set DB_PASSWORD, JWT_SECRET, admin credentials
 docker compose up -d --build
@@ -111,7 +111,7 @@ Go to **Admin > Settings > Site Wide > MCP Server** to find your:
 ```json
 {
   "mcpServers": {
-    "myplweb": {
+    "SimpleAIFolio": {
       "command": "node",
       "args": ["./mcp-server/dist/index.js"],
       "env": {
@@ -204,7 +204,7 @@ cd mcp-server && MCP_AUTH_EMAIL=admin@example.com MCP_AUTH_PASSWORD=your-pass no
 ## Project Structure
 
 ```
-myplweb/
+SimpleAIFolio/
 ├── frontend/          # Next.js 16 app (SSR/ISR, Tailwind v4)
 │   ├── src/app/       # App Router pages
 │   ├── src/components/# React components

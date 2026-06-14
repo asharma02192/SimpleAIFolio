@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+﻿import { test, expect } from "@playwright/test";
 import { API_URL, fetchJson, loginViaUi } from "./helpers";
 
 type Category = { id: string; name: string; slug: string };
@@ -69,7 +69,7 @@ test("admin posts page redirects when logged out", async ({ page }) => {
 
 test("admin login works and posts page loads after login", async ({ page }) => {
   await page.goto("/admin");
-  await page.getByLabel("Email").fill(process.env.E2E_ADMIN_EMAIL || "admin@myplweb.com");
+  await page.getByLabel("Email").fill(process.env.E2E_ADMIN_EMAIL || "admin@SimpleAIFolio.com");
   await page.getByLabel("Password").fill(process.env.E2E_ADMIN_PASSWORD || "admin123");
   await page.getByRole("button", { name: "Sign In" }).click();
   await expect(page.getByText("Dashboard", { exact: true })).toBeVisible();
@@ -169,7 +169,7 @@ test("failed project delete keeps the item visible", async ({ page }) => {
       body: JSON.stringify([
         {
           id: "project-delete-failure",
-          title: "MyPLWeb Failure Test",
+          title: "SimpleAIFolio Failure Test",
           description: "Delete should fail safely",
           techStack: ["Next.js"],
           featured: false,
@@ -188,13 +188,13 @@ test("failed project delete keeps the item visible", async ({ page }) => {
   });
 
   await page.goto("/admin/projects");
-  await expect(page.locator("main").getByText("MyPLWeb Failure Test").first()).toBeVisible();
+  await expect(page.locator("main").getByText("SimpleAIFolio Failure Test").first()).toBeVisible();
 
   await page.getByRole("button", { name: "Delete" }).click();
   await page.getByRole("button", { name: "Delete" }).last().click();
 
   await expect(page.getByText("Failed to delete project").first()).toBeVisible();
-  await expect(page.locator("main").getByText("MyPLWeb Failure Test").first()).toBeVisible();
+  await expect(page.locator("main").getByText("SimpleAIFolio Failure Test").first()).toBeVisible();
 });
 
 test("post editor requires a title", async ({ page }) => {

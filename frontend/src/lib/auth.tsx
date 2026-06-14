@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { createContext, useCallback, useContext, useEffect, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
@@ -19,7 +19,7 @@ interface SessionSnapshot {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
-const SESSION_EVENT = "myplweb-admin-session";
+const SESSION_EVENT = "SimpleAIFolio-admin-session";
 const SESSION_TOKEN = "session";
 
 let snapshot: SessionSnapshot = {

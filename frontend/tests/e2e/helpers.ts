@@ -1,6 +1,6 @@
-import { expect, type APIRequestContext, type Page } from "@playwright/test";
+﻿import { expect, type APIRequestContext, type Page } from "@playwright/test";
 
-const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || "admin@myplweb.com";
+const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || "admin@SimpleAIFolio.com";
 const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD || "admin123";
 const API_URL = process.env.PLAYWRIGHT_API_URL || "http://localhost:3201";
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || "http://localhost:3200";

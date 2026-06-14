@@ -1,4 +1,4 @@
-import test from "node:test";
+﻿import test from "node:test";
 import assert from "node:assert/strict";
 import { notifyAiOpsForUsageEvent, resetAiOpsAlertStateForTests } from "./ops-alerts";
 
@@ -201,7 +201,7 @@ test("telegram delivery works when bot credentials are configured", async () => 
   assert.equal(fetchCalls.length, 1);
   assert.equal(fetchCalls[0].url, "https://api.telegram.org/bottelegram-bot-token/sendMessage");
   assert.equal((fetchCalls[0].body as any).chat_id, "123456789");
-  assert.equal(String((fetchCalls[0].body as any).text).includes("MyPLWeb AI Ops Alert"), true);
+  assert.equal(String((fetchCalls[0].body as any).text).includes("SimpleAIFolio AI Ops Alert"), true);
 });
 
 test("stored minimum severity can suppress lower-level alert delivery", async () => {

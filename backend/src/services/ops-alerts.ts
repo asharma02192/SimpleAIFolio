@@ -1,4 +1,4 @@
-import { logError, logInfo, logWarn } from "../utils/logging";
+﻿import { logError, logInfo, logWarn } from "../utils/logging";
 
 type AlertLevel = "info" | "warning" | "critical";
 
@@ -216,7 +216,7 @@ async function postAlert(
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          source: "myplweb-ai-ops",
+          source: "SimpleAIFolio-ai-ops",
           ...payload,
         }),
         signal: AbortSignal.timeout(config.timeoutMs),
@@ -236,7 +236,7 @@ async function postAlert(
 
     if (preferences.telegramEnabled && config.telegramBotToken && config.telegramChatId) {
       const telegramText = [
-        `MyPLWeb AI Ops Alert`,
+        `SimpleAIFolio AI Ops Alert`,
         `${payload.level.toUpperCase()} · ${payload.title}`,
         payload.message,
         `Provider: ${payload.provider}`,
@@ -578,7 +578,7 @@ export async function sendAiOpsTestAlert({
       level: "warning",
       code: "ai_test_alert",
       title: "Test alert",
-      message: "This is a manual AI ops notification test from the MyPLWeb admin dashboard.",
+      message: "This is a manual AI ops notification test from the SimpleAIFolio admin dashboard.",
       provider: "system",
       model: null,
       operation: "manual_test",

@@ -1,11 +1,11 @@
-{
-  "name": "@myplweb/mcp-server",
+﻿{
+  "name": "@SimpleAIFolio/mcp-server",
   "version": "1.0.0",
-  "description": "MCP server for MyPLWeb CMS — manage blog posts, projects, and site content from any AI tool",
+  "description": "MCP server for SimpleAIFolio CMS — manage blog posts, projects, and site content from any AI tool",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "myplweb-mcp": "dist/index.js"
+    "SimpleAIFolio-mcp": "dist/index.js"
   },
   "scripts": {
     "build": "tsc",

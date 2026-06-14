@@ -1,15 +1,15 @@
-services:
+﻿services:
   db:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: myplweb
-      POSTGRES_USER: myplweb
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-myplweb_secret}
+      POSTGRES_DB: SimpleAIFolio
+      POSTGRES_USER: SimpleAIFolio
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-SimpleAIFolio_secret}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U myplweb"]
+      test: ["CMD-SHELL", "pg_isready -U SimpleAIFolio"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -25,7 +25,7 @@ services:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://myplweb:${DB_PASSWORD:-myplweb_secret}@db:5432/myplweb
+      DATABASE_URL: postgresql://SimpleAIFolio:${DB_PASSWORD:-SimpleAIFolio_secret}@db:5432/SimpleAIFolio
       JWT_SECRET: ${JWT_SECRET:-local-dev-jwt-secret-change-before-production-2026}
       ALLOW_INSECURE_JWT_SECRET: "true"
       PORT: 3001
@@ -46,7 +46,7 @@ services:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
       RUN_SEED_ON_STARTUP: "true"
-      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@myplweb.com}
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@SimpleAIFolio.com}
       SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-admin123}
       SEED_ADMIN_NAME: ${SEED_ADMIN_NAME:-Admin}
     volumes:
@@ -81,7 +81,7 @@ services:
       - backend
     environment:
       MCP_API_URL: http://backend:3001
-      MCP_AUTH_EMAIL: ${SEED_ADMIN_EMAIL:-admin@myplweb.com}
+      MCP_AUTH_EMAIL: ${SEED_ADMIN_EMAIL:-admin@SimpleAIFolio.com}
       MCP_AUTH_PASSWORD: ${SEED_ADMIN_PASSWORD:-admin123}
       MCP_HTTP: "true"
       MCP_HTTP_PORT: "3100"

@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+﻿#!/usr/bin/env node
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -28,7 +28,7 @@ import { getToken, getRemoteApiKey } from "./client.js";
 
 const server = new Server(
   {
-    name: "myplweb-mcp",
+    name: "SimpleAIFolio-mcp",
     version: "1.0.0",
   },
   {
@@ -176,19 +176,19 @@ async function main() {
     });
 
     httpServer.listen(httpPort, () => {
-      process.stderr.write(`MyPLWeb MCP server running on HTTP :${httpPort}\n`);
+      process.stderr.write(`SimpleAIFolio MCP server running on HTTP :${httpPort}\n`);
       process.stderr.write(`  POST /mcp   — MCP protocol endpoint\n`);
       process.stderr.write(`  GET  /health — Health check\n`);
     });
   } else {
     const transport = new StdioServerTransport();
     await server.connect(transport);
-    process.stderr.write("MyPLWeb MCP server running on stdio\n");
+    process.stderr.write("SimpleAIFolio MCP server running on stdio\n");
   }
 }
 
 async function runTests() {
-  process.stderr.write("=== MyPLWeb MCP Server — End-to-End Tests ===\n\n");
+  process.stderr.write("=== SimpleAIFolio MCP Server — End-to-End Tests ===\n\n");
 
   let passed = 0;
   let failed = 0;

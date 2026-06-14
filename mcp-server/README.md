@@ -1,6 +1,6 @@
-# MyPLWeb MCP Server
+﻿# SimpleAIFolio MCP Server
 
-Connect any AI tool (Claude Code, Claude Desktop, ChatGPT, Cursor, Codex) directly to your MyPLWeb CMS to manage blog posts.
+Connect any AI tool (Claude Code, Claude Desktop, ChatGPT, Cursor, Codex) directly to your SimpleAIFolio CMS to manage blog posts.
 
 ## Quick Start
 
@@ -17,14 +17,14 @@ Copy `.env.example` and set your backend URL and admin credentials:
 
 ```bash
 MCP_API_URL=http://localhost:3201
-MCP_AUTH_EMAIL=admin@myplweb.com
+MCP_AUTH_EMAIL=admin@SimpleAIFolio.com
 MCP_AUTH_PASSWORD=admin123
 ```
 
 ### 3. Run tests
 
 ```bash
-MCP_AUTH_EMAIL=admin@myplweb.com MCP_AUTH_PASSWORD=admin123 node dist/index.js --test
+MCP_AUTH_EMAIL=admin@SimpleAIFolio.com MCP_AUTH_PASSWORD=admin123 node dist/index.js --test
 ```
 
 ### 4. Connect from Claude Code
@@ -34,12 +34,12 @@ Add to your Claude Code MCP settings:
 ```json
 {
   "mcpServers": {
-    "myplweb": {
+    "SimpleAIFolio": {
       "command": "node",
       "args": ["./mcp-server/dist/index.js"],
       "env": {
         "MCP_API_URL": "http://localhost:3201",
-        "MCP_AUTH_EMAIL": "admin@myplweb.com",
+        "MCP_AUTH_EMAIL": "admin@SimpleAIFolio.com",
         "MCP_AUTH_PASSWORD": "admin123"
       }
     }
@@ -54,12 +54,12 @@ Add to `claude_desktop_config.json`:
 ```json
 {
   "mcpServers": {
-    "myplweb": {
+    "SimpleAIFolio": {
       "command": "node",
       "args": ["./mcp-server/dist/index.js"],
       "env": {
         "MCP_API_URL": "http://localhost:3201",
-        "MCP_AUTH_EMAIL": "admin@myplweb.com",
+        "MCP_AUTH_EMAIL": "admin@SimpleAIFolio.com",
         "MCP_AUTH_PASSWORD": "admin123"
       }
     }
@@ -207,13 +207,13 @@ Pre-built prompt templates for common workflows:
 ### Stdio (Local — Claude Code, Claude Desktop)
 
 ```bash
-MCP_AUTH_EMAIL=admin@myplweb.com MCP_AUTH_PASSWORD=admin123 node dist/index.js
+MCP_AUTH_EMAIL=admin@SimpleAIFolio.com MCP_AUTH_PASSWORD=admin123 node dist/index.js
 ```
 
 ### HTTP (Remote — ChatGPT, Cursor, web tools)
 
 ```bash
-MCP_AUTH_EMAIL=admin@myplweb.com MCP_AUTH_PASSWORD=admin123 \
+MCP_AUTH_EMAIL=admin@SimpleAIFolio.com MCP_AUTH_PASSWORD=admin123 \
 MCP_REMOTE_API_KEY=your-secret-key \
 node dist/index.js --http
 ```
@@ -228,7 +228,7 @@ Endpoints:
 # Standalone
 docker compose -f docker-compose.mcp.yml up -d --build
 
-# Or integrate with the main MyPLWeb stack
+# Or integrate with the main SimpleAIFolio stack
 # The MCP server connects to the backend container via Docker network
 ```
 
@@ -238,12 +238,12 @@ docker compose -f docker-compose.mcp.yml up -d --build
 ```json
 {
   "mcpServers": {
-    "myplweb": {
+    "SimpleAIFolio": {
       "command": "node",
       "args": ["./mcp-server/dist/index.js"],
       "env": {
         "MCP_API_URL": "http://localhost:3201",
-        "MCP_AUTH_EMAIL": "admin@myplweb.com",
+        "MCP_AUTH_EMAIL": "admin@SimpleAIFolio.com",
         "MCP_AUTH_PASSWORD": "admin123"
       }
     }
@@ -261,7 +261,7 @@ Headers: Authorization: Bearer your-secret-key
 ```json
 {
   "mcpServers": {
-    "myplweb": {
+    "SimpleAIFolio": {
       "url": "http://your-server:3100/mcp",
       "headers": { "Authorization": "Bearer your-secret-key" }
     }
