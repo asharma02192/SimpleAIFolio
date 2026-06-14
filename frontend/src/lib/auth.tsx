@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 interface AuthContextType {
   token: string | null;
+  userRole: string | null;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   isAuthenticated: boolean;
@@ -139,6 +140,11 @@ export async function clearAdminSession(options?: { notifyBackend?: boolean; red
     isReady: true,
   });
 
+  if (canUseWindow()) {
+    localStorage.removeItem("admin_token");
+    localStorage.removeItem("admin_role");
+  }
+
   if (redirectToLogin && canUseWindow()) {
     window.location.href = "/admin";
   }
@@ -171,6 +177,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error(err.error || "Login failed");
     }
 
+    const data = await res.json();
+    if (data.token && canUseWindow()) {
+      localStorage.setItem("admin_token", data.token);
+    }
+    if (data.user?.role && canUseWindow()) {
+      localStorage.setItem("admin_role", data.user.role);
+    }
+
     setSnapshot({
       isAuthenticated: true,
       isReady: true,
@@ -183,10 +197,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     router.refresh();
   }, [router]);
 
+  const userRole = (() => {
+    if (!session.isAuthenticated || !canUseWindow()) return null;
+    return localStorage.getItem("admin_role") || "admin";
+  })();
+
   return (
     <AuthContext.Provider
       value={{
         token: session.isAuthenticated ? SESSION_TOKEN : null,
+        userRole,
         login,
         logout,
         isAuthenticated: session.isAuthenticated,

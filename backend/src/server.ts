@@ -18,6 +18,7 @@ import commentRoutes from "./routes/comments";
 import reactionRoutes from "./routes/reactions";
 import newsletterRoutes from "./routes/newsletter";
 import schedulerRoutes from "./routes/scheduler";
+import adminUserRoutes from "./routes/admin-users";
 import { validateBackendEnv } from "./utils/env";
 
 dotenv.config();
@@ -56,6 +57,7 @@ app.use("/api", commentRoutes);
 app.use("/api", reactionRoutes);
 app.use("/api", newsletterRoutes);
 app.use("/api/admin", schedulerRoutes);
+app.use("/api/admin/users", adminUserRoutes);
 app.use("/api", settingsRoutes);
 
 // Health check

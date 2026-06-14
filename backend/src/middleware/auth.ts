@@ -1,9 +1,12 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
+import prisma from "../utils/db";
 import { getRequestLogMeta, logWarn } from "../utils/logging";
 
 export interface AuthRequest extends Request {
   userId?: string;
+  userRole?: string;
+  userName?: string;
 }
 
 function readCookieToken(req: Request) {
@@ -33,7 +36,7 @@ export function verifyAuthToken(token: string) {
   return jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
 }
 
-export function authMiddleware(
+export async function authMiddleware(
   req: AuthRequest,
   res: Response,
   next: NextFunction
@@ -48,9 +51,28 @@ export function authMiddleware(
   try {
     const decoded = verifyAuthToken(token);
     req.userId = decoded.userId;
+
+    const user = await prisma.user.findUnique({ where: { id: decoded.userId }, select: { role: true, name: true } });
+    if (!user) {
+      res.status(401).json({ error: "User not found" });
+      return;
+    }
+    req.userRole = user.role;
+    req.userName = user.name;
     next();
   } catch {
     logWarn("Authentication failed: invalid token", getRequestLogMeta(req));
     res.status(401).json({ error: "Invalid token" });
   }
+}
+
+export function requireRole(...roles: string[]) {
+  return (req: AuthRequest, res: Response, next: NextFunction) => {
+    if (!req.userRole || !roles.includes(req.userRole)) {
+      logWarn("Authorization failed: insufficient role", { ...getRequestLogMeta(req), userId: req.userId, userRole: req.userRole, required: roles });
+      res.status(403).json({ error: "Insufficient permissions" });
+      return;
+    }
+    next();
+  };
 }

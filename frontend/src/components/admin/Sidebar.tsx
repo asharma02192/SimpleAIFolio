@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { useAuth } from "@/lib/auth";
 
 const adminNavItems = [
   { href: "/admin", label: "Dashboard", icon: "D" },
@@ -24,6 +25,8 @@ const adminNavItems = [
 export default function AdminSidebar({ onLogout }: { onLogout: () => void }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
+  const { userRole } = useAuth();
+  const canShowUsers = userRole === "admin";
 
   const sidebarSurface = {
     background: "var(--admin-bg)",
@@ -74,6 +77,21 @@ export default function AdminSidebar({ onLogout }: { onLogout: () => void }) {
             </Link>
           );
         })}
+
+        {canShowUsers && (
+          <Link
+            href="/admin/users"
+            onClick={() => { if (isMobile) setMenuOpen(false); }}
+            className="flex items-center gap-[var(--space-3)] rounded-[var(--radius-sm)] px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] transition-colors motion-reduce:transition-none"
+            style={{
+              color: pathname.startsWith("/admin/users") ? "var(--color-accent)" : "var(--admin-text-secondary)",
+              background: pathname.startsWith("/admin/users") ? "var(--admin-accent-lightest)" : "transparent",
+            }}
+          >
+            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full font-[family-name:var(--font-mono)] text-[0.625rem]" style={{ background: "var(--admin-bg-muted)", color: "var(--admin-text-secondary)" }}>U</span>
+            Users
+          </Link>
+        )}
       </nav>
 
       <div className="flex flex-col gap-[var(--space-2)] pt-[var(--space-4)]" style={{ borderTop: "1px solid var(--admin-border)" }}>
@@ -92,9 +110,10 @@ export default function AdminSidebar({ onLogout }: { onLogout: () => void }) {
             setMenuOpen(false);
             onLogout();
           }}
-          className="px-[var(--space-3)] py-[var(--space-2)] text-left font-[family-name:var(--font-mono)] text-[var(--text-xs)] transition-colors hover:text-[var(--color-error)] motion-reduce:transition-none"
-          style={{ color: "var(--admin-text-tertiary)" }}
+          className="inline-flex min-h-[40px] w-full items-center gap-[var(--space-2)] rounded-[var(--radius-md)] px-[var(--space-3)] py-[var(--space-2)] text-left font-[family-name:var(--font-mono)] text-[var(--text-xs)] uppercase tracking-wider transition-all duration-150 hover:brightness-95 motion-reduce:transition-none cursor-pointer"
+          style={{ background: "var(--admin-bg-muted)", color: "var(--admin-text-secondary)" }}
         >
+          <span aria-hidden="true">&larr;</span>
           Sign Out
         </button>
       </div>

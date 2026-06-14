@@ -88,7 +88,7 @@ export function createAuthRouter({ prismaClient = prisma }: { prismaClient?: Aut
         userId: user.id,
       });
 
-      res.json({ token, user: { id: user.id, email: user.email, name: user.name } });
+      res.json({ token, user: { id: user.id, email: user.email, name: user.name, role: user.role } });
     } catch (error) {
       logError("Login failed unexpectedly", {
         ...getRequestLogMeta(req),
@@ -168,7 +168,7 @@ export function createAuthRouter({ prismaClient = prisma }: { prismaClient?: Aut
     try {
       const user = await prismaClient.user.findUnique({
         where: { id: req.userId! },
-        select: { id: true, email: true, name: true },
+        select: { id: true, email: true, name: true, role: true },
       });
 
       if (!user) {
@@ -226,7 +226,7 @@ export function createAuthRouter({ prismaClient = prisma }: { prismaClient?: Aut
       const user = await prisma.user.update({
         where: { id: req.userId! },
         data,
-        select: { id: true, email: true, name: true },
+        select: { id: true, email: true, name: true, role: true },
       });
 
       const token = signToken(user.id);
