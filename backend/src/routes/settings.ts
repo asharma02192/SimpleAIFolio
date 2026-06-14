@@ -310,10 +310,7 @@ router.get("/admin/mcp-config", authMiddleware, requireRole("admin"), async (req
   try {
     const apiKey = await getOrCreateMcpApiKey();
     const siteUrl = process.env.FRONTEND_URL || `http://localhost:${process.env.PORT || 3000}`;
-
-    const mcpPort = process.env.MCP_PORT || "3100";
-    const mcpHost = req.get("host")?.split(":")[0] || "localhost";
-    const mcpUrl = `http://${mcpHost}:${mcpPort}/mcp`;
+    const mcpUrl = process.env.MCP_PUBLIC_URL || `${siteUrl.replace(/\/$/, "")}/mcp`;
 
     res.json({
       apiKey: apiKey,

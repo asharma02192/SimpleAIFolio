@@ -26,20 +26,6 @@ import { resourceDefs, readResource } from "./resources.js";
 import { promptDefs, getPrompt } from "./prompts.js";
 import { getToken, getRemoteApiKey } from "./client.js";
 
-const server = new Server(
-  {
-    name: "SimpleAIFolio-mcp",
-    version: "1.0.0",
-  },
-  {
-    capabilities: {
-      tools: {},
-      resources: {},
-      prompts: {},
-    },
-  },
-);
-
 const allTools = [
   ...postTools,
   ...categoryTools,
@@ -55,68 +41,84 @@ const allTools = [
   ...snippetTools,
 ];
 
-server.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools: allTools,
-}));
+function createMcpServer() {
+  const server = new Server(
+    {
+      name: "SimpleAIFolio-mcp",
+      version: "1.0.0",
+    },
+    {
+      capabilities: {
+        tools: {},
+        resources: {},
+        prompts: {},
+      },
+    },
+  );
 
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  const { name, arguments: args = {} } = request.params;
-  const a = args as Record<string, unknown>;
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({
+    tools: allTools,
+  }));
 
-  if (postTools.some((t) => t.name === name)) return handlePostTool(name, a);
-  if (categoryTools.some((t) => t.name === name)) return handleCategoryTool(name, a);
-  if (tagTools.some((t) => t.name === name)) return handleTagTool(name, a);
-  if (projectTools.some((t) => t.name === name)) return handleProjectTool(name, a);
-  if (mediaTools.some((t) => t.name === name)) return handleMediaTool(name, a);
-  if (settingsTools.some((t) => t.name === name)) return handleSettingsTool(name, a);
-  if (experienceTools.some((t) => t.name === name)) return handleExperienceTool(name, a);
-  if (aiWriterTools.some((t) => t.name === name)) return handleAiWriterTool(name, a);
-  if (analyticsTools.some((t) => t.name === name)) return handleAnalyticsTool(name, a);
-  if (newsletterTools.some((t) => t.name === name)) return handleNewsletterTool(name, a);
-  if (contactTools.some((t) => t.name === name)) return handleContactTool(name, a);
-  if (snippetTools.some((t) => t.name === name)) return handleSnippetTool(name, a);
+  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    const { name, arguments: args = {} } = request.params;
+    const a = args as Record<string, unknown>;
 
-  return {
-    content: [{ type: "text", text: `Unknown tool: ${name}` }],
-    isError: true,
-  } as any;
-});
+    if (postTools.some((t) => t.name === name)) return handlePostTool(name, a);
+    if (categoryTools.some((t) => t.name === name)) return handleCategoryTool(name, a);
+    if (tagTools.some((t) => t.name === name)) return handleTagTool(name, a);
+    if (projectTools.some((t) => t.name === name)) return handleProjectTool(name, a);
+    if (mediaTools.some((t) => t.name === name)) return handleMediaTool(name, a);
+    if (settingsTools.some((t) => t.name === name)) return handleSettingsTool(name, a);
+    if (experienceTools.some((t) => t.name === name)) return handleExperienceTool(name, a);
+    if (aiWriterTools.some((t) => t.name === name)) return handleAiWriterTool(name, a);
+    if (analyticsTools.some((t) => t.name === name)) return handleAnalyticsTool(name, a);
+    if (newsletterTools.some((t) => t.name === name)) return handleNewsletterTool(name, a);
+    if (contactTools.some((t) => t.name === name)) return handleContactTool(name, a);
+    if (snippetTools.some((t) => t.name === name)) return handleSnippetTool(name, a);
 
-// ── Resources ──
-server.setRequestHandler(ListResourcesRequestSchema, async () => ({
-  resources: resourceDefs.map((r) => ({
-    uri: r.uri,
-    name: r.name,
-    description: r.description,
-    mimeType: r.mimeType,
-  })),
-}));
+    return {
+      content: [{ type: "text", text: `Unknown tool: ${name}` }],
+      isError: true,
+    } as any;
+  });
 
-server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
-  const { uri } = request.params;
-  const text = await readResource(uri);
-  return {
-    contents: [{ uri, mimeType: "application/json", text }],
-  } as any;
-});
+  server.setRequestHandler(ListResourcesRequestSchema, async () => ({
+    resources: resourceDefs.map((r) => ({
+      uri: r.uri,
+      name: r.name,
+      description: r.description,
+      mimeType: r.mimeType,
+    })),
+  }));
 
-// ── Prompts ──
-server.setRequestHandler(ListPromptsRequestSchema, async () => ({
-  prompts: promptDefs.map((p) => ({
-    name: p.name,
-    description: p.description,
-    arguments: p.arguments,
-  })),
-}));
+  server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+    const { uri } = request.params;
+    const text = await readResource(uri);
+    return {
+      contents: [{ uri, mimeType: "application/json", text }],
+    } as any;
+  });
 
-server.setRequestHandler(GetPromptRequestSchema, async (request) => {
-  const { name, arguments: args = {} } = request.params;
-  const prompt = getPrompt(name, args as Record<string, unknown>);
-  if (!prompt) {
-    return { isError: true, content: [{ type: "text", text: `Unknown prompt: ${name}` }] } as any;
-  }
-  return prompt as any;
-});
+  server.setRequestHandler(ListPromptsRequestSchema, async () => ({
+    prompts: promptDefs.map((p) => ({
+      name: p.name,
+      description: p.description,
+      arguments: p.arguments,
+    })),
+  }));
+
+  server.setRequestHandler(GetPromptRequestSchema, async (request) => {
+    const { name, arguments: args = {} } = request.params;
+    const prompt = getPrompt(name, args as Record<string, unknown>);
+    if (!prompt) {
+      return { isError: true, content: [{ type: "text", text: `Unknown prompt: ${name}` }] } as any;
+    }
+    return prompt as any;
+  });
+
+  return server;
+}
 
 async function main() {
   const isTest = process.argv.includes("--test");
@@ -166,7 +168,8 @@ async function main() {
         const parsedBody = body ? JSON.parse(body) : undefined;
 
         const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: () => randomUUID() });
-        await server.connect(transport);
+        const requestServer = createMcpServer();
+        await requestServer.connect(transport);
         await transport.handleRequest(req, res, parsedBody);
         return;
       }
@@ -182,6 +185,7 @@ async function main() {
     });
   } else {
     const transport = new StdioServerTransport();
+    const server = createMcpServer();
     await server.connect(transport);
     process.stderr.write("SimpleAIFolio MCP server running on stdio\n");
   }

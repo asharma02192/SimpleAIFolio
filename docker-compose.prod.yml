@@ -64,6 +64,7 @@ services:
       SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:?Set SEED_ADMIN_EMAIL in .env}
       SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?Set SEED_ADMIN_PASSWORD in .env}
       SEED_ADMIN_NAME: ${SEED_ADMIN_NAME:-Admin}
+      MCP_PUBLIC_URL: ${MCP_PUBLIC_URL:-}
     volumes:
       - simpleaifolio_uploads:/app/uploads
     healthcheck:
