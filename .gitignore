@@ -29,3 +29,7 @@ audit-upload.png
 test-frontend.mjs
 AUDIT-HANDOFF.md
 .gstack/
+
+# Screenshots from development
+*.png
+*.jpeg

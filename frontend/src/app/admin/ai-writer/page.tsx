@@ -1572,36 +1572,39 @@ function WriterContent() {
 
                       {draft ? (
                         <div className="flex flex-col gap-[var(--space-5)]">
-                          {/* Draft header */}
-                          <div>
-                            <h3 className="font-[family-name:var(--font-display)] text-[var(--text-lg)] font-600" style={{ color: "var(--color-text)" }}>{draft.title}</h3>
+
+                          {/* ── Panel: Draft Overview ── */}
+                          <div className="rounded-[var(--radius-md)] px-[var(--space-5)] py-[var(--space-4)]" style={panelInsetStyle}>
+                            <p className="font-[family-name:var(--font-mono)] text-[0.625rem] uppercase tracking-widest" style={{ color: "var(--color-text-tertiary)" }}>Draft Overview</p>
+                            <h3 className="mt-[var(--space-2)] font-[family-name:var(--font-display)] text-[var(--text-lg)] font-600" style={{ color: "var(--color-text)" }}>{draft.title}</h3>
                             <p className="mt-[var(--space-1)] break-all text-[var(--text-xs)]" style={{ color: "var(--color-text-tertiary)" }}>{draft.slug}</p>
-                          </div>
-                          <div className="rounded-[var(--radius-md)] p-[var(--space-4)]" style={{ background: "var(--color-bg)" }}>
-                            <p className="text-[var(--text-sm)] font-semibold" style={{ color: "var(--color-text)" }}>{draft.metaTitle}</p>
-                            <p className="mt-[var(--space-1)] text-[var(--text-xs)]" style={{ color: "var(--color-text-secondary)" }}>{draft.metaDescription}</p>
-                          </div>
-
-                          {/* Score badges */}
-                          <div className="flex flex-wrap items-center gap-[var(--space-2)]">
-                            {[
-                              { label: "SEO", value: draft.seoScore },
-                              { label: "Engage", value: draft.engagementScore },
-                              { label: "Read", value: draft.readabilityScore },
-                            ].map((score) => (
-                              <span
-                                key={score.label}
-                                className="rounded-full px-3 py-1 font-[family-name:var(--font-mono)] text-[var(--text-xs)]"
-                                style={{ background: "var(--color-bg)", border: "1px solid var(--color-border)", color: "var(--color-text)" }}
-                              >
-                                {score.label} {score.value}
-                              </span>
-                            ))}
+                            <div className="mt-[var(--space-3)] flex flex-wrap items-center gap-[var(--space-2)]">
+                              {[
+                                { label: "SEO", value: draft.seoScore },
+                                { label: "Engage", value: draft.engagementScore },
+                                { label: "Read", value: draft.readabilityScore },
+                              ].map((score) => (
+                                <span
+                                  key={score.label}
+                                  className="rounded-full px-3 py-1 font-[family-name:var(--font-mono)] text-[var(--text-xs)]"
+                                  style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)", color: "var(--color-text)" }}
+                                >
+                                  {score.label} {score.value}
+                                </span>
+                              ))}
+                            </div>
                           </div>
 
-                          {/* Recommendations */}
+                          {/* ── Panel: SEO Preview ── */}
+                          <div className="rounded-[var(--radius-md)] px-[var(--space-5)] py-[var(--space-4)]" style={panelInsetStyle}>
+                            <p className="font-[family-name:var(--font-mono)] text-[0.625rem] uppercase tracking-widest" style={{ color: "var(--color-text-tertiary)" }}>SEO Meta</p>
+                            <p className="mt-[var(--space-2)] text-[var(--text-sm)] font-semibold" style={{ color: "var(--color-text)" }}>{draft.metaTitle}</p>
+                            <p className="mt-[var(--space-1)] text-[var(--text-xs)] leading-relaxed" style={{ color: "var(--color-text-secondary)" }}>{draft.metaDescription}</p>
+                          </div>
+
+                          {/* ── Panel: Recommendations ── */}
                           {draft.recommendations.length > 0 && (
-                            <div>
+                            <div className="rounded-[var(--radius-md)] px-[var(--space-5)] py-[var(--space-4)]" style={panelInsetStyle}>
                               <p className="font-[family-name:var(--font-mono)] text-[0.625rem] uppercase tracking-widest" style={{ color: "var(--color-text-tertiary)" }}>Recommendations</p>
                               <ul className="mt-[var(--space-2)] list-disc pl-[var(--space-4)]">
                                 {draft.recommendations.map((rec) => (
@@ -1611,21 +1614,29 @@ function WriterContent() {
                             </div>
                           )}
 
-                          {/* HTML content preview */}
-                          <div className="prose max-h-[32rem] overflow-y-auto rounded-[var(--radius-md)] p-[var(--space-4)]" style={{ background: "var(--color-bg)" }} dangerouslySetInnerHTML={{ __html: draft.contentHtml }} />
-                          {includeReferences && referencePreviewHtml && (
-                            <div className="prose rounded-[var(--radius-md)] p-[var(--space-3)]" style={{ background: "var(--color-bg)" }} dangerouslySetInnerHTML={{ __html: referencePreviewHtml }} />
-                          )}
+                          {/* ── Panel: Article Preview ── */}
+                          <div className="rounded-[var(--radius-md)] px-[var(--space-5)] py-[var(--space-4)]" style={panelInsetStyle}>
+                            <p className="font-[family-name:var(--font-mono)] text-[0.625rem] uppercase tracking-widest" style={{ color: "var(--color-text-tertiary)" }}>Article Preview</p>
+                            <div className="prose mt-[var(--space-3)] max-h-[32rem] overflow-y-auto rounded-[var(--radius-md)] p-[var(--space-4)]" style={{ background: "var(--color-bg)" }} dangerouslySetInnerHTML={{ __html: draft.contentHtml }} />
+                            {includeReferences && referencePreviewHtml && (
+                              <div className="prose mt-[var(--space-3)] rounded-[var(--radius-md)] p-[var(--space-3)]" style={{ background: "var(--color-bg)" }} dangerouslySetInnerHTML={{ __html: referencePreviewHtml }} />
+                            )}
+                          </div>
 
-                          {/* ── Collapsible: Review Flags ── */}
-                          {draft.verificationFlags.length > 0 && (
-                            <div className="pt-[var(--space-2)]" style={{ borderTop: "1px solid var(--color-border)" }}>
-                              <button
-                                type="button"
-                                onClick={() => setShowReviewFlags(!showReviewFlags)}
-                                className="flex items-center gap-[var(--space-2)] py-[var(--space-2)] text-[var(--text-sm)] font-semibold"
-                                style={{ color: riskyFlags.length > 0 ? "oklch(50% 0.1 25)" : "var(--color-text-secondary)" }}
-                              >
+                          {/* ── Panel: Quality & Insights ── */}
+                          <div className="rounded-[var(--radius-md)] px-[var(--space-5)] py-[var(--space-4)]" style={panelInsetStyle}>
+                            <p className="font-[family-name:var(--font-mono)] text-[0.625rem] uppercase tracking-widest" style={{ color: "var(--color-text-tertiary)" }}>Quality & Insights</p>
+                            <div className="mt-[var(--space-3)] flex flex-col gap-[var(--space-2)]">
+
+                            {/* ── Collapsible: Review Flags ── */}
+                            {draft.verificationFlags.length > 0 && (
+                              <div>
+                                <button
+                                  type="button"
+                                  onClick={() => setShowReviewFlags(!showReviewFlags)}
+                                  className="flex items-center gap-[var(--space-2)] py-[var(--space-2)] text-[var(--text-sm)] font-semibold"
+                                  style={{ color: riskyFlags.length > 0 ? "oklch(50% 0.1 25)" : "var(--color-text-secondary)" }}
+                                >
                                 <ChevronRight open={showReviewFlags} />
                                 Review Flags
                                 <span className="rounded-full px-2 py-0.5 text-[0.625rem]" style={{ background: "var(--color-bg-elevated)", color: "var(--color-text-tertiary)" }}>
@@ -1695,7 +1706,7 @@ function WriterContent() {
 
                           {/* ── Collapsible: Internal Link Suggestions ── */}
                           {draft.internalLinkSuggestions.length > 0 && (
-                            <div className="pt-[var(--space-2)]" style={{ borderTop: "1px solid var(--color-border)" }}>
+                            <div>
                               <button
                                 type="button"
                                 onClick={() => setShowInternalLinks(!showInternalLinks)}
@@ -1738,7 +1749,7 @@ function WriterContent() {
                           )}
 
                           {/* ── Collapsible: Improve This Draft (Rewrite) ── */}
-                          <div className="pt-[var(--space-2)]" style={{ borderTop: "1px solid var(--color-border)" }}>
+                          <div>
                             <button
                               type="button"
                               onClick={() => setShowRewriteActions(!showRewriteActions)}
@@ -1868,9 +1879,14 @@ function WriterContent() {
                             )}
                           </div>
 
-                          {/* ── References toggle ── */}
-                          <div className="rounded-[var(--radius-md)] border px-[var(--space-3)] py-[var(--space-3)]" style={{ borderColor: "var(--color-border)", background: "var(--color-bg)" }}>
-                            <label className="flex items-start gap-[var(--space-3)]">
+                            </div>
+                          </div>
+
+                          {/* ── Panel: Actions ── */}
+                          <div className="rounded-[var(--radius-md)] px-[var(--space-5)] py-[var(--space-4)]" style={panelInsetStyle}>
+                            <p className="font-[family-name:var(--font-mono)] text-[0.625rem] uppercase tracking-widest" style={{ color: "var(--color-text-tertiary)" }}>Publish</p>
+                            <div className="mt-[var(--space-3)]">
+                              <label className="flex items-start gap-[var(--space-3)]">
                               <input
                                 type="checkbox"
                                 checked={includeReferences}
@@ -1897,6 +1913,7 @@ function WriterContent() {
                           >
                             {busy === "save" ? "Saving..." : detail.draft?.postId ? "Update CMS Draft" : "Save as CMS Draft"}
                           </button>
+                          </div>
                         </div>
                       ) : null}
                     </div>

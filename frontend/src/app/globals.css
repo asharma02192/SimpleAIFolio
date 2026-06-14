@@ -226,6 +226,19 @@ h1, h2, h3, h4 {
   padding: 0;
   color: inherit;
 }
+.prose .shiki-wrapper {
+  margin: var(--space-8) 0;
+  border-radius: var(--radius-lg);
+  overflow-x: auto;
+}
+.prose .shiki-wrapper pre {
+  margin: 0;
+  border: none;
+  border-radius: var(--radius-lg);
+}
+.prose .shiki-wrapper code {
+  counter-reset: line;
+}
 .prose ul, .prose ol {
   margin: var(--space-4) 0 var(--space-6) var(--space-6);
 }

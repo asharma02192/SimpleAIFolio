@@ -8,7 +8,7 @@ type PostSummary = {
 
 test("public home page loads", async ({ page }) => {
   await page.goto("/");
-  await expect(page).toHaveTitle(/Amit|Phase 3/i);
+  await expect(page).toHaveTitle(/Portfolio|Home/i);
   await expect(page.getByRole("link", { name: "Home" })).toBeVisible();
 });
 

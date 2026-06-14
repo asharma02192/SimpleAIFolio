@@ -1,0 +1,19 @@
+services:
+  mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: myplweb-mcp
+    ports:
+      - "3100:3100"
+    environment:
+      # Connect to the existing MyPLWeb backend via Docker network
+      MCP_API_URL: http://backend:3001
+      MCP_AUTH_EMAIL: ${MCP_AUTH_EMAIL:-admin@myplweb.com}
+      MCP_AUTH_PASSWORD: ${MCP_AUTH_PASSWORD:-admin123}
+      # Optional: Set an API key to require authentication for remote HTTP access
+      MCP_REMOTE_API_KEY: ${MCP_REMOTE_API_KEY:-}
+      MCP_HTTP_PORT: "3100"
+    networks:
+      - default
+    restart: unless-stopped

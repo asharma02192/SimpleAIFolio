@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import PageWrapper from "@/components/PageWrapper";
+import BlogSearch from "@/components/BlogSearch";
 import { fetchSettings, logPublicFetchError, serverFetch } from "@/lib/config";
 import type { Post, Category } from "@/types";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3201";
 
 export const revalidate = 60;
 
@@ -26,7 +29,7 @@ function formatDate(date: string) {
 export default async function BlogPage({
   searchParams,
 }: {
-  searchParams: Promise<{ category?: string; page?: string }>;
+  searchParams: Promise<{ category?: string; page?: string; search?: string }>;
 }) {
   const params = await searchParams;
   const page = Number(params.page) || 1;
@@ -38,8 +41,9 @@ export default async function BlogPage({
 
   try {
     const catParam = params.category ? `&category=${params.category}` : "";
+    const searchParam = params.search ? `&search=${encodeURIComponent(params.search)}` : "";
     const data = await serverFetch<{ data: Post[]; total: number; totalPages: number }>(
-      `/api/posts?perPage=10&page=${page}${catParam}`
+      `/api/posts?perPage=10&page=${page}${catParam}${searchParam}`
     );
     posts = data.data;
     totalPages = data.totalPages;
@@ -75,6 +79,8 @@ export default async function BlogPage({
             Writing
           </h1>
         </div>
+
+        <BlogSearch />
 
         {/* Category filters */}
         {categories.length > 0 && (
@@ -131,6 +137,14 @@ export default async function BlogPage({
 
                 {/* Content */}
                 <div className="col-span-12 md:col-span-8">
+                  {post.featuredImage && (
+                    <img
+                      src={`${API_BASE}${post.featuredImage}`}
+                      alt={post.title}
+                      className="mb-[var(--space-4)] w-full"
+                      style={{ maxHeight: "200px", objectFit: "cover", borderRadius: "var(--radius-md)" }}
+                    />
+                  )}
                   <div className="flex items-center gap-[var(--space-3)] mb-[var(--space-2)]">
                     {post.category && (
                       <span

@@ -2,6 +2,8 @@ import Link from "next/link";
 import type { Post } from "@/types";
 import { logPublicFetchError, serverFetch } from "@/lib/config";
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3201";
+
 function formatDate(date: string) {
   return new Date(date).toLocaleDateString("en-US", {
     month: "short",

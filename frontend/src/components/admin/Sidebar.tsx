@@ -15,6 +15,9 @@ const adminNavItems = [
   { href: "/admin/analytics", label: "Analytics", icon: "A" },
   { href: "/admin/experience", label: "Experience", icon: "E" },
   { href: "/admin/settings", label: "Settings", icon: "S" },
+  { href: "/admin/snippets", label: "Snippets", icon: "</>" },
+  { href: "/admin/contact", label: "Messages", icon: "@" },
+  { href: "/admin/newsletter", label: "Newsletter", icon: "NL" },
 ];
 
 export default function AdminSidebar({ onLogout }: { onLogout: () => void }) {

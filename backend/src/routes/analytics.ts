@@ -458,6 +458,23 @@ export function createAnalyticsRouter({ prismaClient = prisma }: { prismaClient?
     };
   }
 
+  // GET /api/analytics/page-views - public, get view count for a path
+  router.get("/page-views", async (req, res) => {
+    const path = req.query.path as string;
+    if (!path) {
+      res.json({ views: 0 });
+      return;
+    }
+    try {
+      const count = await prismaClient.pageView.count({
+        where: { path },
+      });
+      res.json({ views: count });
+    } catch {
+      res.json({ views: 0 });
+    }
+  });
+
   // GET /api/analytics/pages - admin, compatibility endpoint
   router.get("/pages", authMiddleware, async (req: AuthRequest, res) => {
     const summary = await getAnalyticsSummary(parseWindowDays(req.query.windowDays));

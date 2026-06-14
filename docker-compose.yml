@@ -72,6 +72,23 @@ services:
     ports:
       - "3200:3000"
 
+  mcp-server:
+    build:
+      context: ./mcp-server
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      MCP_API_URL: http://backend:3001
+      MCP_AUTH_EMAIL: ${SEED_ADMIN_EMAIL:-admin@myplweb.com}
+      MCP_AUTH_PASSWORD: ${SEED_ADMIN_PASSWORD:-admin123}
+      MCP_HTTP: "true"
+      MCP_HTTP_PORT: "3100"
+      MCP_MCP_CONFIG_URL: http://backend:3001/api/mcp-config
+    ports:
+      - "3100:3100"
+
 volumes:
   pgdata:
   uploads:

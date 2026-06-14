@@ -1,7 +1,15 @@
 import type { Metadata } from "next";
 import { Bricolage_Grotesque, Onest, Fira_Code, Sora, Source_Sans_3 } from "next/font/google";
-import { fetchSettings, getSiteUrl } from "@/lib/config";
+import { fetchSettings, serverFetch, getSiteUrl } from "@/lib/config";
 import "./globals.css";
+
+interface Snippet {
+  id: string;
+  name: string;
+  location: string;
+  code: string;
+  order: number;
+}
 
 const bricolage = Bricolage_Grotesque({
   variable: "--font-bricolage",
@@ -39,7 +47,7 @@ const sourceSans3 = Source_Sans_3({
 
 export async function generateMetadata(): Promise<Metadata> {
   const settings = await fetchSettings();
-  const title = settings.siteConfig.title || "Amit";
+  const title = settings.siteConfig.title || "Portfolio";
   const description = settings.siteConfig.description || settings.siteConfig.tagline;
   const siteUrl = getSiteUrl();
 
@@ -74,6 +82,18 @@ export default async function RootLayout({
   const settings = await fetchSettings();
   const theme = settings.theme || "light-minimal";
 
+  let headSnippets: Snippet[] = [];
+  let bodySnippets: Snippet[] = [];
+  try {
+    const snippets = await serverFetch<Snippet[]>("/api/snippets", {
+      next: { revalidate: 60 },
+    });
+    headSnippets = snippets.filter((s) => s.location === "head");
+    bodySnippets = snippets.filter((s) => s.location === "body_end");
+  } catch {
+    // snippets are optional — fail silently
+  }
+
   return (
     <html
       lang="en"
@@ -81,10 +101,16 @@ export default async function RootLayout({
       className={`${bricolage.variable} ${onest.variable} ${firaCode.variable} ${sora.variable} ${sourceSans3.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        {headSnippets.map((s) => (
+          <div key={s.id} dangerouslySetInnerHTML={{ __html: s.code }} />
+        ))}
         <a href="#main" className="skip-link">
           Skip to content
         </a>
         {children}
+        {bodySnippets.map((s) => (
+          <div key={s.id} dangerouslySetInnerHTML={{ __html: s.code }} />
+        ))}
       </body>
     </html>
   );

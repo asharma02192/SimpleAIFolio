@@ -12,6 +12,12 @@ import mediaRoutes from "./routes/media";
 import analyticsRoutes from "./routes/analytics";
 import settingsRoutes from "./routes/settings";
 import adminAiRoutes from "./routes/admin-ai";
+import snippetRoutes from "./routes/snippets";
+import contactRoutes from "./routes/contact";
+import commentRoutes from "./routes/comments";
+import reactionRoutes from "./routes/reactions";
+import newsletterRoutes from "./routes/newsletter";
+import schedulerRoutes from "./routes/scheduler";
 import { validateBackendEnv } from "./utils/env";
 
 dotenv.config();
@@ -44,6 +50,12 @@ app.use("/api/projects", projectRoutes);
 app.use("/api/media", mediaRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/admin/ai", adminAiRoutes);
+app.use("/api", snippetRoutes);
+app.use("/api", contactRoutes);
+app.use("/api", commentRoutes);
+app.use("/api", reactionRoutes);
+app.use("/api", newsletterRoutes);
+app.use("/api/admin", schedulerRoutes);
 app.use("/api", settingsRoutes);
 
 // Health check

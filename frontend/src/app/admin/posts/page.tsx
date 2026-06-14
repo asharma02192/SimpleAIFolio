@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { AuthProvider, apiFetch, logoutAdmin } from "@/lib/auth";
 import AdminSidebar from "@/components/admin/Sidebar";
@@ -10,16 +10,20 @@ interface Post {
   id: string;
   title: string;
   slug: string;
-  status: "DRAFT" | "PUBLISHED";
+  status: "DRAFT" | "PUBLISHED" | "SCHEDULED";
   publishedAt: string | null;
   createdAt: string;
   category: { name: string } | null;
 }
 
+type StatusFilter = "ALL" | "DRAFT" | "PUBLISHED" | "SCHEDULED";
+
 function PostsContent() {
   const { toast, confirm } = useUI();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
 
   useEffect(() => {
     apiFetch("/api/posts?status=all&perPage=100")
@@ -29,11 +33,44 @@ function PostsContent() {
       .finally(() => setLoading(false));
   }, []);
 
+  const filteredPosts = statusFilter === "ALL" ? posts : posts.filter((p) => p.status === statusFilter);
+
+  const allSelected = filteredPosts.length > 0 && filteredPosts.every((p) => selected.has(p.id));
+  const someSelected = filteredPosts.some((p) => selected.has(p.id)) && !allSelected;
+
+  const toggleAll = () => {
+    if (allSelected) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(filteredPosts.map((p) => p.id)));
+    }
+  };
+
+  const toggleOne = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   const handleDelete = async (id: string) => {
     if (!(await confirm("Delete this post?"))) return;
     await apiFetch(`/api/posts/${id}`, { method: "DELETE" });
     setPosts((p) => p.filter((post) => post.id !== id));
+    setSelected((prev) => { const next = new Set(prev); next.delete(id); return next; });
     toast("Post deleted", "success");
+  };
+
+  const handleDeleteSelected = async () => {
+    if (!(await confirm(`Delete ${selected.size} post${selected.size !== 1 ? "s" : ""}?`))) return;
+    const ids = Array.from(selected);
+    await Promise.all(ids.map((id) => apiFetch(`/api/posts/${id}`, { method: "DELETE" })));
+    setPosts((p) => p.filter((post) => !selected.has(post.id)));
+    const count = selected.size;
+    setSelected(new Set());
+    toast(`${count} post${count !== 1 ? "s" : ""} deleted`, "success");
   };
 
   return (
@@ -53,52 +90,114 @@ function PostsContent() {
           </Link>
         </div>
 
+        {selected.size > 0 && (
+          <div
+            className="flex items-center gap-[var(--space-4)] mb-[var(--space-6)] px-[var(--space-4)] py-[var(--space-3)]"
+            style={{ background: "var(--color-bg-subtle)", borderRadius: "var(--radius-md)", border: "1px solid var(--color-border)" }}
+          >
+            <span className="font-[family-name:var(--font-body)] text-[var(--text-sm)]" style={{ color: "var(--color-text)" }}>
+              {selected.size} selected
+            </span>
+            <button
+              onClick={handleDeleteSelected}
+              className="font-[family-name:var(--font-mono)] text-[var(--text-xs)] cursor-pointer transition-colors hover:text-[var(--color-error)]"
+              style={{ color: "var(--color-text-tertiary)" }}
+            >
+              Delete Selected
+            </button>
+          </div>
+        )}
+
+        <div className="mb-[var(--space-4)]">
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+            className="font-[family-name:var(--font-mono)] text-[var(--text-sm)] px-[var(--space-3)] py-[var(--space-2)] outline-none"
+            style={{
+              background: "var(--color-bg)",
+              border: "1px solid var(--color-border)",
+              borderRadius: "var(--radius-md)",
+              color: "var(--color-text)",
+            }}
+          >
+            <option value="ALL">All Statuses</option>
+            <option value="DRAFT">Draft</option>
+            <option value="PUBLISHED">Published</option>
+            <option value="SCHEDULED">Scheduled</option>
+          </select>
+        </div>
+
         {loading ? (
           <p className="font-[family-name:var(--font-mono)] text-[var(--text-sm)]" style={{ color: "var(--color-text-tertiary)" }}>Loading...</p>
-        ) : posts.length === 0 ? (
+        ) : filteredPosts.length === 0 ? (
           <div className="py-[var(--space-16)] text-center">
             <p className="text-[var(--text-sm)] mb-[var(--space-4)]" style={{ color: "var(--color-text-tertiary)" }}>
-              No posts yet. Create your first one.
+              {statusFilter !== "ALL" ? `No ${statusFilter.toLowerCase()} posts.` : "No posts yet. Create your first one."}
             </p>
-            <Link
-              href="/admin/posts/new"
-              className="font-[family-name:var(--font-mono)] text-[var(--text-xs)] uppercase tracking-wider"
-              style={{ color: "var(--color-accent)" }}
-            >
-              New Post &rarr;
-            </Link>
+            {statusFilter === "ALL" && (
+              <Link
+                href="/admin/posts/new"
+                className="font-[family-name:var(--font-mono)] text-[var(--text-xs)] uppercase tracking-wider"
+                style={{ color: "var(--color-accent)" }}
+              >
+                New Post &rarr;
+              </Link>
+            )}
           </div>
         ) : (
           <div className="flex flex-col">
-            {posts.map((post) => (
+            <div
+              className="flex items-center gap-[var(--space-3)] py-[var(--space-2)] px-[var(--space-1)]"
+              style={{ borderBottom: "1px solid var(--color-border)" }}
+            >
+              <input
+                type="checkbox"
+                checked={allSelected}
+                ref={(el) => { if (el) el.indeterminate = someSelected; }}
+                onChange={toggleAll}
+                className="cursor-pointer"
+              />
+              <span className="font-[family-name:var(--font-mono)] text-[var(--text-xs)] uppercase tracking-wider" style={{ color: "var(--color-text-tertiary)" }}>
+                {filteredPosts.length} post{filteredPosts.length !== 1 ? "s" : ""}
+              </span>
+            </div>
+            {filteredPosts.map((post) => (
               <div
                 key={post.id}
                 className="flex flex-col gap-[var(--space-3)] py-[var(--space-4)] sm:flex-row sm:items-center sm:justify-between"
                 style={{ borderBottom: "1px solid var(--color-border)" }}
               >
-                <div className="min-w-0 flex-1">
-                  <div className="mb-[var(--space-1)] flex flex-wrap items-center gap-[var(--space-2)] sm:gap-[var(--space-3)]">
-                    <span
-                      className="font-[family-name:var(--font-mono)] text-[var(--text-xs)] uppercase tracking-wider px-[var(--space-2)] py-[0.125rem]"
-                      style={{
-                        background: post.status === "PUBLISHED" ? "var(--color-accent-lightest)" : "var(--color-bg-muted)",
-                        color: post.status === "PUBLISHED" ? "var(--color-accent)" : "var(--color-text-tertiary)",
-                        borderRadius: "var(--radius-sm)",
-                      }}
-                    >
-                      {post.status}
-                    </span>
-                    {post.category && (
-                      <span className="font-[family-name:var(--font-mono)] text-[var(--text-xs)]" style={{ color: "var(--color-text-tertiary)" }}>
-                        {post.category.name}
+                <div className="min-w-0 flex-1 flex items-start gap-[var(--space-3)]">
+                  <input
+                    type="checkbox"
+                    checked={selected.has(post.id)}
+                    onChange={() => toggleOne(post.id)}
+                    className="mt-1 cursor-pointer flex-shrink-0"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-[var(--space-1)] flex flex-wrap items-center gap-[var(--space-2)] sm:gap-[var(--space-3)]">
+                      <span
+                        className="font-[family-name:var(--font-mono)] text-[var(--text-xs)] uppercase tracking-wider px-[var(--space-2)] py-[0.125rem]"
+                        style={{
+                          background: post.status === "PUBLISHED" ? "var(--color-accent-lightest)" : "var(--color-bg-muted)",
+                          color: post.status === "PUBLISHED" ? "var(--color-accent)" : "var(--color-text-tertiary)",
+                          borderRadius: "var(--radius-sm)",
+                        }}
+                      >
+                        {post.status}
                       </span>
-                    )}
+                      {post.category && (
+                        <span className="font-[family-name:var(--font-mono)] text-[var(--text-xs)]" style={{ color: "var(--color-text-tertiary)" }}>
+                          {post.category.name}
+                        </span>
+                      )}
+                    </div>
+                    <h3 className="break-words text-[var(--text-sm)] font-semibold" style={{ color: "var(--color-text)" }}>
+                      {post.title}
+                    </h3>
                   </div>
-                  <h3 className="break-words text-[var(--text-sm)] font-semibold" style={{ color: "var(--color-text)" }}>
-                    {post.title}
-                  </h3>
                 </div>
-                <div className="flex flex-wrap gap-[var(--space-3)]">
+                <div className="flex flex-wrap gap-[var(--space-3)] pl-[var(--space-7)] sm:pl-0">
                   <Link
                     href={`/admin/posts/${post.id}/edit`}
                     className="font-[family-name:var(--font-mono)] text-[var(--text-xs)] transition-colors hover:text-[var(--color-accent)]"

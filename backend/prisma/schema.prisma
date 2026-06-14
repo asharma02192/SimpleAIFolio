@@ -34,6 +34,8 @@ model Post {
   metaTitle      String?
   metaDescription String?
   ogImage        String?
+  previewToken   String?
+  scheduledAt    DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -43,9 +45,12 @@ model Post {
   categoryId String?
   tags       Tag[]
   aiDraftOutputs AiDraftOutput[]
+  comments       Comment[]
+  reactions      PostReaction[]
 
   @@index([status, publishedAt])
   @@index([categoryId])
+  @@index([status, scheduledAt])
   @@map("posts")
 }
 
@@ -282,6 +287,19 @@ model AiUsageEvent {
   @@map("ai_usage_events")
 }
 
+model ScriptSnippet {
+  id        String   @id @default(uuid())
+  name      String
+  location  String   @default("head")
+  code      String
+  enabled   Boolean  @default(true)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("script_snippets")
+}
+
 model RateLimitBucket {
   key       String   @id
   count     Int      @default(0)
@@ -291,4 +309,55 @@ model RateLimitBucket {
 
   @@index([resetAt])
   @@map("rate_limit_buckets")
+}
+
+model ContactMessage {
+  id        String   @id @default(uuid())
+  name      String
+  email     String
+  subject   String?
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([read, createdAt])
+  @@map("contact_messages")
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  author    String
+  content   String
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  parentId  String?
+  parent    Comment? @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[] @relation("CommentReplies")
+  createdAt DateTime @default(now())
+
+  @@index([postId, createdAt])
+  @@map("comments")
+}
+
+model PostReaction {
+  id        String   @id @default(uuid())
+  emoji     String
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  fingerprint String
+  createdAt DateTime @default(now())
+
+  @@unique([postId, fingerprint, emoji])
+  @@index([postId])
+  @@map("post_reactions")
+}
+
+model NewsletterSubscriber {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@index([active, createdAt])
+  @@map("newsletter_subscribers")
 }

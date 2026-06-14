@@ -6,6 +6,7 @@ import { AuthProvider, logoutAdmin, useAuth } from "@/lib/auth";
 import { adminApiRequest, getAdminErrorMessage, isAdminApiError } from "@/lib/admin-api";
 import AdminSidebar from "@/components/admin/Sidebar";
 import { UIProvider, useUI } from "@/components/admin/Toast";
+import Lightbox from "@/components/admin/Lightbox";
 
 interface MediaFile {
   url: string;
@@ -28,6 +29,7 @@ function MediaContent() {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState("");
   const [loading, setLoading] = useState(true);
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
   const loadFiles = useCallback(async () => {
     try {
@@ -279,11 +281,11 @@ function MediaContent() {
                 style={{ background: "var(--color-bg-subtle)", aspectRatio: "1" }}
                 role="button"
                 tabIndex={0}
-                onClick={() => void copyUrl(file.url, file.name)}
+                onClick={() => setLightboxSrc(file.url)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault();
-                    void copyUrl(file.url, file.name);
+                    setLightboxSrc(file.url);
                   }
                 }}
               >
@@ -317,6 +319,7 @@ function MediaContent() {
             ))}
           </div>
         )}
+        {lightboxSrc && <Lightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />}
       </main>
     </div>
   );

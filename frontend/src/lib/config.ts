@@ -41,56 +41,19 @@ export class ServerFetchError extends Error {
 
 // Default/fallback values used whenever the settings API is unavailable or incomplete.
 export const siteConfig: SiteConfig = {
-  title: "Amit",
-  tagline: "Developer. Writer. Building with AI.",
-  description: "Personal portfolio exploring AI tools, techniques, and intelligent agents.",
-  authorName: "Amit",
+  title: "Portfolio",
+  tagline: "Welcome to my portfolio",
+  description: "A personal portfolio and blog.",
+  authorName: "Portfolio",
   socialLinks: {
-    github: "https://github.com",
-    linkedin: "https://linkedin.com",
-    twitter: "https://twitter.com",
-    email: "hello@example.com",
+    github: "",
+    linkedin: "",
+    twitter: "",
+    email: "",
   },
 };
 
-export const defaultSkillGroups: SkillGroup[] = [
-  {
-    category: "Frontend",
-    skills: [
-      { name: "React / Next.js", level: "expert" },
-      { name: "TypeScript", level: "expert" },
-      { name: "Tailwind CSS", level: "expert" },
-      { name: "HTML / CSS", level: "expert" },
-    ],
-  },
-  {
-    category: "Backend",
-    skills: [
-      { name: "Node.js / Express", level: "expert" },
-      { name: "Python", level: "proficient" },
-      { name: "PostgreSQL", level: "proficient" },
-      { name: "REST APIs", level: "expert" },
-    ],
-  },
-  {
-    category: "AI & Machine Learning",
-    skills: [
-      { name: "LLM Integration", level: "expert" },
-      { name: "AI Agents / LangChain", level: "proficient" },
-      { name: "Prompt Engineering", level: "expert" },
-      { name: "RAG Systems", level: "proficient" },
-    ],
-  },
-  {
-    category: "DevOps & Tools",
-    skills: [
-      { name: "Docker", level: "proficient" },
-      { name: "Linux / VPS", level: "expert" },
-      { name: "Git / GitHub", level: "expert" },
-      { name: "CI/CD", level: "proficient" },
-    ],
-  },
-];
+export const defaultSkillGroups: SkillGroup[] = [];
 
 const defaultAnnouncement: AnnouncementSettings = {
   text: "",
@@ -103,6 +66,7 @@ export const navLinks = [
   { href: "/about", label: "About" },
   { href: "/blog", label: "Blog" },
   { href: "/projects", label: "Projects" },
+  { href: "/contact", label: "Contact" },
 ] as const;
 
 function getEnvWithFallback(name: string, fallback: string) {

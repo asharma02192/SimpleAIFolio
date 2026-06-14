@@ -7,6 +7,7 @@ import { adminApiRequest, getAdminErrorMessage } from "@/lib/admin-api";
 import RichTextEditor from "@/components/admin/RichTextEditor";
 import { useUI } from "@/components/admin/Toast";
 import AdminSidebar from "@/components/admin/Sidebar";
+import MediaPicker from "@/components/admin/MediaPicker";
 
 interface Category { id: string; name: string; slug: string; }
 interface Tag { id: string; name: string; slug: string; }
@@ -17,7 +18,8 @@ interface PostData {
   body: string;
   categoryId: string;
   tagIds: string[];
-  status: "DRAFT" | "PUBLISHED";
+  status: "DRAFT" | "PUBLISHED" | "SCHEDULED";
+  scheduledAt: string;
   metaTitle: string;
   metaDescription: string;
   featuredImage: string;
@@ -31,6 +33,8 @@ export default function PostEditorContent({ postId }: { postId?: string }) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
   const [editorError, setEditorError] = useState<string | null>(null);
+  const [pickerField, setPickerField] = useState<"featuredImage" | "ogImage" | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [form, setForm] = useState<PostData>({
     title: "",
     slug: "",
@@ -39,6 +43,7 @@ export default function PostEditorContent({ postId }: { postId?: string }) {
     categoryId: "",
     tagIds: [],
     status: "DRAFT",
+    scheduledAt: "",
     metaTitle: "",
     metaDescription: "",
     featuredImage: "",
@@ -62,6 +67,7 @@ export default function PostEditorContent({ postId }: { postId?: string }) {
     if (postId) {
       adminApiRequest<Record<string, unknown>>(`/api/posts/admin/${postId}`)
         .then((post) => {
+          const scheduledAt = post.scheduledAt as string | null;
           setForm({
             title: (post.title as string) || "",
             slug: (post.slug as string) || "",
@@ -69,7 +75,8 @@ export default function PostEditorContent({ postId }: { postId?: string }) {
             body: (post.body as string) || "",
             categoryId: (post.categoryId as string) || "",
             tagIds: Array.isArray(post.tags) ? (post.tags as Tag[]).map((t) => t.id) : [],
-            status: (post.status as "DRAFT" | "PUBLISHED") || "DRAFT",
+            status: (post.status as "DRAFT" | "PUBLISHED" | "SCHEDULED") || "DRAFT",
+            scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString().slice(0, 16) : "",
             metaTitle: (post.metaTitle as string) || "",
             metaDescription: (post.metaDescription as string) || "",
             featuredImage: (post.featuredImage as string) || "",
@@ -86,7 +93,7 @@ export default function PostEditorContent({ postId }: { postId?: string }) {
   const generateSlug = (title: string) =>
     title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
-  const save = useCallback(async (status?: "DRAFT" | "PUBLISHED") => {
+  const save = useCallback(async (status?: "DRAFT" | "PUBLISHED" | "SCHEDULED") => {
     if (saving) return;
 
     if (!form.title.trim()) {
@@ -105,6 +112,7 @@ export default function PostEditorContent({ postId }: { postId?: string }) {
         categoryId: form.categoryId || null,
         tagIds: form.tagIds?.length ? form.tagIds : [],
         status: status || form.status,
+        scheduledAt: form.scheduledAt || null,
         featuredImage: form.featuredImage || null,
         ogImage: form.ogImage || null,
         metaTitle: form.metaTitle || null,
@@ -143,6 +151,40 @@ export default function PostEditorContent({ postId }: { postId?: string }) {
 
   const updateForm = (updates: Partial<PostData>) =>
     setForm((prev) => ({ ...prev, ...updates }));
+
+  const handleMarkdownImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    try {
+      const text = await file.text();
+      const res = await adminApiRequest<{ html: string; title: string }>("/api/posts/import-markdown", {
+        method: "POST",
+        body: JSON.stringify({ markdown: text }),
+      });
+      updateForm({ body: res.html });
+      if (res.title && !form.title) updateForm({ title: res.title });
+      toast("Markdown imported", "success");
+    } catch (err) {
+      toast(getAdminErrorMessage(err, "Import failed"), "error");
+    }
+  };
+
+  const generatePreviewLink = async () => {
+    if (!postId) {
+      toast("Save the post first to generate a preview link", "info");
+      return;
+    }
+    try {
+      const res = await adminApiRequest<{ slug: string; previewToken: string }>(`/api/posts/${postId}/preview-token`, { method: "POST" });
+      const url = `${window.location.origin}/blog/${res.slug}?preview=${res.previewToken}`;
+      setPreviewUrl(url);
+      await navigator.clipboard.writeText(url);
+      toast("Preview link copied to clipboard", "success");
+    } catch (err) {
+      toast(getAdminErrorMessage(err, "Failed to generate preview link"), "error");
+    }
+  };
 
   return (
     <AuthProvider>
@@ -193,6 +235,36 @@ export default function PostEditorContent({ postId }: { postId?: string }) {
               >
                 Publish
               </button>
+              <button
+                onClick={() => {
+                  if (form.scheduledAt) {
+                    save("SCHEDULED");
+                  } else {
+                    toast("Set a schedule date first", "error");
+                  }
+                }}
+                disabled={saving}
+                className="inline-flex min-h-[40px] flex-1 items-center justify-center px-4 py-2.5 font-[family-name:var(--font-mono)] text-[var(--text-xs)] uppercase tracking-wider transition-opacity hover:opacity-90 sm:flex-none"
+                style={{ background: "var(--color-bg-muted)", color: "var(--color-text-secondary)", borderRadius: "var(--radius-md)" }}
+              >
+                {form.status === "SCHEDULED" ? "Scheduled" : "Schedule"}
+              </button>
+              {postId && (
+                <button
+                  onClick={generatePreviewLink}
+                  className="inline-flex min-h-[40px] items-center justify-center px-4 py-2.5 font-[family-name:var(--font-mono)] text-[var(--text-xs)] uppercase tracking-wider transition-opacity hover:opacity-90"
+                  style={{ background: "var(--color-bg-muted)", color: "var(--color-text-secondary)", borderRadius: "var(--radius-md)" }}
+                >
+                  Preview Link
+                </button>
+              )}
+              <label
+                className="inline-flex min-h-[40px] items-center justify-center px-4 py-2.5 font-[family-name:var(--font-mono)] text-[var(--text-xs)] uppercase tracking-wider cursor-pointer transition-opacity hover:opacity-90"
+                style={{ background: "var(--color-bg-muted)", color: "var(--color-text-secondary)", borderRadius: "var(--radius-md)" }}
+              >
+                Import .md
+                <input type="file" accept=".md,.markdown,.txt" className="hidden" onChange={handleMarkdownImport} />
+              </label>
             </div>
           </div>
 
@@ -294,7 +366,24 @@ export default function PostEditorContent({ postId }: { postId?: string }) {
                 </div>
               </div>
 
-              {/* SEO */}
+              <div>
+                <label className="font-[family-name:var(--font-mono)] text-[var(--text-xs)] uppercase tracking-widest mb-[var(--space-2)] block" style={{ color: "var(--color-text-tertiary)" }}>
+                  Schedule
+                </label>
+                <input
+                  type="datetime-local"
+                  value={form.scheduledAt}
+                  onChange={(e) => updateForm({ scheduledAt: e.target.value })}
+                  className="w-full text-[var(--text-sm)] p-[var(--space-2)] outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30 focus:border-[var(--color-accent)] transition-colors"
+                  style={{ background: "var(--color-bg)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-sm)", color: "var(--color-text)" }}
+                />
+                {form.status === "SCHEDULED" && (
+                  <span className="font-[family-name:var(--font-mono)] text-[var(--text-xs)] mt-[var(--space-1)] block" style={{ color: "var(--color-accent)" }}>
+                    Scheduled
+                  </span>
+                )}
+              </div>
+
               <div>
                 <label className="font-[family-name:var(--font-mono)] text-[var(--text-xs)] uppercase tracking-widest mb-[var(--space-2)] block" style={{ color: "var(--color-text-tertiary)" }}>
                   SEO
@@ -318,36 +407,64 @@ export default function PostEditorContent({ postId }: { postId?: string }) {
               </div>
 
               {/* Featured image URL */}
-              <div>
-                <label className="font-[family-name:var(--font-mono)] text-[var(--text-xs)] uppercase tracking-widest mb-[var(--space-2)] block" style={{ color: "var(--color-text-tertiary)" }}>
-                  Featured Image URL
-                </label>
-                <input
-                  type="text"
-                  value={form.featuredImage}
-                  onChange={(e) => updateForm({ featuredImage: e.target.value })}
-                  placeholder="/uploads/image.webp"
-                  className="w-full text-[var(--text-sm)] p-[var(--space-2)] outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30 focus:border-[var(--color-accent)] transition-colors"
-                  style={{ background: "var(--color-bg)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-sm)", color: "var(--color-text)" }}
-                />
-              </div>
-              <div>
-                <label className="font-[family-name:var(--font-mono)] text-[var(--text-xs)] uppercase tracking-widest mb-[var(--space-2)] block" style={{ color: "var(--color-text-tertiary)" }}>
-                  OG Image URL
-                </label>
-                <input
-                  type="text"
-                  value={form.ogImage}
-                  onChange={(e) => updateForm({ ogImage: e.target.value })}
-                  placeholder="/uploads/og-image.webp"
-                  className="w-full text-[var(--text-sm)] p-[var(--space-2)] outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30 focus:border-[var(--color-accent)] transition-colors"
-                  style={{ background: "var(--color-bg)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-sm)", color: "var(--color-text)" }}
-                />
-              </div>
+               <div>
+                 <label className="font-[family-name:var(--font-mono)] text-[var(--text-xs)] uppercase tracking-widest mb-[var(--space-2)] block" style={{ color: "var(--color-text-tertiary)" }}>
+                   Featured Image
+                 </label>
+                 <div className="flex gap-[var(--space-2)]">
+                   <input
+                     type="text"
+                     value={form.featuredImage}
+                     onChange={(e) => updateForm({ featuredImage: e.target.value })}
+                     placeholder="/uploads/image.webp"
+                     className="flex-1 min-w-0 text-[var(--text-sm)] p-[var(--space-2)] outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30 focus:border-[var(--color-accent)] transition-colors"
+                     style={{ background: "var(--color-bg)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-sm)", color: "var(--color-text)" }}
+                   />
+                   <button
+                     type="button"
+                     onClick={() => setPickerField("featuredImage")}
+                     className="flex-shrink-0 font-[family-name:var(--font-mono)] text-[var(--text-xs)] px-[var(--space-3)] py-[var(--space-2)] cursor-pointer transition-colors hover:text-[var(--color-accent)]"
+                     style={{ background: "var(--color-bg-muted)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-sm)", color: "var(--color-text-secondary)" }}
+                   >
+                     Browse
+                   </button>
+                 </div>
+               </div>
+               <div>
+                 <label className="font-[family-name:var(--font-mono)] text-[var(--text-xs)] uppercase tracking-widest mb-[var(--space-2)] block" style={{ color: "var(--color-text-tertiary)" }}>
+                   OG Image
+                 </label>
+                 <div className="flex gap-[var(--space-2)]">
+                   <input
+                     type="text"
+                     value={form.ogImage}
+                     onChange={(e) => updateForm({ ogImage: e.target.value })}
+                     placeholder="/uploads/og-image.webp"
+                     className="flex-1 min-w-0 text-[var(--text-sm)] p-[var(--space-2)] outline-none focus:ring-2 focus:ring-[var(--color-accent)]/30 focus:border-[var(--color-accent)] transition-colors"
+                     style={{ background: "var(--color-bg)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-sm)", color: "var(--color-text)" }}
+                   />
+                   <button
+                     type="button"
+                     onClick={() => setPickerField("ogImage")}
+                     className="flex-shrink-0 font-[family-name:var(--font-mono)] text-[var(--text-xs)] px-[var(--space-3)] py-[var(--space-2)] cursor-pointer transition-colors hover:text-[var(--color-accent)]"
+                     style={{ background: "var(--color-bg-muted)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-sm)", color: "var(--color-text-secondary)" }}
+                   >
+                     Browse
+                   </button>
+                 </div>
+               </div>
               </div>
             </div>
           </div>
         </main>
+        <MediaPicker
+          open={pickerField !== null}
+          onClose={() => setPickerField(null)}
+          onSelect={(url) => {
+            if (pickerField) updateForm({ [pickerField]: url });
+            setPickerField(null);
+          }}
+        />
       </div>
     </AuthProvider>
   );

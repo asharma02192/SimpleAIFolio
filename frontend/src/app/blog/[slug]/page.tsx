@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { marked, Renderer } from "marked";
+import { codeToHtml } from "shiki";
 import PageWrapper from "@/components/PageWrapper";
 import {
   fetchSettings,
@@ -12,6 +13,13 @@ import {
   toAbsoluteUrl,
 } from "@/lib/config";
 import type { Post } from "@/types";
+import TableOfContents from "@/components/TableOfContents";
+import ReadingProgressBar from "@/components/ReadingProgressBar";
+import CommentSection from "@/components/CommentSection";
+import PostReactions from "@/components/PostReactions";
+import PostShareButtons from "@/components/PostShareButtons";
+import PageViewTracker from "@/components/PageViewTracker";
+import PostViewCount from "@/components/PostViewCount";
 
 export const revalidate = 60;
 
@@ -173,6 +181,30 @@ function renderBody(body: string): string {
   return sanitizeRenderedHtml(renderMarkdown(body));
 }
 
+const CODE_BLOCK_RE = /<pre><code(?:\s+class="language-(\w+)")?>([\s\S]*?)<\/code><\/pre>/g;
+
+async function highlightCodeBlocks(html: string): Promise<string> {
+  const matches = Array.from(html.matchAll(CODE_BLOCK_RE));
+  if (matches.length === 0) return html;
+
+  let result = html;
+  for (const match of matches) {
+    const lang = match[1] || "text";
+    const code = match[2].replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+    try {
+      const highlighted = await codeToHtml(code, {
+        lang,
+        theme: "github-dark-default",
+        transformers: [],
+      });
+      result = result.replace(match[0], `<div class="shiki-wrapper">${highlighted}</div>`);
+    } catch {
+      // leave as-is if shiki can't handle it
+    }
+  }
+  return result;
+}
+
 function renderMarkdown(markdown: string) {
   const renderer = new Renderer();
 
@@ -259,15 +291,18 @@ export async function generateMetadata({
 
 export default async function BlogPostPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ preview?: string }>;
 }) {
   const { slug } = await params;
+  const { preview: previewToken } = await searchParams;
 
   let post: Post | null = null;
   let relatedPosts: Post[] = [];
   try {
-    post = await serverFetch<Post>(`/api/posts/${slug}`);
+    post = await serverFetch<Post>(`/api/posts/${slug}${previewToken ? `?preview=${previewToken}` : ""}`);
   } catch (error) {
     if (isServerFetchErrorStatus(error, 404)) {
       notFound();
@@ -311,12 +346,16 @@ export default async function BlogPostPage({
       );
       relatedPosts = data.data.filter((p) => p.id !== post.id);
     } catch {
-      // Ignore related post fetch failures on the public page.
     }
   }
 
+  const renderedBody = await highlightCodeBlocks(
+    renderBody(post.body ?? "").replace(/<h1[^>]*>[\s\S]*?<\/h1>/i, "")
+  );
+
   return (
     <PageWrapper>
+      <ReadingProgressBar />
       <article className="max-w-[var(--max-width)] mx-auto px-[var(--space-4)] md:px-[var(--space-8)] py-[var(--space-16)]">
         <Link
           href="/blog"
@@ -356,7 +395,7 @@ export default async function BlogPostPage({
             </span>
           </div>
           <h1
-            className="font-[family-name:var(--font-display)] text-[var(--text-xl)] md:text-[var(--text-2xl)] font-semibold leading-[var(--leading-tight)]"
+            className="font-[family-name:var(--font-display)] text-[var(--text-xl)] md:text-[var(--text-2xl)] font-semibold leading-[var(--leading-tight)] mb-[var(--space-6)]"
             style={{
               color: "var(--color-text)",
               fontSize: "clamp(1.75rem, 4vw, var(--text-2xl))",
@@ -364,11 +403,27 @@ export default async function BlogPostPage({
           >
             {post.title}
           </h1>
+          {post.featuredImage && (
+            <img
+              src={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3201"}${post.featuredImage}`}
+              alt={post.title}
+              style={{
+                width: "100%",
+                maxHeight: "480px",
+                objectFit: "cover",
+                borderRadius: "var(--radius-lg)",
+              }}
+            />
+          )}
         </header>
+
+        <TableOfContents />
 
         <div
           className="prose"
-          dangerouslySetInnerHTML={{ __html: renderBody(post.body ?? "") }}
+          dangerouslySetInnerHTML={{
+            __html: renderedBody,
+          }}
         />
 
         {post.tags && post.tags.length > 0 && (
@@ -391,6 +446,17 @@ export default async function BlogPostPage({
             ))}
           </div>
         )}
+
+        <PageViewTracker />
+        <PostViewCount path={`/blog/${post.slug}`} />
+
+        <div
+          className="mt-[var(--space-12)] pt-[var(--space-6)] flex flex-col gap-[var(--space-6)]"
+          style={{ borderTop: "1px solid var(--color-border)" }}
+        >
+          <PostReactions postId={post.id} />
+          <PostShareButtons slug={post.slug} title={post.title} />
+        </div>
 
         {relatedPosts.length > 0 && (
           <div
@@ -432,7 +498,9 @@ export default async function BlogPostPage({
               ))}
             </div>
           </div>
-        )}
+         )}
+
+        <CommentSection postId={post.id} />
       </article>
     </PageWrapper>
   );

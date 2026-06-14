@@ -33,6 +33,16 @@ interface AiConfig {
   apiKey?: string;
 }
 
+interface McpConfig {
+  apiKeyMasked: string;
+  apiKeySet: boolean;
+  mcpUrl: string;
+  siteUrl: string;
+  toolCount: number;
+  resourceCount: number;
+  promptCount: number;
+}
+
 const defaultSettings: Settings = {
   site_title: "",
   tagline: "",
@@ -71,6 +81,9 @@ function SettingsContent() {
   const [settings, setSettings] = useState<Settings>(defaultSettings);
   const [aiConfig, setAiConfig] = useState<AiConfig | null>(null);
   const [aiSaving, setAiSaving] = useState(false);
+  const [mcpConfig, setMcpConfig] = useState<McpConfig | null>(null);
+  const [mcpRegenerating, setMcpRegenerating] = useState(false);
+  const [mcpCopied, setMcpCopied] = useState<string | null>(null);
   const [skillGroupsText, setSkillGroupsText] = useState("[]");
   const [skillGroupsError, setSkillGroupsError] = useState<string | null>(null);
   const [pageError, setPageError] = useState<string | null>(null);
@@ -112,6 +125,7 @@ function SettingsContent() {
 
     void loadSettings();
     void adminApiRequest<AiConfig>("/api/admin/ai-config").then(setAiConfig).catch(() => {});
+    void adminApiRequest<McpConfig>("/api/admin/mcp-config").then(setMcpConfig).catch(() => {});
 
     return () => {
       cancelled = true;
@@ -214,6 +228,33 @@ function SettingsContent() {
       toast(message, "error");
     } finally {
       setAiSaving(false);
+    }
+  };
+
+  const regenerateMcpKey = async () => {
+    if (mcpRegenerating) return;
+    setMcpRegenerating(true);
+    try {
+      await adminApiRequest("/api/admin/mcp-config/regenerate", { method: "POST" });
+      const fresh = await adminApiRequest<McpConfig>("/api/admin/mcp-config");
+      setMcpConfig(fresh);
+      toast("MCP API key regenerated. Reconnect your AI tools with the new key.", "success");
+    } catch (error) {
+      const message = getAdminErrorMessage(error, "Failed to regenerate key.");
+      toast(message, "error");
+    } finally {
+      setMcpRegenerating(false);
+    }
+  };
+
+  const copyToClipboard = async (text: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setMcpCopied(label);
+      toast("Copied to clipboard", "success");
+      setTimeout(() => setMcpCopied(null), 2000);
+    } catch {
+      toast("Failed to copy", "error");
     }
   };
 
@@ -606,6 +647,94 @@ function SettingsContent() {
                     ) : (
                       <p className="font-[family-name:var(--font-mono)] text-[var(--text-sm)]" style={{ color: "var(--color-text-tertiary)" }}>
                         Loading AI configuration...
+                      </p>
+                    )}
+                  </section>
+
+                  {/* ── MCP Server ── */}
+                  <section className="rounded-[var(--radius-lg)] p-[var(--space-6)]" style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)" }}>
+                    <div className="mb-[var(--space-5)] flex flex-col gap-[var(--space-3)] sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="font-[family-name:var(--font-mono)] text-[0.625rem] uppercase tracking-[0.2em] mb-[var(--space-1)]" style={{ color: "var(--color-accent)" }}>Integrations</p>
+                        <h2 className="font-[family-name:var(--font-display)] text-[var(--text-lg)] font-700" style={{ color: "var(--color-text)" }}>
+                          MCP Server
+                        </h2>
+                        <p className="mt-[var(--space-1)] font-[family-name:var(--font-body)] text-[var(--text-sm)]" style={{ color: "var(--color-text-tertiary)" }}>
+                          Connect AI tools (Claude Code, ChatGPT, Cursor) directly to your CMS. {mcpConfig?.toolCount || 59} tools, {mcpConfig?.resourceCount || 6} resources, {mcpConfig?.promptCount || 4} prompts.
+                        </p>
+                      </div>
+                      <button
+                        onClick={regenerateMcpKey}
+                        disabled={mcpRegenerating || !mcpConfig}
+                        className="inline-flex min-h-[36px] items-center justify-center rounded-[var(--radius-md)] px-4 py-2 font-[family-name:var(--font-body)] text-[var(--text-sm)] font-500 transition-all duration-150 hover:brightness-110 disabled:opacity-50 whitespace-nowrap self-start sm:self-auto"
+                        style={{ background: "var(--color-bg)", border: "1px solid var(--color-border)", color: "var(--color-text)" }}
+                      >
+                        {mcpRegenerating ? "Regenerating..." : "Regenerate Key"}
+                      </button>
+                    </div>
+
+                    {mcpConfig ? (
+                      <div className="flex flex-col gap-[var(--space-5)]">
+                        {/* API Key */}
+                        <div>
+                          <label className={labelClass} style={{ color: "var(--color-text-tertiary)" }}>API Key</label>
+                          <div className="flex items-center gap-[var(--space-2)]">
+                            <code className="flex-1 px-[var(--space-3)] py-[var(--space-2)] font-[family-name:var(--font-mono)] text-[var(--text-sm)] rounded-[var(--radius-md)]" style={{ ...inputStyle, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {mcpConfig.apiKeyMasked}
+                            </code>
+                            <button
+                              onClick={() => copyToClipboard(mcpConfig.apiKeyMasked, "key")}
+                              className="px-3 py-[var(--space-2)] rounded-[var(--radius-md)] font-[family-name:var(--font-body)] text-[var(--text-xs)] font-500 transition-colors"
+                              style={{ background: "var(--color-bg)", border: "1px solid var(--color-border)", color: "var(--color-text)" }}
+                            >
+                              {mcpCopied === "key" ? "Copied!" : "Copy"}
+                            </button>
+                          </div>
+                          <p className="mt-[var(--space-1)] font-[family-name:var(--font-mono)] text-[var(--text-xs)]" style={{ color: "var(--color-text-tertiary)" }}>
+                            Required for remote connections. Regenerating invalidates all existing connections.
+                          </p>
+                        </div>
+
+                        {/* Connection URL */}
+                        <div>
+                          <label className={labelClass} style={{ color: "var(--color-text-tertiary)" }}>Connection URL</label>
+                          <code className="block px-[var(--space-3)] py-[var(--space-2)] font-[family-name:var(--font-mono)] text-[var(--text-sm)] rounded-[var(--radius-md)] break-all" style={inputStyle}>
+                            {mcpConfig.mcpUrl}
+                          </code>
+                        </div>
+
+                        {/* Quick connect configs */}
+                        <div>
+                          <p className={`${labelClass} mb-[var(--space-2)]`} style={{ color: "var(--color-text-tertiary)" }}>Quick Connect</p>
+                          <div className="flex flex-col gap-[var(--space-3)]">
+                            <div className="rounded-[var(--radius-md)] p-[var(--space-3)]" style={{ background: "var(--color-bg)", border: "1px solid var(--color-border)" }}>
+                              <div className="flex items-center justify-between mb-[var(--space-2)]">
+                                <span className="font-[family-name:var(--font-body)] text-[var(--text-sm)] font-600" style={{ color: "var(--color-text)" }}>Cursor / Windsurf / ChatGPT</span>
+                                <button
+                                  onClick={() => copyToClipboard(mcpConfig.mcpUrl, "cursor")}
+                                  className="text-[var(--text-xs)] font-500 transition-colors"
+                                  style={{ color: "var(--color-accent)" }}
+                                >
+                                  {mcpCopied === "cursor" ? "Copied!" : "Copy URL"}
+                                </button>
+                              </div>
+                              <p className="text-[var(--text-xs)] font-[family-name:var(--font-body)]" style={{ color: "var(--color-text-tertiary)" }}>
+                                Add as remote MCP server. Set the Authorization header to <code style={{ color: "var(--color-text)" }}>Bearer &lt;your-api-key&gt;</code>.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="rounded-[var(--radius-md)] p-[var(--space-3)] flex items-start gap-[var(--space-2)]" style={{ background: "var(--color-bg)", border: "1px solid var(--color-border)" }}>
+                          <span className="text-[var(--text-sm)]" style={{ color: "var(--color-text-tertiary)" }}>💡</span>
+                          <p className="font-[family-name:var(--font-body)] text-[var(--text-xs)]" style={{ color: "var(--color-text-tertiary)" }}>
+                            The MCP server auto-deploys with your app via Docker. For HTTPS on your VPS, proxy <code>mcp.yourdomain.com/mcp</code> to localhost:3100.
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="font-[family-name:var(--font-mono)] text-[var(--text-sm)]" style={{ color: "var(--color-text-tertiary)" }}>
+                        Loading MCP configuration...
                       </p>
                     )}
                   </section>

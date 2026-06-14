@@ -9,6 +9,7 @@ export interface Post {
   featuredImage?: string | null;
   status?: string;
   publishedAt?: string | null;
+  scheduledAt?: string | null;
   readingTime?: number;
   metaTitle?: string | null;
   metaDescription?: string | null;

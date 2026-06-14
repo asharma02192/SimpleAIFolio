@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { connection } from "next/server";
 import PageWrapper from "@/components/PageWrapper";
 import { fetchSettings, logPublicFetchError, serverFetch, toAbsoluteUrl } from "@/lib/config";
@@ -90,8 +91,9 @@ export default async function ProjectsPage() {
             {featured.length > 0 && (
               <div className="flex flex-col gap-[var(--space-6)] mb-[var(--space-16)]">
                 {featured.map((project, i) => (
-                  <div
+                  <Link
                     key={project.id}
+                    href={`/projects/${project.id}`}
                     className="group grid grid-cols-1 md:grid-cols-12 gap-[var(--space-6)] p-[var(--space-8)]"
                     style={{
                       background: "var(--color-bg-subtle)",
@@ -179,7 +181,7 @@ export default async function ProjectsPage() {
                         </a>
                       )}
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             )}
@@ -195,9 +197,10 @@ export default async function ProjectsPage() {
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-[var(--space-6)]">
                   {other.map((project) => (
-                    <div
+                    <Link
                       key={project.id}
-                      className="p-[var(--space-6)]"
+                      href={`/projects/${project.id}`}
+                      className="group block p-[var(--space-6)]"
                       style={{
                         background: "var(--color-bg-subtle)",
                         borderRadius: "var(--radius-lg)",
@@ -242,7 +245,7 @@ export default async function ProjectsPage() {
                           Source &rarr;
                         </a>
                       )}
-                    </div>
+                    </Link>
                   ))}
                 </div>
               </>

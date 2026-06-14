@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { randomUUID } from "crypto";
 import prisma from "../utils/db";
 import { isPrismaErrorCode, param, trimmedString } from "../utils/express";
 import { authMiddleware, AuthRequest } from "../middleware/auth";
@@ -239,6 +240,77 @@ router.delete("/experience/:id", authMiddleware, async (req: AuthRequest, res) =
       return;
     }
     res.status(500).json({ error: "Failed to delete experience" });
+  }
+});
+
+// ── MCP Server Config ──
+
+const MCP_API_KEY_SETTING = "internal_mcp_api_key";
+
+async function getOrCreateMcpApiKey(): Promise<string> {
+  const existing = await prisma.siteSetting.findUnique({ where: { key: MCP_API_KEY_SETTING } });
+  if (existing?.value) return existing.value;
+
+  const key = `mcp_${randomUUID().replace(/-/g, "")}`;
+  await prisma.siteSetting.upsert({
+    where: { key: MCP_API_KEY_SETTING },
+    update: {},
+    create: { key: MCP_API_KEY_SETTING, value: key },
+  });
+  return key;
+}
+
+function maskKey(key: string): string {
+  if (key.length <= 12) return key.slice(0, 4) + "••••••••";
+  return key.slice(0, 8) + "••••••••••••••••" + key.slice(-4);
+}
+
+// GET /api/mcp-config — internal (no auth), used by MCP server container to fetch its key
+router.get("/mcp-config", async (_req, res) => {
+  try {
+    const apiKey = await getOrCreateMcpApiKey();
+    res.json({ apiKey });
+  } catch {
+    res.status(500).json({ error: "Failed to fetch MCP config" });
+  }
+});
+
+// GET /api/admin/mcp-config — admin, returns masked key + connection info
+router.get("/admin/mcp-config", authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const apiKey = await getOrCreateMcpApiKey();
+    const siteUrl = process.env.FRONTEND_URL || `http://localhost:${process.env.PORT || 3000}`;
+
+    const mcpPort = process.env.MCP_PORT || "3100";
+    const mcpHost = req.get("host")?.split(":")[0] || "localhost";
+    const mcpUrl = `http://${mcpHost}:${mcpPort}/mcp`;
+
+    res.json({
+      apiKeyMasked: maskKey(apiKey),
+      apiKeySet: Boolean(apiKey),
+      mcpUrl,
+      siteUrl,
+      toolCount: 59,
+      resourceCount: 6,
+      promptCount: 4,
+    });
+  } catch {
+    res.status(500).json({ error: "Failed to fetch MCP config" });
+  }
+});
+
+// POST /api/admin/mcp-config/regenerate — admin, generates a new API key
+router.post("/admin/mcp-config/regenerate", authMiddleware, async (_req: AuthRequest, res) => {
+  try {
+    const key = `mcp_${randomUUID().replace(/-/g, "")}`;
+    await prisma.siteSetting.upsert({
+      where: { key: MCP_API_KEY_SETTING },
+      update: { value: key },
+      create: { key: MCP_API_KEY_SETTING, value: key },
+    });
+    res.json({ success: true, apiKeyMasked: maskKey(key) });
+  } catch {
+    res.status(500).json({ error: "Failed to regenerate MCP API key" });
   }
 });
 

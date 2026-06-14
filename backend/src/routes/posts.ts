@@ -16,6 +16,7 @@ export function createPostsRouter({ prismaClient = prisma }: { prismaClient?: Po
     const perPage = Math.min(50, Math.max(1, parseInt(req.query.perPage as string) || 10));
     const category = req.query.category as string;
     const tag = req.query.tag as string;
+    const search = trimmedString(req.query.search as string);
 
     const statusFilter = req.query.status as string;
     let isAdmin = false;
@@ -49,6 +50,13 @@ export function createPostsRouter({ prismaClient = prisma }: { prismaClient?: Po
     }
     if (tag) {
       where.tags = { some: { slug: tag } };
+    }
+    if (search) {
+      where.OR = [
+        { title: { contains: search, mode: "insensitive" } },
+        { excerpt: { contains: search, mode: "insensitive" } },
+        { body: { contains: search, mode: "insensitive" } },
+      ];
     }
 
     try {
@@ -110,9 +118,29 @@ export function createPostsRouter({ prismaClient = prisma }: { prismaClient?: Po
     res.json(post);
   });
 
+  // POST /api/posts/import-markdown - admin, parse markdown to HTML
+  router.post("/import-markdown", authMiddleware, async (req: AuthRequest, res) => {
+    try {
+      const { markdown } = req.body;
+      if (!trimmedString(markdown)) {
+        res.status(400).json({ error: "Markdown content is required" });
+        return;
+      }
+      const { marked } = await import("marked");
+      const html = await marked.parse(markdown as string);
+      const titleMatch = (markdown as string).match(/^#\s+(.+)$/m);
+      const title = titleMatch ? titleMatch[1].trim() : "";
+      res.json({ html, title });
+    } catch (err) {
+      console.error("Markdown import error:", err);
+      res.status(500).json({ error: "Failed to parse markdown" });
+    }
+  });
+
   // GET /api/posts/:slug - public single post
   router.get("/:slug", async (req, res) => {
     const slug = param(req, "slug");
+    const previewToken = req.query.preview as string;
     const post = await prismaClient.post.findUnique({
       where: { slug },
       include: {
@@ -122,9 +150,16 @@ export function createPostsRouter({ prismaClient = prisma }: { prismaClient?: Po
       },
     });
 
-    if (!post || post.status !== "PUBLISHED") {
+    if (!post) {
       res.status(404).json({ error: "Post not found" });
       return;
+    }
+
+    if (post.status !== "PUBLISHED") {
+      if (!previewToken || previewToken !== post.previewToken) {
+        res.status(404).json({ error: "Post not found" });
+        return;
+      }
     }
 
     res.json(post);
@@ -133,7 +168,7 @@ export function createPostsRouter({ prismaClient = prisma }: { prismaClient?: Po
   // POST /api/posts - admin, create post
   router.post("/", authMiddleware, async (req: AuthRequest, res) => {
     try {
-      const { excerpt, body, categoryId, tagIds, status, featuredImage, metaTitle, metaDescription, ogImage } = req.body;
+      const { excerpt, body, categoryId, tagIds, status, featuredImage, metaTitle, metaDescription, ogImage, scheduledAt } = req.body;
       const title = trimmedString(req.body.title);
       const slug = trimmedString(req.body.slug);
 
@@ -146,6 +181,9 @@ export function createPostsRouter({ prismaClient = prisma }: { prismaClient?: Po
         ? Math.max(1, Math.ceil(body.replace(/<[^>]*>/g, "").trim().split(/\s+/).length / 200))
         : 1;
 
+      const postStatus = status || "DRAFT";
+      const publishedAt = postStatus === "PUBLISHED" ? new Date() : null;
+
       const post = await prismaClient.post.create({
         data: {
           title,
@@ -154,8 +192,9 @@ export function createPostsRouter({ prismaClient = prisma }: { prismaClient?: Po
           body: body || "",
           categoryId: categoryId || null,
           featuredImage: featuredImage || null,
-          status: status || "DRAFT",
-          publishedAt: status === "PUBLISHED" ? new Date() : null,
+          status: postStatus,
+          publishedAt,
+          scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
           readingTime,
           metaTitle: metaTitle || null,
           metaDescription: metaDescription || null,
@@ -194,7 +233,7 @@ export function createPostsRouter({ prismaClient = prisma }: { prismaClient?: Po
   // PUT /api/posts/:id - admin, update post
   router.put("/:id", authMiddleware, async (req: AuthRequest, res) => {
     try {
-      const { title, slug, excerpt, body, categoryId, tagIds, status, featuredImage, metaTitle, metaDescription, ogImage } = req.body;
+      const { title, slug, excerpt, body, categoryId, tagIds, status, featuredImage, metaTitle, metaDescription, ogImage, scheduledAt } = req.body;
 
       const existing = await prismaClient.post.findUnique({ where: { id: param(req, "id") } });
       if (!existing) {
@@ -202,7 +241,14 @@ export function createPostsRouter({ prismaClient = prisma }: { prismaClient?: Po
         return;
       }
 
-      const publishedAt = existing.publishedAt || (status === "PUBLISHED" ? new Date() : null);
+      let publishedAt = existing.publishedAt;
+      if (status === "PUBLISHED" && !existing.publishedAt) {
+        publishedAt = new Date();
+      } else if (status === "SCHEDULED") {
+        publishedAt = null;
+      } else if (status === "DRAFT") {
+        publishedAt = existing.publishedAt;
+      }
 
       const readingTime = body
         ? Math.max(1, Math.ceil(body.replace(/<[^>]*>/g, "").trim().split(/\s+/).length / 200))
@@ -217,6 +263,7 @@ export function createPostsRouter({ prismaClient = prisma }: { prismaClient?: Po
           ...(body !== undefined && { body }),
           ...(categoryId !== undefined && { categoryId: categoryId || null }),
           ...(status !== undefined && { status, publishedAt }),
+          ...(scheduledAt !== undefined && { scheduledAt: scheduledAt ? new Date(scheduledAt) : null }),
           ...(featuredImage !== undefined && { featuredImage }),
           ...(readingTime !== undefined && { readingTime }),
           ...(metaTitle !== undefined && { metaTitle }),
@@ -279,6 +326,23 @@ export function createPostsRouter({ prismaClient = prisma }: { prismaClient?: Po
         return;
       }
       res.status(500).json({ error: "Failed to delete post" });
+    }
+  });
+
+  // POST /api/posts/:id/preview-token - admin, generate preview token
+  router.post("/:id/preview-token", authMiddleware, async (req: AuthRequest, res) => {
+    try {
+      const { randomUUID } = await import("crypto");
+      const token = randomUUID();
+      const post = await prismaClient.post.update({
+        where: { id: param(req, "id") },
+        data: { previewToken: token },
+        select: { slug: true, previewToken: true },
+      });
+      res.json(post);
+    } catch (err) {
+      console.error("Generate preview token error:", err);
+      res.status(500).json({ error: "Failed to generate preview token" });
     }
   });
 
