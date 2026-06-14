@@ -69,8 +69,8 @@ test("admin posts page redirects when logged out", async ({ page }) => {
 
 test("admin login works and posts page loads after login", async ({ page }) => {
   await page.goto("/admin");
-  await page.getByLabel("Email").fill(process.env.E2E_ADMIN_EMAIL || "admin@SimpleAIFolio.com");
-  await page.getByLabel("Password").fill(process.env.E2E_ADMIN_PASSWORD || "admin123");
+  await page.getByLabel("Email").fill(process.env.E2E_ADMIN_EMAIL || "admin@example.com");
+  await page.getByLabel("Password").fill(process.env.E2E_ADMIN_PASSWORD || "changeme");
   await page.getByRole("button", { name: "Sign In" }).click();
   await expect(page.getByText("Dashboard", { exact: true })).toBeVisible();
   await page.goto("/admin/posts");

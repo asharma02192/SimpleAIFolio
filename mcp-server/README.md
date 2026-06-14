@@ -17,14 +17,14 @@ Copy `.env.example` and set your backend URL and admin credentials:
 
 ```bash
 MCP_API_URL=http://localhost:3201
-MCP_AUTH_EMAIL=admin@SimpleAIFolio.com
-MCP_AUTH_PASSWORD=admin123
+MCP_AUTH_EMAIL=admin@example.com
+MCP_AUTH_PASSWORD=your-password
 ```
 
 ### 3. Run tests
 
 ```bash
-MCP_AUTH_EMAIL=admin@SimpleAIFolio.com MCP_AUTH_PASSWORD=admin123 node dist/index.js --test
+MCP_AUTH_EMAIL=admin@example.com MCP_AUTH_PASSWORD=your-password node dist/index.js --test
 ```
 
 ### 4. Connect from Claude Code
@@ -39,8 +39,8 @@ Add to your Claude Code MCP settings:
       "args": ["./mcp-server/dist/index.js"],
       "env": {
         "MCP_API_URL": "http://localhost:3201",
-        "MCP_AUTH_EMAIL": "admin@SimpleAIFolio.com",
-        "MCP_AUTH_PASSWORD": "admin123"
+        "MCP_AUTH_EMAIL": "admin@example.com",
+        "MCP_AUTH_PASSWORD": "your-password"
       }
     }
   }
@@ -59,8 +59,8 @@ Add to `claude_desktop_config.json`:
       "args": ["./mcp-server/dist/index.js"],
       "env": {
         "MCP_API_URL": "http://localhost:3201",
-        "MCP_AUTH_EMAIL": "admin@SimpleAIFolio.com",
-        "MCP_AUTH_PASSWORD": "admin123"
+        "MCP_AUTH_EMAIL": "admin@example.com",
+        "MCP_AUTH_PASSWORD": "your-password"
       }
     }
   }
@@ -207,13 +207,13 @@ Pre-built prompt templates for common workflows:
 ### Stdio (Local — Claude Code, Claude Desktop)
 
 ```bash
-MCP_AUTH_EMAIL=admin@SimpleAIFolio.com MCP_AUTH_PASSWORD=admin123 node dist/index.js
+MCP_AUTH_EMAIL=admin@example.com MCP_AUTH_PASSWORD=your-password node dist/index.js
 ```
 
 ### HTTP (Remote — ChatGPT, Cursor, web tools)
 
 ```bash
-MCP_AUTH_EMAIL=admin@SimpleAIFolio.com MCP_AUTH_PASSWORD=admin123 \
+MCP_AUTH_EMAIL=admin@example.com MCP_AUTH_PASSWORD=your-password \
 MCP_REMOTE_API_KEY=your-secret-key \
 node dist/index.js --http
 ```
@@ -243,8 +243,8 @@ docker compose -f docker-compose.mcp.yml up -d --build
       "args": ["./mcp-server/dist/index.js"],
       "env": {
         "MCP_API_URL": "http://localhost:3201",
-        "MCP_AUTH_EMAIL": "admin@SimpleAIFolio.com",
-        "MCP_AUTH_PASSWORD": "admin123"
+        "MCP_AUTH_EMAIL": "admin@example.com",
+        "MCP_AUTH_PASSWORD": "your-password"
       }
     }
   }

@@ -46,8 +46,8 @@
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
       RUN_SEED_ON_STARTUP: "true"
-      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@SimpleAIFolio.com}
-      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-admin123}
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:?Set SEED_ADMIN_EMAIL in .env}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?Set SEED_ADMIN_PASSWORD in .env}
       SEED_ADMIN_NAME: ${SEED_ADMIN_NAME:-Admin}
     volumes:
       - uploads:/app/uploads
@@ -81,8 +81,8 @@
       - backend
     environment:
       MCP_API_URL: http://backend:3001
-      MCP_AUTH_EMAIL: ${SEED_ADMIN_EMAIL:-admin@SimpleAIFolio.com}
-      MCP_AUTH_PASSWORD: ${SEED_ADMIN_PASSWORD:-admin123}
+      MCP_AUTH_EMAIL: ${SEED_ADMIN_EMAIL:?Set SEED_ADMIN_EMAIL in .env}
+      MCP_AUTH_PASSWORD: ${SEED_ADMIN_PASSWORD:?Set SEED_ADMIN_PASSWORD in .env}
       MCP_HTTP: "true"
       MCP_HTTP_PORT: "3100"
       MCP_MCP_CONFIG_URL: http://backend:3001/api/mcp-config
