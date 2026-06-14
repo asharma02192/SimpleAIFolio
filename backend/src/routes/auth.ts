@@ -198,6 +198,50 @@ export function createAuthRouter({ prismaClient = prisma }: { prismaClient?: Aut
     res.status(204).send();
   });
 
+  // PUT /api/auth/profile — update profile (name, email)
+  router.put("/profile", authMiddleware, async (req: AuthRequest, res) => {
+    try {
+      const { name, email } = req.body;
+
+      if (!name && !email) {
+        res.status(400).json({ error: "Provide name or email to update" });
+        return;
+      }
+
+      const data: Record<string, string> = {};
+      if (typeof name === "string" && name.trim()) data.name = name.trim();
+      if (typeof email === "string" && email.trim()) {
+        if (!email.includes("@")) {
+          res.status(400).json({ error: "Invalid email address" });
+          return;
+        }
+        const existing = await prisma.user.findFirst({ where: { email: email.trim(), NOT: { id: req.userId! } } });
+        if (existing) {
+          res.status(409).json({ error: "Email already in use" });
+          return;
+        }
+        data.email = email.trim();
+      }
+
+      const user = await prisma.user.update({
+        where: { id: req.userId! },
+        data,
+        select: { id: true, email: true, name: true },
+      });
+
+      const token = signToken(user.id);
+      setAuthCookie(res, token);
+      res.json({ user, token });
+    } catch (error) {
+      logError("Profile update failed", {
+        ...getRequestLogMeta(req),
+        userId: req.userId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      res.status(500).json({ error: "Failed to update profile" });
+    }
+  });
+
   // PUT /api/auth/change-password — change admin password
   router.put("/change-password", authMiddleware, async (req: AuthRequest, res) => {
     try {

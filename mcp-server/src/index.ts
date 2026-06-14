@@ -369,9 +369,9 @@ async function runTests() {
     assert(result.isError, "Expected error for invalid status");
   });
 
-  await test("change_password rejects short password", async () => {
-    const result = await handlePostTool("change_password", { currentPassword: "test", newPassword: "short" });
-    assert(result.isError, "Expected error for short password");
+  await test("update_profile validates input", async () => {
+    const result = await handlePostTool("update_profile", { email: "not-an-email" });
+    assert(result.isError, "Expected error for invalid email");
   });
 
   // ── Phase 2: Categories, Tags, Projects, Media, Settings, Experience ──

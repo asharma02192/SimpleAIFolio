@@ -194,14 +194,13 @@ export const postTools: Tool[] = [
     },
   },
   {
-    name: "change_password",
-    description: "Change the admin account password. Requires the current password for verification. New password must be at least 8 characters.",
+    name: "update_profile",
+    description: "Update the admin profile (display name and/or email address). If email changes, the login credentials update immediately.",
     inputSchema: {
       type: "object",
-      required: ["currentPassword", "newPassword"],
       properties: {
-        currentPassword: { type: "string", description: "Current admin password" },
-        newPassword: { type: "string", description: "New password (min 8 characters)" },
+        name: { type: "string", description: "New display name" },
+        email: { type: "string", description: "New email address (must be unique)" },
       },
     },
   },
@@ -352,10 +351,13 @@ export async function handlePostTool(name: string, args: Record<string, unknown>
       return text({ success: true, id: args.id, status: args.status });
     }
 
-    case "change_password": {
-      const { status, data } = await apiRequest("PUT", "/api/auth/change-password", { currentPassword: args.currentPassword, newPassword: args.newPassword });
+    case "update_profile": {
+      const body: Record<string, string> = {};
+      if (args.name) body.name = String(args.name);
+      if (args.email) body.email = String(args.email);
+      const { status, data } = await apiRequest<{ user: { id: string; name: string; email: string } }>("PUT", "/api/auth/profile", body);
       if (status !== 200) return error(data);
-      return text({ success: true, message: "Password changed successfully." });
+      return text({ success: true, profile: { name: data.user.name, email: data.user.email } });
     }
 
     default:
