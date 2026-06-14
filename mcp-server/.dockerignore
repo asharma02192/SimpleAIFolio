@@ -1,8 +1,5 @@
 node_modules
 npm-debug.log
 .env
-.env.local
 dist
 .git
-tests
-*.test.ts
