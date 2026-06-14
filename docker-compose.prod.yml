@@ -1,0 +1,121 @@
+# Production Docker Compose for SimpleAIFolio
+#
+# Usage:
+#   cp .env.example .env  (edit with production values)
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# This file is self-contained — does NOT require docker-compose.yml.
+# It configures secure network isolation:
+#   - Internal network for inter-service communication (db, frontend, mcp)
+#   - Egress network for backend to reach external APIs (OpenAI, webhooks, etc.)
+#   - External proxy network for the reverse proxy gateway
+#
+# No host ports are published. Use a reverse proxy (nginx/Caddy) for external access.
+# The proxy must be on the same network as defined by EXTERNAL_PROXY_NETWORK.
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: SimpleAIFolio
+      POSTGRES_USER: SimpleAIFolio
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U SimpleAIFolio"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://SimpleAIFolio:${DB_PASSWORD:?Set DB_PASSWORD in .env}@db:5432/SimpleAIFolio
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      ALLOW_INSECURE_JWT_SECRET: "true"
+      PORT: 3001
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3200}
+      FRONTEND_INTERNAL_URL: http://frontend:3000
+      REVALIDATE_SECRET: ${REVALIDATE_SECRET:?Set REVALIDATE_SECRET in .env}
+      AI_ALERT_WEBHOOK_URL: ${AI_ALERT_WEBHOOK_URL:-}
+      AI_ALERT_MIN_LEVEL: ${AI_ALERT_MIN_LEVEL:-warning}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      RUN_SEED_ON_STARTUP: "true"
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:?Set SEED_ADMIN_EMAIL in .env}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?Set SEED_ADMIN_PASSWORD in .env}
+      SEED_ADMIN_NAME: ${SEED_ADMIN_NAME:-Admin}
+    volumes:
+      - uploads:/app/uploads
+    networks:
+      - app
+      - egress
+      - proxy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3201}
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3200}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      API_INTERNAL_URL: http://backend:3001
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3201}
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3200}
+      REVALIDATE_SECRET: ${REVALIDATE_SECRET:?Set REVALIDATE_SECRET in .env}
+    networks:
+      - app
+      - proxy
+
+  mcp-server:
+    build:
+      context: ./mcp-server
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      MCP_API_URL: http://backend:3001
+      MCP_AUTH_EMAIL: ${SEED_ADMIN_EMAIL:?Set SEED_ADMIN_EMAIL in .env}
+      MCP_AUTH_PASSWORD: ${SEED_ADMIN_PASSWORD:?Set SEED_ADMIN_PASSWORD in .env}
+      MCP_HTTP: "true"
+      MCP_HTTP_PORT: "3100"
+      MCP_MCP_CONFIG_URL: http://backend:3001/api/mcp-config
+    networks:
+      - app
+
+networks:
+  # Internal network — no internet access. DB, frontend, and MCP stay isolated.
+  app:
+    name: simpleaifolio_app
+    internal: true
+
+  # Egress network — gives the backend outbound internet access for:
+  # OpenAI/compatible APIs, research providers, Telegram alerts, webhooks
+  egress:
+    name: simpleaifolio_egress
+    driver: bridge
+
+  # External proxy network — your reverse proxy (nginx/Caddy) must join this.
+  # Set EXTERNAL_PROXY_NETWORK in .env to match your proxy's network name.
+  proxy:
+    name: ${EXTERNAL_PROXY_NETWORK:-proxy_default}
+    external: true
+
+volumes:
+  pgdata:
+  uploads:

@@ -294,42 +294,48 @@ The AI Blog Studio workflow:
    FRONTEND_URL=https://yourdomain.com
    ```
 
-4. **Start the stack**:
+4. **Start the stack** — use the production compose file for secure network isolation:
    ```bash
-   docker compose up -d --build
+   # Set the proxy network name (must match your reverse proxy's network)
+   echo "EXTERNAL_PROXY_NETWORK=proxy_default" >> .env
+
+   docker compose -f docker-compose.prod.yml up -d --build
    ```
 
-5. **Set up a reverse proxy** (nginx or Caddy) for HTTPS. Example nginx config:
+   The production compose file configures three networks:
+   - `app` (internal) — inter-service communication only, no internet
+   - `egress` (bridge) — gives the backend outbound access for OpenAI, webhooks, etc.
+   - `proxy` (external) — your reverse proxy joins this to reach frontend and backend
+
+   This prevents the AI Blog Studio from failing with `EAI_AGAIN` errors caused by internal-only networking.
+
+5. **Set up a reverse proxy** for HTTPS. See [`deploy/nginx.conf`](./deploy/nginx.conf) for a complete config with Docker DNS resolution (critical for container recreation without 502s).
+
+   Key nginx directives:
    ```nginx
-   # Frontend (yourdomain.com)
-   server {
-       server_name yourdomain.com;
-       location / { proxy_pass http://localhost:3200; }
-   }
+   resolver 127.0.0.11 valid=10s ipv6=off;
 
-   # API (api.yourdomain.com)
-   server {
-       server_name api.yourdomain.com;
-       location / { proxy_pass http://localhost:3201; }
+   location /api/ {
+       proxy_pass http://backend:3001;
    }
-
-   # MCP Server (mcp.yourdomain.com)
-   server {
-       server_name mcp.yourdomain.com;
-       location / { proxy_pass http://localhost:3100; }
+   location / {
+       proxy_pass http://frontend:3000;
    }
    ```
 
    Or use Caddy (automatic HTTPS):
    ```Caddyfile
    yourdomain.com {
-       reverse_proxy localhost:3200
+       reverse_proxy frontend:3000
    }
-   api.yourdomain.com {
-       reverse_proxy localhost:3201
-   }
-   mcp.yourdomain.com {
-       reverse_proxy localhost:3100
+   yourdomain.com {
+       @api path /api/* /uploads/* /feed.xml
+       handle @api {
+           reverse_proxy backend:3001
+       }
+       handle {
+           reverse_proxy frontend:3000
+       }
    }
    ```
 
