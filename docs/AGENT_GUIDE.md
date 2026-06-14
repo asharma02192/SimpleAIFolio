@@ -144,20 +144,36 @@ Same pattern as categories. Tags are more granular than categories (e.g., tag "R
 | `update_snippet` | Edit code or toggle enabled |
 | `delete_snippet` | Remove — `id`, `confirm: true` |
 
-### AI Writer (10 tools)
+### AI Writer (12 tools)
 
 | Tool | When to Use |
 |------|-------------|
 | `list_ai_conversations` | Browse AI writing sessions |
 | `create_ai_conversation` | Start new — `topic` (max 240 chars) |
-| `get_ai_conversation` | Full detail including brief, draft, messages, proposals |
+| `get_ai_conversation` | Full detail including brief, draft, messages, proposals, research |
 | `send_ai_message` | Chat with AI about the post |
 | `generate_brief` | Create structured brief from topic |
-| `approve_brief` | Approve brief to enable draft generation (optionally override fields) |
-| `generate_draft` | Generate full HTML draft (requires approved brief + completed research) |
+| `approve_brief` | Approve brief to enable research and draft generation (optionally override fields) |
+| `run_research` | **MANDATORY** — Run Exa web research. Fetches live sources, keywords, content gaps. Must be called before generate_draft. |
+| `update_research_sources` | Review and curate which sources the AI should use. Approve good sources, reject bad ones. |
+| `generate_draft` | Generate full HTML draft using brief + approved research. Will fail if research hasn't been run. |
 | `request_rewrite` | AI rewrite of section — `action` (10 options like improve_intro, seo_focus, add_faq) |
 | `apply_rewrite` | Apply a generated proposal |
 | `save_ai_draft` | Save AI draft to CMS as a blog post |
+
+**CRITICAL: The AI Writer pipeline must follow this exact order:**
+```
+1. create_ai_conversation (topic)
+2. generate_brief
+3. approve_brief
+4. ★ run_research        ← MANDATORY — do NOT skip this
+5. update_research_sources (approve good sources)
+6. generate_draft        ← Will fail if step 4 was skipped
+7. request_rewrite + apply_rewrite (optional)
+8. save_ai_draft
+```
+
+**Without `run_research`, the draft will be rejected.** This ensures all AI-generated content is grounded in current web data from Exa. Do NOT bypass this by using `create_post` directly for AI-assisted writing — that produces content without fact-checking or current information.
 
 ### User Management (2 tools)
 
@@ -195,19 +211,35 @@ Resources provide structured data without calling tools. Read them for context:
 
 ### "Write a blog post about [topic]"
 
-1. `list_categories` → find or `create_category` for the topic
-2. `list_tags` → find or `create_tag` for relevant tags
-3. Write compelling HTML body with headings, paragraphs, lists
-4. `create_post` with:
-   - `title`: Engaging, includes primary keyword
-   - `slug`: lowercase-hyphenated
-   - `body`: Full HTML article
-   - `excerpt`: 1-2 sentence summary
-   - `metaTitle`: SEO title (under 60 chars)
-   - `metaDescription`: SEO description (under 160 chars)
-   - `categoryId`, `tagIds`: from step 1-2
-   - `status`: "DRAFT" (let user decide when to publish)
+**Option A: Full AI Writer pipeline (RECOMMENDED — uses live Exa research)**
+
+```
+1. create_ai_conversation with topic
+2. generate_brief → get structured brief with SEO keywords
+3. approve_brief → enable research and drafting
+4. run_research → Exa fetches live web sources, keyword ideas, content gaps
+5. update_research_sources → approve 2-4 best sources, reject low-quality ones
+6. generate_draft → AI writes full HTML using brief + approved research
+7. (optional) request_rewrite + apply_rewrite to refine
+8. save_ai_draft → saves as a draft blog post with proper tags/category
+9. Tell user: "Draft saved. Review and publish when ready."
+```
+
+**IMPORTANT:** Never skip steps 4-5. Without research, the AI writes from training data only, which may be outdated or inaccurate. The `generate_draft` tool will refuse if research hasn't been run.
+
+**Option B: Manual writing (for when you write content yourself)**
+
+```
+1. list_categories → get categoryId
+2. list_tags → get tagIds
+3. Write the HTML body yourself (you are the AI, use your knowledge)
+4. create_post with title, slug, body (HTML), excerpt, metaTitle, metaDescription,
+   categoryId, tagIds, status=DRAFT
 5. Ask user: "Want me to publish it now or schedule it?"
+```
+
+Use Option B only when the user explicitly wants you to write without research,
+or when the AI Writer pipeline is unavailable.
 
 ### "Set up my portfolio"
 

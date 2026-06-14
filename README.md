@@ -146,7 +146,7 @@ No manual data entry needed.
 
 ## Connecting AI Tools via MCP
 
-The MCP (Model Context Protocol) server exposes 62 tools that let AI assistants manage your site. Here's how to connect each tool:
+The MCP (Model Context Protocol) server exposes 64 tools that let AI assistants manage your site. Here's how to connect each tool:
 
 ### Find Your Connection Details
 
@@ -238,7 +238,7 @@ Once connected, just talk naturally:
 | "How many newsletter subscribers do I have?" | Instant count + list |
 | "Add a new project called 'AI Chatbot'" | Project created with tech stack |
 
-See [`mcp-server/README.md`](./mcp-server/README.md) for the complete list of 62 tools, 6 resources, and 6 prompts.
+See [`mcp-server/README.md`](./mcp-server/README.md) for the complete list of 64 tools, 6 resources, and 6 prompts.
 
 **For AI agents:** Paste [`docs/AGENT_GUIDE.md`](./docs/AGENT_GUIDE.md) into your AI tool's system prompt or custom instructions. It documents every tool, parameter, resource, prompt, and common workflow so the agent knows exactly how to use the MCP server.
 
@@ -494,7 +494,7 @@ MCP_AUTH_PASSWORD=your-password \
 node dist/index.js --test
 ```
 
-This runs 73 end-to-end tests covering all 62 tools, 6 resources, and 6 prompts.
+This runs 73 end-to-end tests covering all 64 tools, 6 resources, and 6 prompts.
 
 ---
 
@@ -536,7 +536,7 @@ SimpleAIFolio/
 │
 ├── mcp-server/                # MCP server for AI tool integration
 │   ├── src/
-│   │   ├── tools/            # 62 tools (12 files)
+│   │   ├── tools/            # 64 tools (12 files)
 │   │   ├── resources.ts      # 6 readable resources
 │   │   ├── prompts.ts        # 6 prompt templates
 │   │   ├── client.ts         # Backend API client (JWT auth)
@@ -611,7 +611,7 @@ Three roles with different access levels:
 - Verification flags for factual claims
 - One-click save to CMS
 
-### MCP Server (62 tools, 6 resources, 6 prompts)
+### MCP Server (64 tools, 6 resources, 6 prompts)
 - Full CRUD for posts, categories, tags, projects, experience, snippets
 - Comment moderation (list all, update status: approve/pending/spam)
 - User profile management (update name/email)

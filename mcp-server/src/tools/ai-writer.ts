@@ -85,12 +85,47 @@ export const aiWriterTools: Tool[] = [
   },
   {
     name: "generate_draft",
-    description: "Generate a full blog post draft from the approved brief. The draft includes title, slug, HTML body, SEO meta, FAQ, scores (SEO/engagement/readability), recommendations, and internal link suggestions. Requires an approved brief.",
+    description: "Generate a full blog post draft from the approved brief. REQUIRES: (1) an approved brief AND (2) research to have been run via run_research. The draft incorporates approved research sources for accuracy and current information. Returns title, slug, HTML body, SEO meta, FAQ, scores, recommendations, and internal link suggestions.",
     inputSchema: {
       type: "object",
       required: ["id"],
       properties: {
         id: { type: "string", description: "Conversation ID (UUID)" },
+      },
+    },
+  },
+  {
+    name: "run_research",
+    description: "Run Exa web research for a conversation. Fetches live web sources, keyword ideas, search intent, content gaps, and internal link opportunities based on the conversation topic and approved brief. This step is MANDATORY before generate_draft. Returns research data including sources that can be approved or rejected via update_research_sources. Requires Exa API to be configured in Admin > Settings > AI.",
+    inputSchema: {
+      type: "object",
+      required: ["id"],
+      properties: {
+        id: { type: "string", description: "Conversation ID (UUID)" },
+      },
+    },
+  },
+  {
+    name: "update_research_sources",
+    description: "Review and update the approval status of research sources fetched by run_research. You can approve sources to include them in the draft's references, reject untrustworthy ones, or mark them for review. Call this after run_research to curate which sources the AI should use when generating the draft.",
+    inputSchema: {
+      type: "object",
+      required: ["id", "sources"],
+      properties: {
+        id: { type: "string", description: "Conversation ID (UUID)" },
+        sources: {
+          type: "array",
+          description: "Array of source updates. Each object needs: id (the source ID from run_research results), approvalStatus ('approved', 'rejected', or 'needs_review'), and optionally adminNotes and includeInReferences (boolean).",
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "string", description: "Source ID from research results" },
+              approvalStatus: { type: "string", enum: ["approved", "rejected", "needs_review"], description: "Approval decision for this source" },
+              adminNotes: { type: "string", description: "Optional notes about this source" },
+              includeInReferences: { type: "boolean", description: "Whether to include in the final references block (default true)" },
+            },
+          },
+        },
       },
     },
   },
@@ -305,6 +340,50 @@ export async function handleAiWriterTool(name: string, args: Record<string, unkn
       const { status, data } = await apiRequest("POST", `/api/admin/ai/conversations/${args.id}/rewrite/${args.proposalId}/apply`);
       if (status === 200) return ok({ success: true, applied: true });
       if (status === 409) return fail("Proposal already applied, rejected, or draft has changed. Generate a fresh rewrite.");
+      return fail(data);
+    }
+
+    case "run_research": {
+      const { status, data } = await apiRequest("POST", `/api/admin/ai/conversations/${args.id}/research`);
+      if (status === 200) {
+        const conv = data as Record<string, unknown>;
+        const research = conv.research as Record<string, unknown> | null;
+        return ok({
+          success: true,
+          research: research ? {
+            provider: research.provider,
+            status: research.status,
+            topicSummary: research.topicSummary,
+            searchIntent: research.searchIntent,
+            keywordIdeas: research.keywordIdeas,
+            relatedQuestions: research.relatedQuestions,
+            contentGaps: research.contentGaps,
+            sources: Array.isArray(research.sources) ? (research.sources as Array<Record<string, unknown>>).map((s) => ({
+              id: s.id,
+              title: s.title,
+              url: s.url,
+              publisher: s.publisher,
+              summary: s.summary,
+              approvalStatus: s.approvalStatus,
+              includeInReferences: s.includeInReferences,
+            })) : [],
+            internalLinkSuggestions: research.internalLinkSuggestions,
+          } : null,
+        });
+      }
+      if (status === 503) return fail("Research provider not configured. Set up Exa in Admin > Settings > AI Configuration.");
+      if (status === 404) return fail("Conversation not found. Create a conversation and generate a brief first.");
+      return fail(data);
+    }
+
+    case "update_research_sources": {
+      if (!Array.isArray(args.sources)) return fail("sources must be an array");
+      const body = { sources: args.sources };
+      const { status, data } = await apiRequest("PUT", `/api/admin/ai/conversations/${args.id}/research`, body);
+      if (status === 200) {
+        return ok({ success: true, message: `Updated ${args.sources.length} source(s).` });
+      }
+      if (status === 400) return fail("Run research before reviewing sources.");
       return fail(data);
     }
 
