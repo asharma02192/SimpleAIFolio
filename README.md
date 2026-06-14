@@ -240,6 +240,8 @@ Once connected, just talk naturally:
 
 See [`mcp-server/README.md`](./mcp-server/README.md) for the complete list of 62 tools, 6 resources, and 6 prompts.
 
+**For AI agents:** Paste [`docs/AGENT_GUIDE.md`](./docs/AGENT_GUIDE.md) into your AI tool's system prompt or custom instructions. It documents every tool, parameter, resource, prompt, and common workflow so the agent knows exactly how to use the MCP server.
+
 ---
 
 ## AI Blog Studio Setup
