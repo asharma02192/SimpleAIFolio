@@ -39,6 +39,7 @@ interface AiConfig {
 }
 
 interface McpConfig {
+  apiKey: string;
   apiKeyMasked: string;
   apiKeySet: boolean;
   mcpUrl: string;
@@ -822,7 +823,7 @@ function SettingsContent() {
                               {mcpConfig.apiKeyMasked}
                             </code>
                             <button
-                              onClick={() => copyToClipboard(mcpConfig.apiKeyMasked, "key")}
+                              onClick={() => copyToClipboard(mcpConfig.apiKey, "key")}
                               className="px-3 py-[var(--space-2)] rounded-[var(--radius-md)] font-[family-name:var(--font-body)] text-[var(--text-xs)] font-500 transition-colors"
                               style={{ background: "var(--color-bg)", border: "1px solid var(--color-border)", color: "var(--color-text)" }}
                             >

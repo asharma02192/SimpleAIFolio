@@ -316,13 +316,14 @@ router.get("/admin/mcp-config", authMiddleware, requireRole("admin"), async (req
     const mcpUrl = `http://${mcpHost}:${mcpPort}/mcp`;
 
     res.json({
+      apiKey: apiKey,
       apiKeyMasked: maskKey(apiKey),
       apiKeySet: Boolean(apiKey),
       mcpUrl,
       siteUrl,
-      toolCount: 59,
+      toolCount: 62,
       resourceCount: 6,
-      promptCount: 4,
+      promptCount: 6,
     });
   } catch {
     res.status(500).json({ error: "Failed to fetch MCP config" });
