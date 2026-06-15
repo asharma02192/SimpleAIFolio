@@ -1550,3 +1550,87 @@ test("sync draft generation with content failure returns 502 error", async () =>
   assert.equal(response.status, 502);
   assert.match(response.body.error, /Content generation failed/i);
 });
+
+test("save-draft rejects a failed placeholder draft", async () => {
+  const fixture = createFixture();
+  const conversation = fixture.seedConversation();
+  fixture.state.drafts.set(conversation.id, {
+    id: "draft-failed-row",
+    conversationId: conversation.id,
+    title: "Draft generation failed",
+    slug: "draft-failed-123",
+    excerpt: "",
+    metaTitle: "",
+    metaDescription: "",
+    contentHtml: "<p>Draft generation failed. Use force=true to retry.</p>",
+    categorySuggestion: null,
+    tagsJson: JSON.stringify([]),
+    outlineJson: JSON.stringify([]),
+    faqJson: JSON.stringify([]),
+    ogImagePrompt: null,
+    seoScore: 0,
+    engagementScore: 0,
+    readabilityScore: 0,
+    recommendationsJson: JSON.stringify([]),
+    verificationNotesJson: JSON.stringify(["__DRAFT_ERROR__AI returned invalid structured data after 3 attempts."]),
+    verificationFlagsJson: JSON.stringify([]),
+    engagementInsightsJson: JSON.stringify([]),
+    internalLinkSuggestionsJson: JSON.stringify([]),
+    researchUsed: false,
+    referencesEnabled: false,
+    postId: null,
+    status: "saved",
+  });
+
+  const app = createTestApp("/api/admin/ai", createAdminAiRouter({ prismaClient: fixture.prismaClient as any, aiService: createAiService() }));
+  const response = await request(app)
+    .post(`/api/admin/ai/conversations/${conversation.id}/save-draft`)
+    .set("Authorization", `Bearer ${createToken()}`)
+    .send({ includeReferences: false });
+
+  assert.equal(response.status, 400);
+  assert.match(response.body.error, /invalid structured data/i);
+  assert.equal(fixture.state.posts.length, 2, "no new post should be created");
+});
+
+test("draft status surfaces stored failure even when conversation status is draft_generating", async () => {
+  const fixture = createFixture();
+  const conversation = fixture.seedConversation({ status: "draft_generating" });
+  fixture.state.drafts.set(conversation.id, {
+    id: "draft-failed-stuck",
+    conversationId: conversation.id,
+    title: "Draft generation failed",
+    slug: "draft-failed-456",
+    excerpt: "",
+    metaTitle: "",
+    metaDescription: "",
+    contentHtml: "<p>Draft generation failed.</p>",
+    categorySuggestion: null,
+    tagsJson: JSON.stringify([]),
+    outlineJson: JSON.stringify([]),
+    faqJson: JSON.stringify([]),
+    ogImagePrompt: null,
+    seoScore: 0,
+    engagementScore: 0,
+    readabilityScore: 0,
+    recommendationsJson: JSON.stringify([]),
+    verificationNotesJson: JSON.stringify(["__DRAFT_ERROR__AI returned invalid structured data after 3 attempts."]),
+    verificationFlagsJson: JSON.stringify([]),
+    engagementInsightsJson: JSON.stringify([]),
+    internalLinkSuggestionsJson: JSON.stringify([]),
+    researchUsed: false,
+    referencesEnabled: false,
+    postId: null,
+    status: "failed",
+  });
+
+  const app = createTestApp("/api/admin/ai", createAdminAiRouter({ prismaClient: fixture.prismaClient as any }));
+  const response = await request(app)
+    .get(`/api/admin/ai/conversations/${conversation.id}/draft/status`)
+    .set("Authorization", `Bearer ${createToken()}`);
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.status, "failed");
+  assert.equal(response.body.ready, false);
+  assert.match(response.body.error, /invalid structured data/i);
+});

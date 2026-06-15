@@ -1049,6 +1049,20 @@ export function createAdminAiRouter({
     return row ? row.slice(DRAFT_ERROR_PREFIX.length) : null;
   }
 
+  function getDraftFailureError(draft: AiDraftData | null): string | null {
+    if (!draft) return null;
+
+    const decoded = decodeDraftError(draft.verificationNotes || []);
+    if (decoded) return decoded;
+
+    const GENERIC_RETRY = "Draft generation failed. Use generate_draft with force=true to retry.";
+
+    if (draft.status === "failed") return GENERIC_RETRY;
+    if (draft.slug?.startsWith("draft-failed-") || draft.title === "Draft generation failed") return GENERIC_RETRY;
+
+    return null;
+  }
+
   async function executeDraftGeneration(conversationId: string, userId: string): Promise<void> {
     const startedAt = Date.now();
     const usageEvents: AiTelemetryEvent[] = [];
@@ -2038,6 +2052,18 @@ export function createAdminAiRouter({
       const conversationStatus = conversation.status || "active";
       const draft = toDraftPayload(conversation.draft);
 
+      const draftFailureError = getDraftFailureError(draft);
+      if (draftFailureError) {
+        res.json({
+          conversationId: conversation.id,
+          status: "failed",
+          draft: null,
+          error: draftFailureError,
+          ready: false,
+        });
+        return;
+      }
+
       if (conversationStatus === "draft_generating") {
         const isActivelyGenerating = draftGenerationJobs.has(conversation.id);
         if (!isActivelyGenerating) {
@@ -2536,6 +2562,12 @@ export function createAdminAiRouter({
       const draft = toDraftPayload(conversation.draft);
       if (!draft) {
         res.status(400).json({ error: "Generate a draft before saving it." });
+        return;
+      }
+
+      const draftFailureError = getDraftFailureError(draft);
+      if (draftFailureError) {
+        res.status(400).json({ error: draftFailureError });
         return;
       }
 
