@@ -40,6 +40,17 @@ export const aiWriterTools: Tool[] = [
     },
   },
   {
+    name: "delete_ai_conversation",
+    description: "Permanently delete an AI conversation and all its associated data (messages, brief, draft, research). Useful for cleaning up failed or abandoned conversations. This cannot be undone.",
+    inputSchema: {
+      type: "object",
+      required: ["id"],
+      properties: {
+        id: { type: "string", description: "Conversation ID (UUID)" },
+      },
+    },
+  },
+  {
     name: "send_ai_message",
     description: "Send a message in an AI conversation. The AI will reply with guidance, suggestions, or clarifications about the blog post being written.",
     inputSchema: {
@@ -85,12 +96,13 @@ export const aiWriterTools: Tool[] = [
   },
   {
     name: "generate_draft",
-    description: "Generate a full blog post draft from the approved brief. REQUIRES: (1) an approved brief AND (2) research to have been run via run_research. The draft incorporates approved research sources for accuracy and current information. Returns title, slug, HTML body, SEO meta, FAQ, scores, recommendations, and internal link suggestions.",
+    description: "Generate a full blog post draft from the approved brief. REQUIRES: (1) an approved brief AND (2) research to have been run via run_research. The draft incorporates approved research sources for accuracy and current information. Returns title, slug, HTML body, SEO meta, FAQ, scores, recommendations, and internal link suggestions. If a draft was already generated (e.g. previous call timed out client-side but completed server-side), the cached draft is returned instantly. Pass force=true to regenerate from scratch.",
     inputSchema: {
       type: "object",
       required: ["id"],
       properties: {
         id: { type: "string", description: "Conversation ID (UUID)" },
+        force: { type: "boolean", description: "Force regeneration even if a draft already exists. Useful after editing the brief.", default: false },
       },
     },
   },
@@ -233,6 +245,13 @@ export async function handleAiWriterTool(name: string, args: Record<string, unkn
       });
     }
 
+    case "delete_ai_conversation": {
+      const { status, data } = await apiRequest("DELETE", `/api/admin/ai/conversations/${args.id}`);
+      if (status === 204) return ok({ success: true, deleted: true });
+      if (status === 404) return fail("Conversation not found.");
+      return fail(data);
+    }
+
     case "send_ai_message": {
       const { status, data } = await apiRequest("POST", `/api/admin/ai/conversations/${args.id}/message`, { message: args.message });
       if (status === 200) {
@@ -285,7 +304,9 @@ export async function handleAiWriterTool(name: string, args: Record<string, unkn
     }
 
     case "generate_draft": {
-      const { status, data } = await apiRequest("POST", `/api/admin/ai/conversations/${args.id}/draft`);
+      const body: Record<string, unknown> = {};
+      if (args.force === true) body.force = true;
+      const { status, data } = await apiRequest("POST", `/api/admin/ai/conversations/${args.id}/draft`, body);
       if (status === 200) {
         const conv = data as Record<string, unknown>;
         const draft = conv.draft as Record<string, unknown> | null;

@@ -48,20 +48,23 @@ export async function requestStructuredJson<T>({
 }): Promise<T> {
   let lastError: unknown = null;
   let attemptMessages = messages;
-  let result: AiCompletionResult | null = null;
+  let result: AiCompletionResult;
 
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    // Provider errors (quota, auth, network) propagate immediately — do not retry.
+    result = await provider.complete(attemptMessages);
+    await onAttempt?.(result, attempt + 1);
+
     try {
-      result = await provider.complete(attemptMessages);
-      await onAttempt?.(result, attempt + 1);
       const parsed = parseAiJson<unknown>(result.text);
       if (!validate(parsed)) {
         throw new Error("Structured AI response did not match the expected schema.");
       }
       return parsed;
     } catch (error) {
+      // Only JSON parse / schema errors reach here — retry with a repair prompt.
       lastError = error;
-      const previousResponse = result?.text
+      const previousResponse = result.text
         ? result.text.slice(0, MAX_REPAIR_RESPONSE_LENGTH)
         : "No previous response was captured.";
       attemptMessages = [

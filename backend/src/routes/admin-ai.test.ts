@@ -1051,3 +1051,234 @@ test("save-draft uses approved references only, blocks unsafe URLs, and remains 
   assert.doesNotMatch(createdPost?.body || "", /Rejected Source/);
   assert.doesNotMatch(createdPost?.body || "", /javascript:/i);
 });
+
+test("approve_brief without overrides preserves existing brief fields", async () => {
+  const fixture = createFixture();
+  const conversation = fixture.seedConversation();
+  fixture.state.briefs.set(conversation.id, {
+    id: "brief-preserve",
+    conversationId: conversation.id,
+    topic: conversation.topic,
+    audience: "developers",
+    goal: "Teach RAG",
+    tone: "Technical",
+    primaryKeyword: "RAG",
+    secondaryKeywordsJson: JSON.stringify(["retrieval", "embeddings"]),
+    wordCount: 1800,
+    contentType: "guide",
+    cta: "Read more",
+    notes: "Focus on practical examples",
+    approvedAt: null,
+  });
+
+  const app = createTestApp("/api/admin/ai", createAdminAiRouter({ prismaClient: fixture.prismaClient as any }));
+  const response = await request(app)
+    .put(`/api/admin/ai/conversations/${conversation.id}/brief`)
+    .set("Authorization", `Bearer ${createToken()}`)
+    .send({ approved: true });
+
+  assert.equal(response.status, 200);
+  const brief = response.body.brief;
+  assert.equal(brief.audience, "developers", "audience should be preserved");
+  assert.equal(brief.primaryKeyword, "RAG", "primaryKeyword should be preserved");
+  assert.equal(brief.wordCount, 1800, "wordCount should be preserved");
+  assert.deepEqual(brief.secondaryKeywords, ["retrieval", "embeddings"], "secondaryKeywords should be preserved");
+  assert.equal(brief.contentType, "guide", "contentType should be preserved");
+  assert.ok(brief.approvedAt, "approvedAt should be set");
+});
+
+test("generate_draft rejects unapproved brief with a clear message", async () => {
+  process.env.RESEARCH_PROVIDER = "exa";
+  process.env.RESEARCH_API_KEY = "test-exa-key";
+
+  const fixture = createFixture();
+  const conversation = fixture.seedConversation();
+  fixture.state.briefs.set(conversation.id, {
+    id: "brief-unapproved",
+    conversationId: conversation.id,
+    topic: conversation.topic,
+    audience: "devs",
+    goal: "",
+    tone: "",
+    primaryKeyword: "AI",
+    secondaryKeywordsJson: JSON.stringify([]),
+    wordCount: 1000,
+    contentType: "guide",
+    cta: "",
+    notes: null,
+    approvedAt: null,
+  });
+
+  const app = createTestApp("/api/admin/ai", createAdminAiRouter({ prismaClient: fixture.prismaClient as any, aiService: createAiService() }));
+  const response = await request(app)
+    .post(`/api/admin/ai/conversations/${conversation.id}/draft`)
+    .set("Authorization", `Bearer ${createToken()}`);
+
+  assert.equal(response.status, 400);
+  assert.match(response.body.error, /not been approved/i);
+});
+
+test("generate_draft returns cached draft on retry without regenerating", async () => {
+  process.env.RESEARCH_PROVIDER = "exa";
+  process.env.RESEARCH_API_KEY = "test-exa-key";
+
+  const fixture = createFixture();
+  const conversation = fixture.seedConversation();
+  fixture.state.briefs.set(conversation.id, {
+    id: "brief-cached",
+    conversationId: conversation.id,
+    topic: conversation.topic,
+    audience: "devs",
+    goal: "",
+    tone: "",
+    primaryKeyword: "AI",
+    secondaryKeywordsJson: JSON.stringify([]),
+    wordCount: 1000,
+    contentType: "guide",
+    cta: "",
+    notes: null,
+    approvedAt: new Date(),
+  });
+  fixture.state.researches.set(conversation.id, {
+    id: "research-cached",
+    conversationId: conversation.id,
+    provider: "mock",
+    status: "completed",
+    topicSummary: "",
+    searchIntent: "",
+    keywordIdeasJson: JSON.stringify([]),
+    relatedQuestionsJson: JSON.stringify([]),
+    competitorNotesJson: JSON.stringify([]),
+    contentGapsJson: JSON.stringify([]),
+    sourceNotesJson: JSON.stringify([
+      { id: "src-1", title: "Source", url: "https://example.com", publisher: "Ex", publishedDate: null, summary: "Sum", usefulness: "high", notes: [], approvalStatus: "approved", adminNotes: "" },
+    ]),
+    internalLinkOpportunitiesJson: JSON.stringify([]),
+    riskFlagsJson: JSON.stringify([]),
+  });
+  fixture.state.drafts.set(conversation.id, {
+    id: "draft-cached",
+    conversationId: conversation.id,
+    title: "Cached Draft Title",
+    slug: "cached-draft",
+    excerpt: "Cached excerpt",
+    metaTitle: "Cached Meta",
+    metaDescription: "Cached Desc",
+    contentHtml: "<p>Cached content</p>",
+    categorySuggestion: null,
+    tagsJson: JSON.stringify([]),
+    outlineJson: JSON.stringify([]),
+    faqJson: JSON.stringify([]),
+    ogImagePrompt: null,
+    seoScore: 75,
+    engagementScore: 70,
+    readabilityScore: 80,
+    recommendationsJson: JSON.stringify([]),
+    verificationNotesJson: JSON.stringify([]),
+    verificationFlagsJson: JSON.stringify([]),
+    engagementInsightsJson: JSON.stringify([]),
+    internalLinkSuggestionsJson: JSON.stringify([]),
+    researchUsed: true,
+    referencesEnabled: false,
+    postId: null,
+    status: "generated",
+  });
+
+  let generateCalled = false;
+  const app = createTestApp(
+    "/api/admin/ai",
+    createAdminAiRouter({
+      prismaClient: fixture.prismaClient as any,
+      aiService: createAiService({
+        generateDraft: async () => {
+          generateCalled = true;
+          return createAiService().generateDraft({} as any);
+        },
+      }),
+    }),
+  );
+
+  const response = await request(app)
+    .post(`/api/admin/ai/conversations/${conversation.id}/draft`)
+    .set("Authorization", `Bearer ${createToken()}`);
+
+  assert.equal(response.status, 200);
+  assert.equal(generateCalled, false, "generateDraft must not be called when a cached draft exists");
+  assert.equal(response.body.draft.title, "Cached Draft Title");
+});
+
+test("generate_draft with force=true regenerates even when a cached draft exists", async () => {
+  process.env.RESEARCH_PROVIDER = "exa";
+  process.env.RESEARCH_API_KEY = "test-exa-key";
+
+  const fixture = createFixture();
+  const conversation = fixture.seedConversation();
+  fixture.state.briefs.set(conversation.id, {
+    id: "brief-force",
+    conversationId: conversation.id,
+    topic: conversation.topic,
+    audience: "devs",
+    goal: "",
+    tone: "",
+    primaryKeyword: "AI",
+    secondaryKeywordsJson: JSON.stringify([]),
+    wordCount: 1000,
+    contentType: "guide",
+    cta: "",
+    notes: null,
+    approvedAt: new Date(),
+  });
+  fixture.state.researches.set(conversation.id, {
+    id: "research-force",
+    conversationId: conversation.id,
+    provider: "mock",
+    status: "completed",
+    topicSummary: "",
+    searchIntent: "",
+    keywordIdeasJson: JSON.stringify([]),
+    relatedQuestionsJson: JSON.stringify([]),
+    competitorNotesJson: JSON.stringify([]),
+    contentGapsJson: JSON.stringify([]),
+    sourceNotesJson: JSON.stringify([
+      { id: "src-1", title: "Source", url: "https://example.com", publisher: "Ex", publishedDate: null, summary: "Sum", usefulness: "high", notes: [], approvalStatus: "approved", adminNotes: "" },
+    ]),
+    internalLinkOpportunitiesJson: JSON.stringify([]),
+    riskFlagsJson: JSON.stringify([]),
+  });
+  fixture.state.drafts.set(conversation.id, {
+    id: "draft-old",
+    conversationId: conversation.id,
+    title: "Old Title",
+    slug: "old-slug",
+    excerpt: "",
+    metaTitle: "",
+    metaDescription: "",
+    contentHtml: "<p>Old</p>",
+    categorySuggestion: null,
+    tagsJson: JSON.stringify([]),
+    outlineJson: JSON.stringify([]),
+    faqJson: JSON.stringify([]),
+    ogImagePrompt: null,
+    seoScore: 0,
+    engagementScore: 0,
+    readabilityScore: 0,
+    recommendationsJson: JSON.stringify([]),
+    verificationNotesJson: JSON.stringify([]),
+    verificationFlagsJson: JSON.stringify([]),
+    engagementInsightsJson: JSON.stringify([]),
+    internalLinkSuggestionsJson: JSON.stringify([]),
+    researchUsed: true,
+    referencesEnabled: false,
+    postId: null,
+    status: "generated",
+  });
+
+  const app = createTestApp("/api/admin/ai", createAdminAiRouter({ prismaClient: fixture.prismaClient as any, aiService: createAiService() }));
+  const response = await request(app)
+    .post(`/api/admin/ai/conversations/${conversation.id}/draft`)
+    .set("Authorization", `Bearer ${createToken()}`)
+    .send({ force: true });
+
+  assert.equal(response.status, 200);
+  assert.notEqual(response.body.draft.title, "Old Title", "force=true should regenerate the draft");
+});

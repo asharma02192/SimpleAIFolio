@@ -514,19 +514,28 @@ async function resolveTagIds(prismaClient: AdminAiPrisma, suggestions: string[])
   return resolvedIds;
 }
 
-function buildBriefFromRequest(body: Record<string, unknown>, fallbackTopic: string): AiBriefData {
+function buildBriefFromRequest(
+  body: Record<string, unknown>,
+  fallbackTopic: string,
+  existing?: AiBriefData | null,
+): AiBriefData {
+  const has = (key: string) => body[key] !== undefined;
   return {
-    topic: coerceString(body.topic, MAX_TOPIC_LENGTH) || fallbackTopic,
-    audience: coerceString(body.audience, 300),
-    goal: coerceString(body.goal, 300),
-    tone: coerceString(body.tone, 120),
-    primaryKeyword: coerceString(body.primaryKeyword, 160),
-    secondaryKeywords: coerceStringArray(body.secondaryKeywords, 12, 120),
-    wordCount: Number.isFinite(Number(body.wordCount)) ? Math.max(300, Math.min(5000, Math.round(Number(body.wordCount)))) : null,
-    contentType: coerceString(body.contentType, 120),
-    cta: coerceString(body.cta, 300),
-    notes: coerceString(body.notes, MAX_NOTES_LENGTH),
-    approvedAt: body.approved === true ? new Date().toISOString() : null,
+    topic: has("topic") ? (coerceString(body.topic, MAX_TOPIC_LENGTH) || fallbackTopic) : (existing?.topic || fallbackTopic),
+    audience: has("audience") ? coerceString(body.audience, 300) : (existing?.audience || ""),
+    goal: has("goal") ? coerceString(body.goal, 300) : (existing?.goal || ""),
+    tone: has("tone") ? coerceString(body.tone, 120) : (existing?.tone || ""),
+    primaryKeyword: has("primaryKeyword") ? coerceString(body.primaryKeyword, 160) : (existing?.primaryKeyword || ""),
+    secondaryKeywords: has("secondaryKeywords")
+      ? coerceStringArray(body.secondaryKeywords, 12, 120)
+      : (existing?.secondaryKeywords || []),
+    wordCount: has("wordCount")
+      ? (Number.isFinite(Number(body.wordCount)) ? Math.max(300, Math.min(5000, Math.round(Number(body.wordCount)))) : null)
+      : (existing?.wordCount ?? null),
+    contentType: has("contentType") ? coerceString(body.contentType, 120) : (existing?.contentType || ""),
+    cta: has("cta") ? coerceString(body.cta, 300) : (existing?.cta || ""),
+    notes: has("notes") ? coerceString(body.notes, MAX_NOTES_LENGTH) : (existing?.notes || ""),
+    approvedAt: body.approved === true ? new Date().toISOString() : (existing?.approvedAt || null),
   };
 }
 
@@ -1276,7 +1285,7 @@ export function createAdminAiRouter({
         return;
       }
 
-      const briefPayload = buildBriefFromRequest(req.body as Record<string, unknown>, conversation.topic);
+      const briefPayload = buildBriefFromRequest(req.body as Record<string, unknown>, conversation.topic, toBriefPayload(conversation.brief));
 
       await prismaClient.aiContentBrief.upsert({
         where: { conversationId: conversation.id },
@@ -1526,9 +1535,22 @@ export function createAdminAiRouter({
         return;
       }
 
+      const forceRegenerate = coerceBoolean(req.body?.force);
+
+      const existingDraft = toDraftPayload(conversation.draft);
+      if (!forceRegenerate && existingDraft && existingDraft.status === "generated") {
+        const detail = await loadConversationForUser(prismaClient, conversation.id, req.userId!);
+        res.json(toConversationPayload(detail, researchMeta));
+        return;
+      }
+
       const brief = toBriefPayload(conversation.brief);
       if (!brief) {
-        res.status(400).json({ error: "Generate and approve a brief before drafting." });
+        res.status(400).json({ error: "No brief found. Call generate_brief first." });
+        return;
+      }
+      if (!brief.approvedAt) {
+        res.status(400).json({ error: "The brief has not been approved yet. Call approve_brief first." });
         return;
       }
 
@@ -1546,7 +1568,7 @@ export function createAdminAiRouter({
       // Require research to be run before drafting
       const storedResearch = toResearchPayload(conversation.research);
       if (!storedResearch || storedResearch.sources.length === 0) {
-        res.status(400).json({ error: "Run research before generating a draft. Use the Research button to fetch sources from Exa." });
+        res.status(400).json({ error: "Research has not been run. Call run_research before generate_draft." });
         return;
       }
       const research = prepareResearchForGeneration(storedResearch);
