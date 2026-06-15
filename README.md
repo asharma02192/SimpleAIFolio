@@ -103,7 +103,7 @@ curl http://localhost:3201/api/health
 
 # Test the MCP server
 curl http://localhost:3100/health
-# Should return: {"status":"ok","tools":59,"resources":6,"prompts":6}
+# Should return: {"status":"ok","tools":67,"resources":6,"prompts":6}
 ```
 
 Now open your browser:
@@ -146,7 +146,7 @@ No manual data entry needed.
 
 ## Connecting AI Tools via MCP
 
-The MCP (Model Context Protocol) server exposes 64 tools that let AI assistants manage your site. Here's how to connect each tool:
+The MCP (Model Context Protocol) server exposes 67 tools that let AI assistants manage your site. Here's how to connect each tool:
 
 ### Find Your Connection Details
 
@@ -238,7 +238,7 @@ Once connected, just talk naturally:
 | "How many newsletter subscribers do I have?" | Instant count + list |
 | "Add a new project called 'AI Chatbot'" | Project created with tech stack |
 
-See [`mcp-server/README.md`](./mcp-server/README.md) for the complete list of 64 tools, 6 resources, and 6 prompts.
+See [`mcp-server/README.md`](./mcp-server/README.md) for the complete list of 67 tools, 6 resources, and 6 prompts.
 
 **For AI agents:** Paste [`docs/AGENT_GUIDE.md`](./docs/AGENT_GUIDE.md) into your AI tool's system prompt or custom instructions. It documents every tool, parameter, resource, prompt, and common workflow so the agent knows exactly how to use the MCP server.
 
@@ -264,11 +264,30 @@ The AI Blog Studio (at `/admin/ai-writer`) generates full blog posts from a topi
 4. Go to **Admin > AI Writer** and start a conversation
 
 The AI Blog Studio workflow:
-1. Enter a topic → AI generates a **content brief** (audience, keywords, tone)
+1. Enter a topic → AI generates a **content brief** (audience, keywords, tone, expert angle, stance)
 2. Review and approve the brief
-3. AI generates a **full draft** (HTML content, SEO meta, FAQ, scores)
-4. Request **rewrites** (improve intro, add examples, make more SEO-focused, etc.)
-5. **Save to CMS** as a draft post
+3. Run **Exa research** (mandatory) → fetches live web sources, keyword ideas, content gaps
+4. Review and approve research sources
+5. AI generates a **full draft** (HTML content, SEO meta, FAQ, scores) — includes quality self-assessment
+6. Check **quality score** (1-10 across accuracy, depth, originality, voice, proof, SEO) — warn-only
+7. Request **rewrites** (15 actions: improve intro, add code examples, add personal experience, make more opinionated, etc.)
+8. **Save to CMS** as a draft post
+
+### AI Writing Profile
+
+To produce expert-quality drafts instead of generic SEO filler, configure your writing profile:
+
+1. Go to **Admin > Settings > Site Wide > AI** tab
+2. Scroll to **Writing Profile & Quality Standards**
+3. Fill in:
+   - **Author Credibility** — your real experience (roles, $ managed, projects)
+   - **Reusable Stories** — concrete examples the AI can reference
+   - **Strong Opinions** — your takes, preferred tools, contrarian positions
+   - **Voice Rules** — tone guidelines (direct, no generic AI phrases)
+   - **Proof Requirements** — what evidence you need (code, benchmarks, screenshots)
+4. Click **Save Profile**
+
+The AI injects this profile into every brief and draft. It **never fabricates** personal stories or numbers not in the profile — if evidence is missing, the draft includes a recommendation asking you to add it.
 
 ---
 
@@ -494,7 +513,7 @@ MCP_AUTH_PASSWORD=your-password \
 node dist/index.js --test
 ```
 
-This runs 73 end-to-end tests covering all 64 tools, 6 resources, and 6 prompts.
+This runs end-to-end tests covering all 67 tools, 6 resources, and 6 prompts.
 
 ---
 
@@ -536,7 +555,7 @@ SimpleAIFolio/
 │
 ├── mcp-server/                # MCP server for AI tool integration
 │   ├── src/
-│   │   ├── tools/            # 64 tools (12 files)
+│   │   ├── tools/            # 67 tools (12 files)
 │   │   ├── resources.ts      # 6 readable resources
 │   │   ├── prompts.ts        # 6 prompt templates
 │   │   ├── client.ts         # Backend API client (JWT auth)
@@ -584,7 +603,7 @@ SimpleAIFolio/
 - Site settings with sub-tabs: General, Social, AI, MCP, Account
   - General: theme selector, site info, logo URL
   - Social: social links, announcement bar
-  - AI: AI provider configuration (OpenAI-compatible)
+  - AI: AI provider configuration (OpenAI-compatible), Exa research API, Writing Profile & Quality Standards
   - MCP: MCP server API key and connection details
   - Account: profile editing (name/email), password change
 - User management with role-based access control
@@ -603,22 +622,27 @@ Three roles with different access levels:
 
 ### AI Blog Studio (`/admin/ai-writer`)
 - Conversation-based blog writing with AI
-- Structured content briefs (audience, keywords, tone, word count)
+- Structured content briefs with expert fields (audience, keywords, tone, expert angle, stance, proof requirements)
+- Mandatory Exa web research before draft generation — all content grounded in live sources
 - Full draft generation with SEO/engagement/readability scores
-- AI rewrite proposals (10 actions: improve intro, add FAQ, SEO focus, etc.)
+- Quality self-assessment (1-10 across accuracy, depth, originality, voice, proof, SEO) — warn-only
+- AI Writing Profile: injects author-specific evidence, opinions, and voice into drafts
+- AI rewrite proposals (15 actions: improve intro, add code examples, add personal experience, make more opinionated, reduce generic AI tone, etc.)
+- Cached draft on retry — no regeneration if server completed but client timed out
 - Research source collection with approval workflow
 - Internal link suggestions from existing posts
 - Verification flags for factual claims
 - One-click save to CMS
 
-### MCP Server (64 tools, 6 resources, 6 prompts)
+### MCP Server (67 tools, 6 resources, 6 prompts)
 - Full CRUD for posts, categories, tags, projects, experience, snippets
 - Comment moderation (list all, update status: approve/pending/spam)
 - User profile management (update name/email)
 - Analytics dashboard, page views, top pages
 - Newsletter subscriber management
 - Contact message management
-- AI writer integration (create conversation, generate brief/draft, rewrite, save)
+- AI writer integration (create conversation, generate brief/draft, rewrite, save, delete)
+- AI writing profile management (get/update author profile for expert-quality drafts)
 - Site settings read/update
 - Scheduled post publishing trigger
 - Portfolio onboarding agent (`setup-portfolio` prompt)
