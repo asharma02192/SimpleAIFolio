@@ -833,8 +833,8 @@ async function runTests() {
   });
 
   // Tool count check
-  await test("all 67 tools, 6 resources, 6 prompts registered", async () => {
-    assert(allTools.length === 67, `Expected 67 tools, got ${allTools.length}`);
+  await test("all 68 tools, 6 resources, 6 prompts registered", async () => {
+    assert(allTools.length === 68, `Expected 68 tools, got ${allTools.length}`);
     assert(resourceDefs.length === 6, `Expected 6 resources`);
     assert(promptDefs.length === 6, `Expected 6 prompts`);
   });

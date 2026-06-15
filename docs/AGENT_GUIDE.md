@@ -4,9 +4,9 @@
 
 ---
 
-## You are connected to SimpleAIFolio CMS
+# SimpleAIFolio CMS Agent
 
-SimpleAIFolio is a portfolio and blog platform. You have **67 tools**, **6 resources**, and **6 prompts** to manage the entire site. Use them to create content, manage projects, check analytics, moderate comments, and configure settings.
+You are connected to SimpleAIFolio CMS via MCP. SimpleAIFolio is a portfolio and blog platform with **68 tools**, **6 resources**, and **6 prompts** to manage the entire site. Help the user create content, manage projects, check analytics, moderate comments, and configure settings.
 
 ## Critical Rules
 
@@ -16,6 +16,8 @@ SimpleAIFolio is a portfolio and blog platform. You have **67 tools**, **6 resou
 4. **Use HTML for post bodies.** The `create_post` and `update_post` tools accept `body` as HTML, not markdown. Use `<h2>`, `<p>`, `<ul>`, `<code>`, `<blockquote>`, etc.
 5. **Never guess IDs.** If you need a post/category/tag/project ID, list them first and extract the ID from the response.
 6. **Settings are key-value.** The `update_settings` tool takes an `updates` object with keys like `site_title`, `tagline`, `bio_hero`, `social_links`, `skill_groups`, `hero_stats`, `theme`. Read current settings first with `get_settings`.
+7. **The AI Writer pipeline requires research.** Never bypass `run_research` when using the AI Writer. Content written without research is based on training data only and may be outdated. If the user asks for well-researched content, always use the full pipeline including `run_research` + `update_research_sources` + `generate_draft`.
+8. **Always check the writing profile before expert posts.** Call `get_ai_writing_profile` before generating briefs for posts that require personal expertise, opinions, or experience. If the profile is empty, ask the user to set it up first.
 
 ## Tool Categories
 
@@ -36,7 +38,7 @@ SimpleAIFolio is a portfolio and blog platform. You have **67 tools**, **6 resou
 | `get_post_comments` | Read comments on a post | `postId` |
 | `delete_comment` | Remove a comment | `id`, `confirm: true` |
 
-**Workflow: Create a blog post**
+**Workflow: Create a blog post (manual)**
 ```
 1. list_categories → get categoryId
 2. list_tags → get tagIds
@@ -144,7 +146,7 @@ Same pattern as categories. Tags are more granular than categories (e.g., tag "R
 | `update_snippet` | Edit code or toggle enabled |
 | `delete_snippet` | Remove — `id`, `confirm: true` |
 
-### AI Writer (15 tools)
+### AI Writer (16 tools)
 
 | Tool | When to Use | Key Parameters |
 |------|-------------|----------------|
@@ -157,7 +159,8 @@ Same pattern as categories. Tags are more granular than categories (e.g., tag "R
 | `approve_brief` | Approve brief to enable research and draft generation. Optionally override fields — unspecified fields are preserved, not cleared. | `id` + optional overrides |
 | `run_research` | **MANDATORY** — Run Exa web research. Fetches live sources, keywords, content gaps. Must be called before generate_draft. | `id` |
 | `update_research_sources` | Review and curate which sources the AI should use. Approve good sources, reject bad ones. | `id`, `sources[]` |
-| `generate_draft` | Generate full HTML draft using brief + approved research. Returns cached draft on retry (pass `force: true` to regenerate). Includes quality self-assessment scores. | `id`, `force` (optional) |
+| `generate_draft` | Start async draft generation using brief + approved research. Returns immediately — poll `get_draft_status`. If cached draft exists, returns it instantly. | `id`, `force` (optional) |
+| `get_draft_status` | Poll draft generation status. Returns `ready: true` with draft when complete, or `ready: false` while generating. Poll every 10-20 seconds. | `conversationId` |
 | `request_rewrite` | AI rewrite of section — 15 actions available (see below) | `id`, `action`, `selectedText` (optional) |
 | `apply_rewrite` | Apply a generated proposal | `id`, `proposalId` |
 | `save_ai_draft` | Save AI draft to CMS as a blog post | `id`, `includeReferences` |
@@ -174,12 +177,23 @@ Same pattern as categories. Tags are more granular than categories (e.g., tag "R
 3. approve_brief           ← preserves existing fields if no overrides given
 4. ★ run_research          ← MANDATORY — do NOT skip this
 5. update_research_sources (approve good sources)
-6. generate_draft          ← Will fail if step 4 was skipped
-                             ← Returns cached draft on retry (no regeneration)
+6. generate_draft          ← ASYNC: returns immediately with "draft_generating"
+                             ← If cached draft exists, returns it instantly
                              ← Pass force=true to regenerate from scratch
-7. request_rewrite + apply_rewrite (optional — 15 actions available)
-8. save_ai_draft
+7. ★ get_draft_status      ← POLL every 10-20 seconds until ready=true
+                             ← Do NOT call generate_draft again while generating
+8. request_rewrite + apply_rewrite (optional — 15 actions available)
+9. save_ai_draft
 ```
+
+**Async draft generation — IMPORTANT for agents:**
+- `generate_draft` starts generation in the background and returns immediately.
+- It returns `status: "draft_generating"` with a `pollTool: "get_draft_status"` instruction.
+- Poll `get_draft_status` every 10-20 seconds until `ready: true`.
+- **Do NOT call `generate_draft` repeatedly** while status is `draft_generating` — it will not start a duplicate job, but it wastes requests.
+- If the draft was already generated (cached), `generate_draft` returns it instantly with `ready: true` — no polling needed.
+- If `get_draft_status` returns `status: "failed"`, use `generate_draft` with `force: true` to retry.
+- If the status stays `draft_generating` for more than 30 minutes (process restart), the status endpoint automatically reports it as failed.
 
 **Error messages you may encounter:**
 - `"No brief found. Call generate_brief first."` — no brief exists yet
@@ -196,8 +210,6 @@ Same pattern as categories. Tags are more granular than categories (e.g., tag "R
 | Tool | When to Use |
 |------|-------------|
 | `update_profile` | Update admin name or email |
-
-Note: `list_all_comments` and `update_comment_status` are also available for moderation.
 
 ### AI Writing Profile (2 tools)
 
@@ -298,8 +310,23 @@ Resources provide structured data without calling tools. Read them for context:
 5. Ask user: "Want me to publish it now or schedule it?"
 ```
 
-Use Option B only when the user explicitly wants you to write without research,
-or when the AI Writer pipeline is unavailable.
+Use Option B only when:
+- The user explicitly wants you to write without research
+- The AI Writer pipeline is unavailable or broken
+- The content is opinion/personal experience (not factual/technical)
+- The topic doesn't require current data (e.g., personal essays, fiction)
+
+**Always disclose to the user which option you used.** If you used Option B, warn them that the content is based on training data and should be fact-checked before publishing.
+
+### "Write multiple blog posts at once"
+
+When the user asks for multiple posts (e.g., "write 5 blog posts"):
+1. Gather all topics and confirm with the user
+2. For each topic, run the **full AI Writer pipeline** (Option A above)
+3. Do NOT batch `create_ai_conversation` for all topics at once and then try to batch the remaining steps — the research step must complete per conversation before `generate_draft` will work
+4. Process each post sequentially through the pipeline, or ensure research completes for each before generating drafts
+5. Alternatively, create tags and categories in parallel (these are independent), then process posts one at a time through the AI Writer
+6. Use `delete_ai_conversation` to clean up any conversations that enter `failed` state
 
 ### "Set up my portfolio"
 
@@ -335,3 +362,5 @@ or when the AI Writer pipeline is unavailable.
 - For blog posts, always suggest SEO metaTitle and metaDescription
 - For projects, always ask about tech stack, live URL, and GitHub URL
 - Mention preview URLs when creating drafts so the user can review
+- **Disclose whether content was research-backed or training-data-only**
+- **Report quality scores** when using the AI Writer — if overall score is below 8, flag the checklist items to the user before they publish

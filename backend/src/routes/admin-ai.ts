@@ -1040,6 +1040,160 @@ export function createAdminAiRouter({
     researchMessage: service.getUnavailableReason(),
   });
 
+  const draftGenerationJobs = new Map<string, Promise<void>>();
+  const DRAFT_STALE_MS = 30 * 60 * 1000;
+  const DRAFT_ERROR_PREFIX = "__DRAFT_ERROR__";
+
+  function decodeDraftError(notes: string[]): string | null {
+    const row = notes.find((n) => n.startsWith(DRAFT_ERROR_PREFIX));
+    return row ? row.slice(DRAFT_ERROR_PREFIX.length) : null;
+  }
+
+  async function executeDraftGeneration(conversationId: string, userId: string): Promise<void> {
+    const startedAt = Date.now();
+    const usageEvents: AiTelemetryEvent[] = [];
+
+    try {
+      const service = await getAiService((event) => { usageEvents.push(event); });
+      const conversation = await loadConversationForUser(prismaClient, conversationId, userId);
+
+      if (!conversation) {
+        logError("Async draft generation: conversation not found", { conversationId });
+        return;
+      }
+
+      const brief = toBriefPayload(conversation.brief);
+      const storedResearch = toResearchPayload(conversation.research);
+      const research = prepareResearchForGeneration(storedResearch);
+      const historicalContext = await getHistoricalEngagementContext(prismaClient);
+      const writingProfile = await loadWritingProfile(prismaClient);
+
+      const draft = await service.generateDraft({
+        topic: conversation.topic,
+        brief: brief!,
+        messages: toMessageInputs(conversation.messages),
+        historicalContext: historicalContext.summary,
+        research,
+        writingProfile: isProfileEmpty(writingProfile) ? null : writingProfile,
+      });
+
+      const rawInternalLinkSuggestions =
+        draft.internalLinkSuggestions && draft.internalLinkSuggestions.length > 0
+          ? draft.internalLinkSuggestions
+          : research?.internalLinkSuggestions || [];
+      const { links: internalLinkSuggestions, topicGaps } = await validateInternalLinkSuggestions(
+        prismaClient,
+        rawInternalLinkSuggestions,
+        conversation.topic,
+        brief!,
+      );
+      const verificationNotes = uniqueStrings([
+        ...(draft.verificationNotes || []),
+        ...(research?.sources.length === 0 && storedResearch?.sources.length ? [SOURCELESS_RESEARCH_WARNING] : []),
+      ]);
+      const notesWithQualityScore = encodeQualityScoreIntoNotes(verificationNotes, draft.qualityScore || null);
+      const draftRecommendations = [
+        ...(draft.recommendations || []),
+        ...topicGaps.map((gap) => `Consider writing a related post: "${gap}" to strengthen internal linking.`),
+      ];
+
+      const draftUpdateData = {
+        title: draft.title,
+        slug: draft.slug,
+        excerpt: draft.excerpt || null,
+        metaTitle: draft.metaTitle || null,
+        metaDescription: draft.metaDescription || null,
+        contentHtml: sanitizeGeneratedHtml(draft.contentHtml),
+        categorySuggestion: draft.categorySuggestion || null,
+        tagsJson: JSON.stringify(draft.tagSuggestions || []),
+        outlineJson: JSON.stringify(draft.outline || []),
+        faqJson: JSON.stringify(draft.faq || []),
+        ogImagePrompt: draft.ogImagePrompt || null,
+        seoScore: draft.seoScore,
+        engagementScore: draft.engagementScore,
+        readabilityScore: draft.readabilityScore,
+        recommendationsJson: JSON.stringify(draftRecommendations),
+        verificationNotesJson: JSON.stringify(notesWithQualityScore),
+        verificationFlagsJson: JSON.stringify(draft.verificationFlags || []),
+        engagementInsightsJson: JSON.stringify(
+          draft.engagementInsights && draft.engagementInsights.length > 0
+            ? draft.engagementInsights
+            : historicalContext.insights
+        ),
+        internalLinkSuggestionsJson: JSON.stringify(internalLinkSuggestions),
+        researchUsed: Boolean(draft.researchUsed || (research && research.sources.length > 0 && research.status === "completed")),
+        referencesEnabled: false,
+        status: "generated" as const,
+      };
+
+      await prismaClient.aiDraftOutput.upsert({
+        where: { conversationId },
+        update: draftUpdateData,
+        create: { conversationId, ...draftUpdateData },
+      });
+
+      await prismaClient.aiRewriteProposal
+        .updateMany({
+          where: { conversationId, status: "proposed" },
+          data: { status: "rejected" },
+        })
+        .catch(() => undefined);
+
+      await appendConversationMessage(
+        prismaClient,
+        conversationId,
+        "assistant",
+        "The draft is ready. Review the brief, verification flags, internal linking suggestions, and HTML preview before saving it as a CMS draft.",
+        { type: "draft-generated" }
+      );
+      await touchConversation(prismaClient, conversationId, "draft_ready", draft.title);
+      await Promise.all(
+        usageEvents.map((event) =>
+          recordUsageEvent(prismaClient, conversationId, event, {
+            draftSlug: draft.slug,
+            researchUsed: draft.researchUsed,
+          })
+        )
+      );
+
+      logInfo("Async draft generation completed", {
+        conversationId,
+        elapsedMs: Date.now() - startedAt,
+      });
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+
+      await prismaClient.aiConversation.update({
+        where: { id: conversationId },
+        data: { status: "failed" },
+      }).catch(() => undefined);
+
+      await prismaClient.aiDraftOutput.upsert({
+        where: { conversationId },
+        update: {
+          status: "failed",
+          verificationNotesJson: JSON.stringify([`${DRAFT_ERROR_PREFIX}${errorMsg.slice(0, 1000)}`]),
+        },
+        create: {
+          conversationId,
+          title: "Draft generation failed",
+          slug: `draft-failed-${Date.now()}`,
+          contentHtml: "<p>Draft generation failed. Use force=true to retry.</p>",
+          status: "failed",
+          verificationNotesJson: JSON.stringify([`${DRAFT_ERROR_PREFIX}${errorMsg.slice(0, 1000)}`]),
+        },
+      }).catch(() => undefined);
+
+      await recordFailedOperation(prismaClient, conversationId, envConfig.provider, "draft_generate", errorMsg);
+
+      logError("Async draft generation failed", {
+        conversationId,
+        elapsedMs: Date.now() - startedAt,
+        error: errorMsg,
+      });
+    }
+  }
+
   router.use(authMiddleware);
   router.use(requireRoleWithClient(prismaClient, "admin", "editor"));
 
@@ -1664,6 +1818,7 @@ export function createAdminAiRouter({
       }
 
       const forceRegenerate = coerceBoolean(req.body?.force);
+      const useAsync = coerceBoolean(req.body?.async);
 
       const existingDraft = toDraftPayload(conversation.draft);
       if (!forceRegenerate && existingDraft && existingDraft.status === "generated") {
@@ -1699,6 +1854,34 @@ export function createAdminAiRouter({
         res.status(400).json({ error: "Research has not been run. Call run_research before generate_draft." });
         return;
       }
+
+      // === ASYNC MODE: return 202 immediately, generate in background ===
+      if (useAsync) {
+        if (draftGenerationJobs.has(conversation.id)) {
+          res.status(202).json({
+            status: "draft_generating",
+            conversationId: conversation.id,
+            pollUrl: `/api/admin/ai/conversations/${conversation.id}/draft/status`,
+          });
+          return;
+        }
+
+        await touchConversation(prismaClient, conversation.id, "draft_generating");
+
+        const job = executeDraftGeneration(conversation.id, req.userId!).finally(() => {
+          draftGenerationJobs.delete(conversation.id);
+        });
+        draftGenerationJobs.set(conversation.id, job);
+
+        logInfo("Async draft generation started", { conversationId: conversation.id });
+        res.status(202).json({
+          status: "draft_generating",
+          conversationId: conversation.id,
+          pollUrl: `/api/admin/ai/conversations/${conversation.id}/draft/status`,
+        });
+        return;
+      }
+
       const research = prepareResearchForGeneration(storedResearch);
       const historicalContext = await getHistoricalEngagementContext(prismaClient);
       const writingProfile = await loadWritingProfile(prismaClient);
@@ -1841,6 +2024,84 @@ export function createAdminAiRouter({
         data: { status: "failed" },
       }).catch(() => undefined);
       res.status(502).json({ error: error instanceof Error ? error.message : "Failed to generate AI draft" });
+    }
+  });
+
+  router.get("/conversations/:id/draft/status", async (req: AuthRequest, res) => {
+    try {
+      const conversation = await loadConversationForUser(prismaClient, param(req, "id"), req.userId!);
+      if (!conversation) {
+        res.status(404).json({ error: "AI conversation not found" });
+        return;
+      }
+
+      const conversationStatus = conversation.status || "active";
+      const draft = toDraftPayload(conversation.draft);
+
+      if (conversationStatus === "draft_generating") {
+        const isActivelyGenerating = draftGenerationJobs.has(conversation.id);
+        if (!isActivelyGenerating) {
+          const updatedAt = new Date(conversation.updatedAt).getTime();
+          if (Date.now() - updatedAt > DRAFT_STALE_MS) {
+            res.json({
+              conversationId: conversation.id,
+              status: "failed",
+              draft: null,
+              error: "Draft generation timed out (stale for 30+ minutes). Use generate_draft with force=true to retry.",
+              ready: false,
+            });
+            return;
+          }
+        }
+        res.json({
+          conversationId: conversation.id,
+          status: "draft_generating",
+          draft: null,
+          error: null,
+          ready: false,
+        });
+        return;
+      }
+
+      if (draft && (draft.status === "generated" || draft.status === "saved")) {
+        res.json({
+          conversationId: conversation.id,
+          status: draft.status,
+          draft,
+          error: null,
+          ready: true,
+        });
+        return;
+      }
+
+      if (conversationStatus === "failed" || (draft && draft.status === "failed")) {
+        const rawNotes = safeJsonParse<string[]>(conversation.draft?.verificationNotesJson, []);
+        const error = decodeDraftError(rawNotes);
+        res.json({
+          conversationId: conversation.id,
+          status: "failed",
+          draft: null,
+          error: error || "Draft generation failed. Use generate_draft with force=true to retry.",
+          ready: false,
+        });
+        return;
+      }
+
+      res.json({
+        conversationId: conversation.id,
+        status: conversationStatus,
+        draft: draft,
+        error: null,
+        ready: false,
+      });
+    } catch (error) {
+      logError("Draft status check failed", {
+        ...getRequestLogMeta(req),
+        userId: req.userId,
+        conversationId: param(req, "id"),
+        error: error instanceof Error ? error.message : String(error),
+      });
+      res.status(500).json({ error: "Failed to check draft status" });
     }
   });
 

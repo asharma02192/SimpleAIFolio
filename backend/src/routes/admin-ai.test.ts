@@ -1282,3 +1282,171 @@ test("generate_draft with force=true regenerates even when a cached draft exists
   assert.equal(response.status, 200);
   assert.notEqual(response.body.draft.title, "Old Title", "force=true should regenerate the draft");
 });
+
+test("async draft returns 202 and eventually completes via status polling", async () => {
+  process.env.RESEARCH_PROVIDER = "exa";
+  process.env.RESEARCH_API_KEY = "test-exa-key";
+
+  const fixture = createFixture();
+  const conversation = fixture.seedConversation();
+  fixture.state.briefs.set(conversation.id, {
+    id: "brief-async",
+    conversationId: conversation.id,
+    topic: conversation.topic,
+    audience: "devs", goal: "", tone: "", primaryKeyword: "AI",
+    secondaryKeywordsJson: JSON.stringify([]), wordCount: 1000,
+    contentType: "guide", cta: "", notes: null, approvedAt: new Date(),
+  });
+  fixture.state.researches.set(conversation.id, {
+    id: "research-async", conversationId: conversation.id,
+    provider: "mock", status: "completed", topicSummary: "", searchIntent: "",
+    keywordIdeasJson: JSON.stringify([]), relatedQuestionsJson: JSON.stringify([]),
+    competitorNotesJson: JSON.stringify([]), contentGapsJson: JSON.stringify([]),
+    sourceNotesJson: JSON.stringify([{ id: "src-1", title: "S", url: "https://example.com", publisher: "Ex", publishedDate: null, summary: "Sum", usefulness: "high", notes: [], approvalStatus: "approved", adminNotes: "" }]),
+    internalLinkOpportunitiesJson: JSON.stringify([]), riskFlagsJson: JSON.stringify([]),
+  });
+
+  const app = createTestApp("/api/admin/ai", createAdminAiRouter({
+    prismaClient: fixture.prismaClient as any,
+    aiService: createAiService({
+      generateDraft: async (input) => {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        return createAiService().generateDraft(input);
+      },
+    }),
+  }));
+
+  const draftResponse = await request(app)
+    .post(`/api/admin/ai/conversations/${conversation.id}/draft`)
+    .set("Authorization", `Bearer ${createToken()}`)
+    .send({ async: true });
+
+  assert.equal(draftResponse.status, 202);
+  assert.equal(draftResponse.body.status, "draft_generating");
+  assert.ok(draftResponse.body.pollUrl);
+
+  const statusResponse = await request(app)
+    .get(`/api/admin/ai/conversations/${conversation.id}/draft/status`)
+    .set("Authorization", `Bearer ${createToken()}`);
+
+  assert.equal(statusResponse.status, 200);
+  assert.equal(statusResponse.body.ready, false);
+
+  let ready = false;
+  for (let i = 0; i < 40 && !ready; i++) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const poll = await request(app)
+      .get(`/api/admin/ai/conversations/${conversation.id}/draft/status`)
+      .set("Authorization", `Bearer ${createToken()}`);
+    ready = poll.body.ready === true;
+    if (ready) {
+      assert.equal(poll.body.status, "generated");
+      assert.ok(poll.body.draft);
+      assert.ok(poll.body.draft.title);
+    }
+  }
+  assert.ok(ready, "Draft should become ready via polling");
+});
+
+test("duplicate async draft call does not start duplicate generation", async () => {
+  process.env.RESEARCH_PROVIDER = "exa";
+  process.env.RESEARCH_API_KEY = "test-exa-key";
+
+  const fixture = createFixture();
+  const conversation = fixture.seedConversation();
+  fixture.state.briefs.set(conversation.id, {
+    id: "brief-dup", conversationId: conversation.id,
+    topic: conversation.topic, audience: "devs", goal: "", tone: "",
+    primaryKeyword: "AI", secondaryKeywordsJson: JSON.stringify([]),
+    wordCount: 1000, contentType: "guide", cta: "", notes: null, approvedAt: new Date(),
+  });
+  fixture.state.researches.set(conversation.id, {
+    id: "research-dup", conversationId: conversation.id,
+    provider: "mock", status: "completed", topicSummary: "", searchIntent: "",
+    keywordIdeasJson: JSON.stringify([]), relatedQuestionsJson: JSON.stringify([]),
+    competitorNotesJson: JSON.stringify([]), contentGapsJson: JSON.stringify([]),
+    sourceNotesJson: JSON.stringify([{ id: "src-1", title: "S", url: "https://example.com", publisher: "Ex", publishedDate: null, summary: "Sum", usefulness: "high", notes: [], approvalStatus: "approved", adminNotes: "" }]),
+    internalLinkOpportunitiesJson: JSON.stringify([]), riskFlagsJson: JSON.stringify([]),
+  });
+
+  let callCount = 0;
+  const app = createTestApp("/api/admin/ai", createAdminAiRouter({
+    prismaClient: fixture.prismaClient as any,
+    aiService: createAiService({
+      generateDraft: async (input) => {
+        callCount++;
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        return createAiService().generateDraft(input);
+      },
+    }),
+  }));
+
+  const token = `Bearer ${createToken()}`;
+  const [r1, r2] = await Promise.all([
+    request(app).post(`/api/admin/ai/conversations/${conversation.id}/draft`).set("Authorization", token).send({ async: true }),
+    request(app).post(`/api/admin/ai/conversations/${conversation.id}/draft`).set("Authorization", token).send({ async: true }),
+  ]);
+
+  assert.equal(r1.status, 202);
+  assert.equal(r2.status, 202);
+  assert.equal(callCount, 1, "generateDraft should only be called once");
+
+  for (let i = 0; i < 50; i++) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const poll = await request(app).get(`/api/admin/ai/conversations/${conversation.id}/draft/status`).set("Authorization", token);
+    if (poll.body.ready) break;
+  }
+});
+
+test("failed async generation sets failed status and exposes error", async () => {
+  process.env.RESEARCH_PROVIDER = "exa";
+  process.env.RESEARCH_API_KEY = "test-exa-key";
+
+  const fixture = createFixture();
+  const conversation = fixture.seedConversation();
+  fixture.state.briefs.set(conversation.id, {
+    id: "brief-fail", conversationId: conversation.id,
+    topic: conversation.topic, audience: "devs", goal: "", tone: "",
+    primaryKeyword: "AI", secondaryKeywordsJson: JSON.stringify([]),
+    wordCount: 1000, contentType: "guide", cta: "", notes: null, approvedAt: new Date(),
+  });
+  fixture.state.researches.set(conversation.id, {
+    id: "research-fail", conversationId: conversation.id,
+    provider: "mock", status: "completed", topicSummary: "", searchIntent: "",
+    keywordIdeasJson: JSON.stringify([]), relatedQuestionsJson: JSON.stringify([]),
+    competitorNotesJson: JSON.stringify([]), contentGapsJson: JSON.stringify([]),
+    sourceNotesJson: JSON.stringify([{ id: "src-1", title: "S", url: "https://example.com", publisher: "Ex", publishedDate: null, summary: "Sum", usefulness: "high", notes: [], approvalStatus: "approved", adminNotes: "" }]),
+    internalLinkOpportunitiesJson: JSON.stringify([]), riskFlagsJson: JSON.stringify([]),
+  });
+
+  const app = createTestApp("/api/admin/ai", createAdminAiRouter({
+    prismaClient: fixture.prismaClient as any,
+    aiService: createAiService({
+      generateDraft: async () => {
+        throw new Error("You exceeded your current quota");
+      },
+    }),
+  }));
+
+  const token = `Bearer ${createToken()}`;
+  const draftResponse = await request(app)
+    .post(`/api/admin/ai/conversations/${conversation.id}/draft`)
+    .set("Authorization", token)
+    .send({ async: true });
+
+  assert.equal(draftResponse.status, 202);
+
+  let status = "";
+  let error = "";
+  for (let i = 0; i < 40; i++) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const poll = await request(app).get(`/api/admin/ai/conversations/${conversation.id}/draft/status`).set("Authorization", token);
+    status = poll.body.status;
+    error = poll.body.error || "";
+    if (poll.body.status === "failed") break;
+  }
+
+  assert.equal(status, "failed");
+  assert.match(error, /quota/i);
+  assert.equal(fixture.state.conversations.find((c) => c.id === conversation.id)?.status, "failed");
+});

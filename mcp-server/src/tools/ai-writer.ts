@@ -96,13 +96,24 @@ export const aiWriterTools: Tool[] = [
   },
   {
     name: "generate_draft",
-    description: "Generate a full blog post draft from the approved brief. REQUIRES: (1) an approved brief AND (2) research to have been run via run_research. The draft incorporates approved research sources for accuracy and current information. Returns title, slug, HTML body, SEO meta, FAQ, scores, recommendations, and internal link suggestions. If a draft was already generated (e.g. previous call timed out client-side but completed server-side), the cached draft is returned instantly. Pass force=true to regenerate from scratch.",
+    description: "Start async draft generation from the approved brief + research. Returns immediately with a polling instruction — the draft generates in the background. REQUIRES: (1) an approved brief AND (2) research run via run_research. If a draft was already generated (e.g. previous call completed), the cached draft is returned instantly. Pass force=true to regenerate from scratch. After calling, poll get_draft_status every 10-20 seconds until ready=true.",
     inputSchema: {
       type: "object",
       required: ["id"],
       properties: {
         id: { type: "string", description: "Conversation ID (UUID)" },
-        force: { type: "boolean", description: "Force regeneration even if a draft already exists. Useful after editing the brief.", default: false },
+        force: { type: "boolean", description: "Force regeneration even if a draft already exists.", default: false },
+      },
+    },
+  },
+  {
+    name: "get_draft_status",
+    description: "Poll the status of an async draft generation. Returns ready=true with the full draft payload once generation completes, or ready=false while still generating. Call this every 10-20 seconds after generate_draft until ready=true. If status is 'failed', the error field contains the failure reason — use generate_draft with force=true to retry.",
+    inputSchema: {
+      type: "object",
+      required: ["conversationId"],
+      properties: {
+        conversationId: { type: "string", description: "Conversation ID (UUID)" },
       },
     },
   },
@@ -326,7 +337,7 @@ export async function handleAiWriterTool(name: string, args: Record<string, unkn
     }
 
     case "generate_draft": {
-      const body: Record<string, unknown> = {};
+      const body: Record<string, unknown> = { async: true };
       if (args.force === true) body.force = true;
       const { status, data } = await apiRequest("POST", `/api/admin/ai/conversations/${args.id}/draft`, body);
       if (status === 200) {
@@ -349,9 +360,57 @@ export async function handleAiWriterTool(name: string, args: Record<string, unkn
           } : null,
         });
       }
+      if (status === 202) {
+        const result = data as Record<string, unknown>;
+        return ok({
+          success: true,
+          status: "draft_generating",
+          conversationId: result.conversationId || args.id,
+          pollTool: "get_draft_status",
+          message: "Draft generation started in background. Poll get_draft_status every 10-20 seconds until ready=true.",
+        });
+      }
       if (status === 503) return fail("AI provider not configured.");
       if (status === 400) return fail(data);
       return fail(data);
+    }
+
+    case "get_draft_status": {
+      const { status, data } = await apiRequest("GET", `/api/admin/ai/conversations/${args.conversationId}/draft/status`);
+      if (status !== 200) return fail(data);
+      const result = data as Record<string, unknown>;
+      const ready = result.ready === true;
+      const draft = result.draft as Record<string, unknown> | null;
+      if (ready && draft) {
+        return ok({
+          ready: true,
+          status: result.status,
+          draft: {
+            title: draft.title,
+            slug: draft.slug,
+            excerpt: draft.excerpt,
+            metaTitle: draft.metaTitle,
+            metaDescription: draft.metaDescription,
+            contentLength: draft.contentHtml ? String(draft.contentHtml).length : 0,
+            seoScore: draft.seoScore,
+            engagementScore: draft.engagementScore,
+            readabilityScore: draft.readabilityScore,
+            tagSuggestions: draft.tagSuggestions,
+            recommendations: draft.recommendations,
+            qualityScore: draft.qualityScore,
+          },
+        });
+      }
+      return ok({
+        ready: false,
+        status: result.status,
+        error: result.error || null,
+        message: result.status === "draft_generating"
+          ? "Draft is still generating. Poll again in 10-20 seconds."
+          : result.status === "failed"
+            ? `Draft generation failed: ${result.error || "unknown error"}. Use generate_draft with force=true to retry.`
+            : `Status: ${result.status}`,
+      });
     }
 
     case "request_rewrite": {
