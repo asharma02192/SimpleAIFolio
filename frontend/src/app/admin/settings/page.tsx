@@ -470,97 +470,6 @@ function SettingsContent() {
                       </p>
                     )}
                   </section>
-
-                  <section className="rounded-[var(--radius-lg)] p-[var(--space-6)] mt-[var(--space-5)]" style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)" }}>
-                    <div className="mb-[var(--space-5)] flex flex-col gap-[var(--space-3)] sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <p className="font-[family-name:var(--font-mono)] text-[0.625rem] uppercase tracking-[0.2em] mb-[var(--space-1)]" style={{ color: "var(--color-accent)" }}>AI Writer</p>
-                        <h2 className="font-[family-name:var(--font-display)] text-[var(--text-lg)] font-700" style={{ color: "var(--color-text)" }}>
-                          Writing Profile &amp; Quality Standards
-                        </h2>
-                        <p className="mt-[var(--space-1)] font-[family-name:var(--font-body)] text-[var(--text-sm)]" style={{ color: "var(--color-text-tertiary)" }}>
-                          Inject author-specific evidence, opinions, voice, and proof requirements into AI-generated drafts. The AI will never fabricate stories not listed here.
-                        </p>
-                      </div>
-                      <button
-                        onClick={saveWritingProfile}
-                        disabled={writingProfileSaving || !writingProfile}
-                        className="inline-flex min-h-[36px] items-center justify-center rounded-[var(--radius-md)] px-4 py-2 font-[family-name:var(--font-body)] text-[var(--text-sm)] font-500 transition-all duration-150 hover:brightness-110 disabled:opacity-50 whitespace-nowrap self-start sm:self-auto"
-                        style={{ background: "var(--color-accent)", color: "var(--color-accent-on)" }}
-                      >
-                        {writingProfileSaving ? "Saving..." : "Save Profile"}
-                      </button>
-                    </div>
-                    {writingProfile ? (
-                      <div className="flex flex-col gap-[var(--space-5)]">
-                        <div>
-                          <label className={labelClass} style={{ color: "var(--color-text-tertiary)" }}>Author Credibility</label>
-                          <textarea
-                            value={writingProfile.authorCredibility}
-                            onChange={(e) => setWritingProfile({ ...writingProfile, authorCredibility: e.target.value })}
-                            placeholder="e.g. 10+ years in performance marketing. Managed $50M+ in ad spend across Meta, Google, TikTok. Built SimpleAIFolio and OpsConsole."
-                            rows={3}
-                            className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-colors resize-y"
-                            style={inputStyle}
-                          />
-                        </div>
-                        <div>
-                          <label className={labelClass} style={{ color: "var(--color-text-tertiary)" }}>Reusable Stories (one per line)</label>
-                          <textarea
-                            value={writingProfile.reusableStories.join("\n")}
-                            onChange={(e) => setWritingProfile({ ...writingProfile, reusableStories: e.target.value.split("\n").filter(Boolean) })}
-                            placeholder={"e.g.\nBuilt SimpleAIFolio: open-source portfolio + blog platform with AI writer\nScaled Meta Ads from $10k to $500k/month for a DTC brand"}
-                            rows={4}
-                            className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-colors resize-y"
-                            style={inputStyle}
-                          />
-                        </div>
-                        <div>
-                          <label className={labelClass} style={{ color: "var(--color-text-tertiary)" }}>Strong Opinions (one per line)</label>
-                          <textarea
-                            value={writingProfile.strongOpinions.join("\n")}
-                            onChange={(e) => setWritingProfile({ ...writingProfile, strongOpinions: e.target.value.split("\n").filter(Boolean) })}
-                            placeholder={"e.g.\nMost teams over-engineer their automation stack\nLocal-first beats cloud-first for solo developers"}
-                            rows={3}
-                            className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-colors resize-y"
-                            style={inputStyle}
-                          />
-                        </div>
-                        <div>
-                          <label className={labelClass} style={{ color: "var(--color-text-tertiary)" }}>Voice Rules (one per line)</label>
-                          <textarea
-                            value={writingProfile.voiceRules.join("\n")}
-                            onChange={(e) => setWritingProfile({ ...writingProfile, voiceRules: e.target.value.split("\n").filter(Boolean) })}
-                            placeholder={"e.g.\nBe direct and practical — no fluff\nNever use phrases like 'In today's fast-paced world'\nState opinions confidently, don't hedge"}
-                            rows={3}
-                            className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-colors resize-y"
-                            style={inputStyle}
-                          />
-                        </div>
-                        <div>
-                          <label className={labelClass} style={{ color: "var(--color-text-tertiary)" }}>Proof Requirements (one per line)</label>
-                          <textarea
-                            value={writingProfile.proofRequirements.join("\n")}
-                            onChange={(e) => setWritingProfile({ ...writingProfile, proofRequirements: e.target.value.split("\n").filter(Boolean) })}
-                            placeholder={"e.g.\nCode snippets for technical posts\nReal benchmarks or campaign data for marketing claims\nScreenshots or config examples where relevant"}
-                            rows={3}
-                            className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-colors resize-y"
-                            style={inputStyle}
-                          />
-                        </div>
-                        <div className="rounded-[var(--radius-md)] p-[var(--space-3)] flex items-start gap-[var(--space-2)]" style={{ background: "var(--color-bg)", border: "1px solid var(--color-border)" }}>
-                          <span className="text-[var(--text-sm)]" style={{ color: "var(--color-text-tertiary)" }}>⚠️</span>
-                          <p className="font-[family-name:var(--font-body)] text-[var(--text-xs)]" style={{ color: "var(--color-text-tertiary)" }}>
-                            The AI uses this profile to add author-specific evidence and voice to drafts. It will never invent personal stories or numbers not listed here. If evidence is missing, the draft will include a recommendation asking you to add it.
-                          </p>
-                        </div>
-                      </div>
-                    ) : (
-                      <p className="font-[family-name:var(--font-mono)] text-[var(--text-sm)]" style={{ color: "var(--color-text-tertiary)" }}>
-                        Loading writing profile...
-                      </p>
-                    )}
-                  </section>
                   </>
               )}
 
@@ -903,6 +812,97 @@ function SettingsContent() {
                     ) : (
                       <p className="font-[family-name:var(--font-mono)] text-[var(--text-sm)]" style={{ color: "var(--color-text-tertiary)" }}>
                         Loading AI configuration...
+                      </p>
+                    )}
+                  </section>
+
+                  <section className="rounded-[var(--radius-lg)] p-[var(--space-6)] mt-[var(--space-5)]" style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)" }}>
+                    <div className="mb-[var(--space-5)] flex flex-col gap-[var(--space-3)] sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="font-[family-name:var(--font-mono)] text-[0.625rem] uppercase tracking-[0.2em] mb-[var(--space-1)]" style={{ color: "var(--color-accent)" }}>AI Writer</p>
+                        <h2 className="font-[family-name:var(--font-display)] text-[var(--text-lg)] font-700" style={{ color: "var(--color-text)" }}>
+                          Writing Profile &amp; Quality Standards
+                        </h2>
+                        <p className="mt-[var(--space-1)] font-[family-name:var(--font-body)] text-[var(--text-sm)]" style={{ color: "var(--color-text-tertiary)" }}>
+                          Inject author-specific evidence, opinions, voice, and proof requirements into AI-generated drafts. The AI will never fabricate stories not listed here.
+                        </p>
+                      </div>
+                      <button
+                        onClick={saveWritingProfile}
+                        disabled={writingProfileSaving || !writingProfile}
+                        className="inline-flex min-h-[36px] items-center justify-center rounded-[var(--radius-md)] px-4 py-2 font-[family-name:var(--font-body)] text-[var(--text-sm)] font-500 transition-all duration-150 hover:brightness-110 disabled:opacity-50 whitespace-nowrap self-start sm:self-auto"
+                        style={{ background: "var(--color-accent)", color: "var(--color-accent-on)" }}
+                      >
+                        {writingProfileSaving ? "Saving..." : "Save Profile"}
+                      </button>
+                    </div>
+                    {writingProfile ? (
+                      <div className="flex flex-col gap-[var(--space-5)]">
+                        <div>
+                          <label className={labelClass} style={{ color: "var(--color-text-tertiary)" }}>Author Credibility</label>
+                          <textarea
+                            value={writingProfile.authorCredibility}
+                            onChange={(e) => setWritingProfile({ ...writingProfile, authorCredibility: e.target.value })}
+                            placeholder="e.g. 10+ years in performance marketing. Managed $50M+ in ad spend across Meta, Google, TikTok. Built SimpleAIFolio and OpsConsole."
+                            rows={3}
+                            className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-colors resize-y"
+                            style={inputStyle}
+                          />
+                        </div>
+                        <div>
+                          <label className={labelClass} style={{ color: "var(--color-text-tertiary)" }}>Reusable Stories (one per line)</label>
+                          <textarea
+                            value={writingProfile.reusableStories.join("\n")}
+                            onChange={(e) => setWritingProfile({ ...writingProfile, reusableStories: e.target.value.split("\n").filter(Boolean) })}
+                            placeholder={"e.g.\nBuilt SimpleAIFolio: open-source portfolio + blog platform with AI writer\nScaled Meta Ads from $10k to $500k/month for a DTC brand"}
+                            rows={4}
+                            className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-colors resize-y"
+                            style={inputStyle}
+                          />
+                        </div>
+                        <div>
+                          <label className={labelClass} style={{ color: "var(--color-text-tertiary)" }}>Strong Opinions (one per line)</label>
+                          <textarea
+                            value={writingProfile.strongOpinions.join("\n")}
+                            onChange={(e) => setWritingProfile({ ...writingProfile, strongOpinions: e.target.value.split("\n").filter(Boolean) })}
+                            placeholder={"e.g.\nMost teams over-engineer their automation stack\nLocal-first beats cloud-first for solo developers"}
+                            rows={3}
+                            className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-colors resize-y"
+                            style={inputStyle}
+                          />
+                        </div>
+                        <div>
+                          <label className={labelClass} style={{ color: "var(--color-text-tertiary)" }}>Voice Rules (one per line)</label>
+                          <textarea
+                            value={writingProfile.voiceRules.join("\n")}
+                            onChange={(e) => setWritingProfile({ ...writingProfile, voiceRules: e.target.value.split("\n").filter(Boolean) })}
+                            placeholder={"e.g.\nBe direct and practical — no fluff\nNever use phrases like 'In today's fast-paced world'\nState opinions confidently, don't hedge"}
+                            rows={3}
+                            className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-colors resize-y"
+                            style={inputStyle}
+                          />
+                        </div>
+                        <div>
+                          <label className={labelClass} style={{ color: "var(--color-text-tertiary)" }}>Proof Requirements (one per line)</label>
+                          <textarea
+                            value={writingProfile.proofRequirements.join("\n")}
+                            onChange={(e) => setWritingProfile({ ...writingProfile, proofRequirements: e.target.value.split("\n").filter(Boolean) })}
+                            placeholder={"e.g.\nCode snippets for technical posts\nReal benchmarks or campaign data for marketing claims\nScreenshots or config examples where relevant"}
+                            rows={3}
+                            className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-colors resize-y"
+                            style={inputStyle}
+                          />
+                        </div>
+                        <div className="rounded-[var(--radius-md)] p-[var(--space-3)] flex items-start gap-[var(--space-2)]" style={{ background: "var(--color-bg)", border: "1px solid var(--color-border)" }}>
+                          <span className="text-[var(--text-sm)]" style={{ color: "var(--color-text-tertiary)" }}>⚠️</span>
+                          <p className="font-[family-name:var(--font-body)] text-[var(--text-xs)]" style={{ color: "var(--color-text-tertiary)" }}>
+                            The AI uses this profile to add author-specific evidence and voice to drafts. It will never invent personal stories or numbers not listed here. If evidence is missing, the draft will include a recommendation asking you to add it.
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="font-[family-name:var(--font-mono)] text-[var(--text-sm)]" style={{ color: "var(--color-text-tertiary)" }}>
+                        Loading writing profile...
                       </p>
                     )}
                   </section>
