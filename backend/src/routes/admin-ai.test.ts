@@ -4,6 +4,8 @@ import jwt from "jsonwebtoken";
 import request from "supertest";
 import { createAdminAiRouter } from "./admin-ai";
 import { createTestApp } from "../test/test-app";
+import { summarizeDraftForMetadata } from "../services/ai/blog-studio";
+import { buildDraftContentMessages, buildDraftMetadataMessages, buildDraftReviewMessages } from "../services/ai/prompts";
 import type {
   AiBriefData,
   AiDraftData,
@@ -1449,4 +1451,102 @@ test("failed async generation sets failed status and exposes error", async () =>
   assert.equal(status, "failed");
   assert.match(error, /quota/i);
   assert.equal(fixture.state.conversations.find((c) => c.id === conversation.id)?.status, "failed");
+});
+
+test("summarizeDraftForMetadata extracts headings, word count, and excerpt from HTML", () => {
+  const html = `
+    <h2>Introduction</h2>
+    <p>This is the first paragraph with some content here.</p>
+    <h3>Subsection</h3>
+    <p>More content with "quotes" and <code>code snippets</code>.</p>
+    <h2>Conclusion</h2>
+    <p>Final thoughts.</p>
+  `;
+
+  const summary = summarizeDraftForMetadata(html);
+
+  assert.ok(summary.wordCount > 10, "should count words");
+  assert.deepEqual(summary.headings, ["Introduction", "Subsection", "Conclusion"]);
+  assert.ok(summary.excerpt.length > 0, "should have an excerpt");
+  assert.ok(summary.plainText.length > 0, "should have plain text");
+  assert.ok(!summary.plainText.includes("<"), "plain text should not contain HTML tags");
+});
+
+test("draft prompt builders produce distinct schemas for content, metadata, and review", () => {
+  const input = {
+    topic: "Test topic",
+    brief: {
+      topic: "Test topic",
+      audience: "devs",
+      goal: "",
+      tone: "",
+      primaryKeyword: "test",
+      secondaryKeywords: [],
+      wordCount: 1000,
+      contentType: "guide",
+      cta: "",
+      notes: "",
+    },
+    messages: [{ role: "user" as const, content: "test" }],
+    historicalContext: null,
+    research: null,
+    writingProfile: null,
+  };
+
+  const contentMessages = buildDraftContentMessages(input);
+  const metadataInput = { topic: input.topic, brief: input.brief, contentSummary: { plainText: "test", headings: ["H"], wordCount: 100, excerpt: "test" } };
+  const metadataMessages = buildDraftMetadataMessages(metadataInput);
+  const reviewMessages = buildDraftReviewMessages({ ...metadataInput, research: null });
+
+  const contentUserMsg = contentMessages[contentMessages.length - 1].content;
+  const metadataUserMsg = metadataMessages[metadataMessages.length - 1].content;
+  const reviewUserMsg = reviewMessages[reviewMessages.length - 1].content;
+
+  assert.ok(contentUserMsg.includes("contentHtml"), "content prompt should ask for contentHtml");
+  assert.ok(!contentUserMsg.includes("qualityScore"), "content prompt should NOT ask for qualityScore");
+
+  assert.ok(metadataUserMsg.includes("metaTitle"), "metadata prompt should ask for metaTitle");
+  assert.ok(!metadataUserMsg.includes("contentHtml"), "metadata prompt should NOT ask for contentHtml");
+
+  assert.ok(reviewUserMsg.includes("qualityScore"), "review prompt should ask for qualityScore");
+  assert.ok(!reviewUserMsg.includes("contentHtml"), "review prompt should NOT ask for contentHtml");
+});
+
+test("sync draft generation with content failure returns 502 error", async () => {
+  process.env.RESEARCH_PROVIDER = "exa";
+  process.env.RESEARCH_API_KEY = "test-exa-key";
+
+  const fixture = createFixture();
+  const conversation = fixture.seedConversation();
+  fixture.state.briefs.set(conversation.id, {
+    id: "brief-fail-sync", conversationId: conversation.id,
+    topic: conversation.topic, audience: "devs", goal: "", tone: "",
+    primaryKeyword: "AI", secondaryKeywordsJson: JSON.stringify([]),
+    wordCount: 1000, contentType: "guide", cta: "", notes: null, approvedAt: new Date(),
+  });
+  fixture.state.researches.set(conversation.id, {
+    id: "research-fail-sync", conversationId: conversation.id,
+    provider: "mock", status: "completed", topicSummary: "", searchIntent: "",
+    keywordIdeasJson: JSON.stringify([]), relatedQuestionsJson: JSON.stringify([]),
+    competitorNotesJson: JSON.stringify([]), contentGapsJson: JSON.stringify([]),
+    sourceNotesJson: JSON.stringify([{ id: "src-1", title: "S", url: "https://example.com", publisher: "Ex", publishedDate: null, summary: "Sum", usefulness: "high", notes: [], approvalStatus: "approved", adminNotes: "" }]),
+    internalLinkOpportunitiesJson: JSON.stringify([]), riskFlagsJson: JSON.stringify([]),
+  });
+
+  const app = createTestApp("/api/admin/ai", createAdminAiRouter({
+    prismaClient: fixture.prismaClient as any,
+    aiService: createAiService({
+      generateDraft: async () => {
+        throw new Error("Content generation failed — model returned empty response");
+      },
+    }),
+  }));
+
+  const response = await request(app)
+    .post(`/api/admin/ai/conversations/${conversation.id}/draft`)
+    .set("Authorization", `Bearer ${createToken()}`)
+    .send({});
+
+  assert.equal(response.status, 502);
+  assert.match(response.body.error, /Content generation failed/i);
 });

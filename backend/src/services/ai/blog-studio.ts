@@ -4,7 +4,10 @@ import {
   buildAnalyzeMessages,
   buildBriefMessages,
   buildClarificationMessages,
+  buildDraftContentMessages,
+  buildDraftMetadataMessages,
   buildDraftMessages,
+  buildDraftReviewMessages,
   buildRewriteMessages,
 } from "./prompts";
 import {
@@ -562,6 +565,33 @@ function isDraftShape(value: unknown): value is Record<string, unknown> {
   return typeof record.title === "string" && typeof record.slug === "string" && typeof record.contentHtml === "string";
 }
 
+function isDraftContentShape(value: unknown): value is Record<string, unknown> {
+  return isDraftShape(value);
+}
+
+function isDraftMetadataShape(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object");
+}
+
+function isDraftReviewShape(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object");
+}
+
+export function summarizeDraftForMetadata(contentHtml: string): { plainText: string; headings: string[]; wordCount: number; excerpt: string } {
+  const headings = [...contentHtml.matchAll(/<h[23][^>]*>(.*?)<\/h[23]>/gi)]
+    .map((m) => m[1].replace(/<[^>]*>/g, "").trim())
+    .filter(Boolean)
+    .slice(0, 15);
+  const plainText = contentHtml.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+  const wordCount = plainText ? plainText.split(/\s+/).length : 0;
+  return {
+    plainText: plainText.slice(0, 4000),
+    headings,
+    wordCount,
+    excerpt: plainText.slice(0, 220),
+  };
+}
+
 function isAnalysisShape(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object");
 }
@@ -858,27 +888,104 @@ export function createBlogStudioAiService({
       return normalizeBrief(parsed, input.topic);
     },
     async generateDraft(input) {
-      const parsed = await requestStructuredJson({
+      const draftInput = {
+        topic: clamp(input.topic, MAX_TOPIC_LENGTH),
+        brief: input.brief,
+        messages: input.messages.map((message) => ({
+          ...message,
+          content: clamp(message.content, MAX_MESSAGE_LENGTH),
+        })),
+        historicalContext: input.historicalContext,
+        research: input.research,
+        writingProfile: input.writingProfile,
+      };
+
+      // Step 1: Content (title, slug, contentHtml, outline, faq, categorySuggestion) — largest call, most retries
+      const contentResult = await requestStructuredJson({
         provider,
-        messages: buildDraftMessages({
-          topic: clamp(input.topic, MAX_TOPIC_LENGTH),
-          brief: input.brief,
-          messages: input.messages.map((message) => ({
-            ...message,
-            content: clamp(message.content, MAX_MESSAGE_LENGTH),
-          })),
-          historicalContext: input.historicalContext,
-          research: input.research,
-          writingProfile: input.writingProfile,
-        }),
-        validate: isDraftShape,
+        messages: buildDraftContentMessages(draftInput),
+        validate: isDraftContentShape,
         onAttempt: async (result, attempt) => {
           await onTelemetry?.({ operation: "draft_generate", result, attempt });
         },
         maxAttempts: 3,
       });
 
-      return normalizeDraft(parsed, input.topic);
+      const contentSummary = summarizeDraftForMetadata(
+        typeof contentResult.contentHtml === "string" ? contentResult.contentHtml : ""
+      );
+
+      // Step 2: Metadata (excerpt, meta, tags, scores) — small call, fallback on failure
+      let metadataResult: Record<string, unknown>;
+      let usedMetadataFallback = false;
+      try {
+        metadataResult = await requestStructuredJson({
+          provider,
+          messages: buildDraftMetadataMessages({
+            topic: draftInput.topic,
+            brief: draftInput.brief,
+            contentSummary,
+          }),
+          validate: isDraftMetadataShape,
+          onAttempt: async (result, attempt) => {
+            await onTelemetry?.({ operation: "draft_generate", result, attempt });
+          },
+        });
+      } catch {
+        usedMetadataFallback = true;
+        metadataResult = {
+          excerpt: contentSummary.excerpt,
+          metaTitle: typeof contentResult.title === "string" ? contentResult.title : draftInput.topic,
+          metaDescription: contentSummary.excerpt,
+          tagSuggestions: [],
+          ogImagePrompt: `Editorial blog cover about ${draftInput.brief?.primaryKeyword || draftInput.topic}`,
+          seoScore: 72,
+          engagementScore: 68,
+          readabilityScore: 74,
+        };
+      }
+
+      // Step 3: Review (recommendations, verification, qualityScore) — small call, fallback on failure
+      let reviewResult: Record<string, unknown>;
+      let usedReviewFallback = false;
+      try {
+        reviewResult = await requestStructuredJson({
+          provider,
+          messages: buildDraftReviewMessages({
+            topic: draftInput.topic,
+            brief: draftInput.brief,
+            contentSummary,
+            research: draftInput.research,
+          }),
+          validate: isDraftReviewShape,
+          onAttempt: async (result, attempt) => {
+            await onTelemetry?.({ operation: "draft_generate", result, attempt });
+          },
+        });
+      } catch {
+        usedReviewFallback = true;
+        reviewResult = {
+          recommendations: ["Run manual quality review before publishing."],
+          verificationNotes: ["Automated quality review failed and should be repeated."],
+          verificationFlags: [],
+          engagementInsights: [],
+          internalLinkSuggestions: [],
+          qualityScore: {
+            accuracy: 5, depth: 5, originality: 5, voice: 5, proof: 5, seo: 5, overall: 5,
+            checklist: ["Automated quality review failed. Review manually before publishing."],
+          },
+        };
+      }
+
+      const merged: Record<string, unknown> = { ...contentResult, ...metadataResult, ...reviewResult };
+
+      if (usedMetadataFallback || usedReviewFallback) {
+        const notes = Array.isArray(merged.verificationNotes) ? [...merged.verificationNotes as string[]] : [];
+        if (usedMetadataFallback) notes.push("SEO metadata was generated using fallback defaults. Review and edit before publishing.");
+        merged.verificationNotes = notes;
+      }
+
+      return normalizeDraft(merged, input.topic);
     },
     async analyzeDraft(input) {
       const parsed = await requestStructuredJson({

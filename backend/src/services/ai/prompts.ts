@@ -225,6 +225,166 @@ Quality requirements:
   ];
 }
 
+const DRAFT_CONTENT_QUALITY_RULES = `
+Quality requirements:
+- Take a clear editorial stance. Do not be neutral or wishy-washy.
+- Back current facts with research sources. Do not invent statistics.
+- Include concrete examples, code snippets, or tested workflow notes for technical posts.
+- Vary structure — do not default to intro → bullet list → FAQ for every post.
+- Write in a direct, practical voice. Avoid generic AI phrases like "In today's fast-paced world" or "It's worth noting that."
+- Never invent personal stories, numbers, GitHub stats, campaign data, or screenshots.`.trim();
+
+export function buildDraftContentMessages(input: AiDraftInput): AiChatMessage[] {
+  const profileBlock = input.writingProfile ? `\n\nWriting profile — use this to add author-specific evidence, opinions, examples, and voice. Do NOT fabricate personal stories or numbers that are not in the profile. If the profile lacks evidence for a claim, add a recommendation asking the author to provide it.\n${serializeProfile(input.writingProfile)}` : "";
+
+  return [
+    {
+      role: "system",
+      content: `${BLOG_STUDIO_SYSTEM_PROMPT}
+
+Return valid JSON only. Do not wrap it in markdown fences.
+Do not include a status field.
+Write the article body as safe semantic HTML using headings, paragraphs, lists, blockquotes, code blocks, and strong emphasis where useful.
+
+${DRAFT_CONTENT_QUALITY_RULES}${profileBlock}`,
+    },
+    {
+      role: "user",
+      content: [
+        `Write the full article for the topic "${input.brief.topic || input.topic}".`,
+        "Use the approved content brief below.",
+        "Return ONLY the article content: title, slug, contentHtml (full article), outline, faq, and categorySuggestion.",
+        "Generate the strongest single title — do not list alternatives.",
+        input.historicalContext
+          ? `Historical context:\n${input.historicalContext}`
+          : "Historical context: Not enough data. Using best-practice scoring.",
+        input.research
+          ? `Research notes:\n${JSON.stringify(input.research)}`
+          : "Research notes: No live research is available. Use best-practice editorial guidance only.",
+        "",
+        "Approved brief:",
+        JSON.stringify(input.brief),
+        "",
+        "Conversation transcript:",
+        serializeMessages(input.messages),
+        "",
+        "JSON schema:",
+        JSON.stringify({
+          title: "string",
+          slug: "string",
+          contentHtml: "string — full article as semantic HTML",
+          outline: [{ heading: "string", points: ["string"] }],
+          faq: [{ question: "string", answer: "string" }],
+          categorySuggestion: "string",
+        }),
+      ].join("\n"),
+    },
+  ];
+}
+
+export function buildDraftMetadataMessages(input: {
+  topic: string;
+  brief: AiBriefData | null;
+  contentSummary: { plainText: string; headings: string[]; wordCount: number; excerpt: string };
+}): AiChatMessage[] {
+  return [
+    {
+      role: "system",
+      content: `${BLOG_STUDIO_SYSTEM_PROMPT}
+
+Return valid JSON only. Do not wrap it in markdown fences.
+You are generating SEO metadata for an article that has already been written. Base all scores on the content provided.`,
+    },
+    {
+      role: "user",
+      content: [
+        `Generate SEO metadata for an article about "${input.brief?.topic || input.topic}".`,
+        "The article has already been written. Here is a summary of its content:",
+        "",
+        `Word count: ${input.contentSummary.wordCount}`,
+        `Headings: ${input.contentSummary.headings.join(" | ") || "None extracted"}`,
+        `Content excerpt (first 220 chars): ${input.contentSummary.excerpt}`,
+        "",
+        "Based on the article content and brief, produce:",
+        "- excerpt: 1-2 sentence summary for listings and social sharing",
+        "- metaTitle: SEO title (under 60 chars)",
+        "- metaDescription: meta description (under 160 chars)",
+        "- tagSuggestions: 3-8 relevant tags",
+        "- ogImagePrompt: description for an Open Graph image",
+        "- seoScore, engagementScore, readabilityScore: 0-100 based on content quality",
+        "",
+        "Brief:",
+        JSON.stringify(input.brief),
+        "",
+        "JSON schema:",
+        JSON.stringify({
+          excerpt: "string",
+          metaTitle: "string",
+          metaDescription: "string",
+          tagSuggestions: ["string"],
+          ogImagePrompt: "string",
+          seoScore: 82,
+          engagementScore: 76,
+          readabilityScore: 80,
+        }),
+      ].join("\n"),
+    },
+  ];
+}
+
+export function buildDraftReviewMessages(input: {
+  topic: string;
+  brief: AiBriefData | null;
+  contentSummary: { plainText: string; headings: string[]; wordCount: number; excerpt: string };
+  research?: AiResearchData | null;
+}): AiChatMessage[] {
+  return [
+    {
+      role: "system",
+      content: `${BLOG_STUDIO_SYSTEM_PROMPT}
+
+Return valid JSON only. Do not wrap it in markdown fences.
+You are reviewing an article that has already been written. Be honest in your assessment — if the article lacks personal proof or originality, score accordingly.`,
+    },
+    {
+      role: "user",
+      content: [
+        `Review this article about "${input.brief?.topic || input.topic}" and generate quality scores, recommendations, and verification notes.`,
+        "",
+        `Word count: ${input.contentSummary.wordCount}`,
+        `Headings: ${input.contentSummary.headings.join(" | ") || "None"}`,
+        `Content excerpt (first 4000 chars): ${input.contentSummary.plainText}`,
+        input.research ? `Research notes:\n${JSON.stringify(input.research)}` : "Research notes: none",
+        "",
+        "Brief:",
+        JSON.stringify(input.brief),
+        "",
+        "Assess the article on these dimensions (1-10):",
+        "- accuracy: Are claims source-backed? Any invented statistics?",
+        "- depth: Does it go beyond surface-level explanations?",
+        "- originality: Does it offer a unique perspective or just rehash common advice?",
+        "- voice: Does it sound human and direct, or generic AI?",
+        "- proof: Are there concrete examples, code, data, or personal evidence?",
+        "- seo: Is the structure SEO-friendly with proper headings?",
+        "- overall: Weighted average considering all factors",
+        "",
+        "The checklist should list specific items the author should verify or improve before publishing.",
+        "If the writing profile is missing evidence, recommend what to add.",
+        "",
+        "JSON schema:",
+        JSON.stringify({
+          recommendations: ["string"],
+          verificationNotes: ["string"],
+          verificationFlags: [{ claim: "string", status: "supported", sourceId: "optional string", recommendation: "string" }],
+          engagementInsights: ["string"],
+          internalLinkSuggestions: [{ postId: "string", title: "string", slug: "string", anchorText: "string", reason: "string" }],
+          qualityScore: { accuracy: 8, depth: 7, originality: 6, voice: 5, proof: 4, seo: 8, overall: 6, checklist: ["string"] },
+        }),
+      ].join("\n"),
+    },
+  ];
+}
+
 export function buildAnalyzeMessages(input: {
   topic: string;
   brief: Record<string, unknown>;
