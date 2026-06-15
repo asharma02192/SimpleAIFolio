@@ -14,11 +14,13 @@ import {
   type AiConversationMessageInput,
   type AiDraftData,
   type AiInternalLinkSuggestion,
+  type AiQualityScore,
   type AiResearchApprovalStatus,
   type AiResearchData,
   type AiResearchSource,
   type AiRewriteAction,
   type AiRewriteProposal,
+  type AiWritingProfile,
   type BlogStudioAiService,
 } from "../services/ai/blog-studio";
 import { getAiProviderConfig, getDbOverrides, type AiProviderConfig } from "../services/ai/provider";
@@ -52,6 +54,7 @@ const MAX_NOTES_LENGTH = 5000;
 const MAX_REWRITE_PREVIEW_LENGTH = 16_000;
 const MAX_SOURCE_ADMIN_NOTES_LENGTH = 500;
 const MAX_VERIFICATION_REVIEW_NOTES = 240;
+const WRITING_PROFILE_KEY = "internal_ai_writer_profile";
 const SOURCELESS_RESEARCH_WARNING =
   "Research is available, but no sources have been approved yet. The draft will use research notes only as directional guidance.";
 const DEFAULT_CONVERSATION_PAGE_SIZE = 25;
@@ -68,6 +71,11 @@ const ALLOWED_REWRITE_ACTIONS = new Set<AiRewriteAction>([
   "shorten",
   "expand",
   "improve_readability",
+  "add_personal_experience",
+  "make_more_opinionated",
+  "add_code_examples",
+  "add_real_workflow",
+  "reduce_generic_ai_tone",
 ]);
 
 function safeJsonParse<T>(value: string | null | undefined, fallback: T): T {
@@ -86,6 +94,45 @@ function coerceString(value: unknown, maxLength: number) {
 
 function coerceBoolean(value: unknown) {
   return value === true;
+}
+
+function getEmptyWritingProfile(): AiWritingProfile {
+  return {
+    authorCredibility: "",
+    reusableStories: [],
+    strongOpinions: [],
+    voiceRules: [],
+    proofRequirements: [],
+  };
+}
+
+function parseWritingProfile(value: string | null | undefined): AiWritingProfile {
+  if (!value) return getEmptyWritingProfile();
+  try {
+    const parsed = JSON.parse(value) as Partial<AiWritingProfile>;
+    return {
+      authorCredibility: typeof parsed.authorCredibility === "string" ? parsed.authorCredibility : "",
+      reusableStories: Array.isArray(parsed.reusableStories) ? parsed.reusableStories.filter((s): s is string => typeof s === "string") : [],
+      strongOpinions: Array.isArray(parsed.strongOpinions) ? parsed.strongOpinions.filter((s): s is string => typeof s === "string") : [],
+      voiceRules: Array.isArray(parsed.voiceRules) ? parsed.voiceRules.filter((s): s is string => typeof s === "string") : [],
+      proofRequirements: Array.isArray(parsed.proofRequirements) ? parsed.proofRequirements.filter((s): s is string => typeof s === "string") : [],
+    };
+  } catch {
+    return getEmptyWritingProfile();
+  }
+}
+
+function isProfileEmpty(profile: AiWritingProfile): boolean {
+  return !profile.authorCredibility && profile.reusableStories.length === 0 && profile.strongOpinions.length === 0 && profile.voiceRules.length === 0 && profile.proofRequirements.length === 0;
+}
+
+async function loadWritingProfile(prismaClient: AdminAiPrisma): Promise<AiWritingProfile> {
+  try {
+    const row = await prismaClient.siteSetting?.findUnique({ where: { key: WRITING_PROFILE_KEY } });
+    return parseWritingProfile(row?.value);
+  } catch {
+    return getEmptyWritingProfile();
+  }
 }
 
 function coerceStringArray(value: unknown, maxItems = 12, maxLength = 120) {
@@ -124,8 +171,44 @@ function normalizeVerificationReviewStatus(value: unknown) {
   }
 }
 
+function decodeBriefNotes(rawNotes: string | null | undefined): { notes: string; expertAngle: string; personalProofNeeded: string; stance: string; exampleRequirements: string; contentFormat: string } {
+  const fallback = { notes: rawNotes || "", expertAngle: "", personalProofNeeded: "", stance: "", exampleRequirements: "", contentFormat: "" };
+  if (!rawNotes) return fallback;
+  try {
+    const parsed = JSON.parse(rawNotes);
+    if (parsed && typeof parsed === "object" && typeof parsed.notes === "string") {
+      return {
+        notes: parsed.notes,
+        expertAngle: typeof parsed.expertAngle === "string" ? parsed.expertAngle : "",
+        personalProofNeeded: typeof parsed.personalProofNeeded === "string" ? parsed.personalProofNeeded : "",
+        stance: typeof parsed.stance === "string" ? parsed.stance : "",
+        exampleRequirements: typeof parsed.exampleRequirements === "string" ? parsed.exampleRequirements : "",
+        contentFormat: typeof parsed.contentFormat === "string" ? parsed.contentFormat : "",
+      };
+    }
+  } catch {
+    // not JSON — plain text notes
+  }
+  return fallback;
+}
+
+function encodeBriefNotes(data: { notes: string; expertAngle?: string; personalProofNeeded?: string; stance?: string; exampleRequirements?: string; contentFormat?: string }): string {
+  const hasExpert = data.expertAngle || data.personalProofNeeded || data.stance || data.exampleRequirements || data.contentFormat;
+  if (!hasExpert) return data.notes;
+  return JSON.stringify({
+    notes: data.notes,
+    expertAngle: data.expertAngle || "",
+    personalProofNeeded: data.personalProofNeeded || "",
+    stance: data.stance || "",
+    exampleRequirements: data.exampleRequirements || "",
+    contentFormat: data.contentFormat || "",
+  });
+}
+
 function toBriefPayload(row: any): AiBriefData | null {
   if (!row) return null;
+
+  const decoded = decodeBriefNotes(row.notes);
 
   return {
     topic: row.topic,
@@ -137,13 +220,52 @@ function toBriefPayload(row: any): AiBriefData | null {
     wordCount: row.wordCount ?? null,
     contentType: row.contentType || "",
     cta: row.cta || "",
-    notes: row.notes || "",
+    notes: decoded.notes,
     approvedAt: row.approvedAt ? new Date(row.approvedAt).toISOString() : null,
+    expertAngle: decoded.expertAngle,
+    personalProofNeeded: decoded.personalProofNeeded,
+    stance: decoded.stance,
+    exampleRequirements: decoded.exampleRequirements,
+    contentFormat: decoded.contentFormat,
   };
+}
+
+const QUALITY_SCORE_PREFIX = "__QUALITY_SCORE__";
+
+function encodeQualityScoreIntoNotes(notes: string[], qualityScore: AiQualityScore | null): string[] {
+  const filtered = notes.filter((n) => !n.startsWith(QUALITY_SCORE_PREFIX));
+  if (!qualityScore) return filtered;
+  return [`${QUALITY_SCORE_PREFIX}${JSON.stringify(qualityScore)}`, ...filtered];
+}
+
+function decodeQualityScoreFromNotes(notes: string[]): { notes: string[]; qualityScore: AiQualityScore | null } {
+  const qualityRow = notes.find((n) => n.startsWith(QUALITY_SCORE_PREFIX));
+  if (!qualityRow) return { notes, qualityScore: null };
+  try {
+    const parsed = JSON.parse(qualityRow.slice(QUALITY_SCORE_PREFIX.length)) as AiQualityScore;
+    return {
+      notes: notes.filter((n) => !n.startsWith(QUALITY_SCORE_PREFIX)),
+      qualityScore: {
+        accuracy: Number(parsed.accuracy) || 5,
+        depth: Number(parsed.depth) || 5,
+        originality: Number(parsed.originality) || 5,
+        voice: Number(parsed.voice) || 5,
+        proof: Number(parsed.proof) || 5,
+        seo: Number(parsed.seo) || 5,
+        overall: Number(parsed.overall) || 5,
+        checklist: Array.isArray(parsed.checklist) ? parsed.checklist.filter((c): c is string => typeof c === "string") : [],
+      },
+    };
+  } catch {
+    return { notes, qualityScore: null };
+  }
 }
 
 function toDraftPayload(row: any): AiDraftData | null {
   if (!row) return null;
+
+  const rawVerificationNotes = safeJsonParse<string[]>(row.verificationNotesJson, []);
+  const { notes: verificationNotes, qualityScore } = decodeQualityScoreFromNotes(rawVerificationNotes);
 
   return {
     title: row.title,
@@ -161,7 +283,7 @@ function toDraftPayload(row: any): AiDraftData | null {
     engagementScore: row.engagementScore ?? 0,
     readabilityScore: row.readabilityScore ?? 0,
     recommendations: safeJsonParse<string[]>(row.recommendationsJson, []),
-    verificationNotes: safeJsonParse<string[]>(row.verificationNotesJson, []),
+    verificationNotes,
     verificationFlags: safeJsonParse(row.verificationFlagsJson, []).map((flag: any) => ({
       ...flag,
       reviewStatus: normalizeVerificationReviewStatus(flag?.reviewStatus),
@@ -173,6 +295,7 @@ function toDraftPayload(row: any): AiDraftData | null {
     referencesEnabled: Boolean(row.referencesEnabled),
     postId: row.postId || null,
     status: row.status,
+    qualityScore,
   };
 }
 
@@ -1200,9 +1323,12 @@ export function createAdminAiRouter({
         return;
       }
 
+      const writingProfile = await loadWritingProfile(prismaClient);
+
       const brief = await routeAiService.generateBrief({
         topic: conversation.topic,
         messages: toMessageInputs(conversation.messages),
+        writingProfile: isProfileEmpty(writingProfile) ? null : writingProfile,
       });
 
       await prismaClient.aiContentBrief.upsert({
@@ -1217,7 +1343,7 @@ export function createAdminAiRouter({
           wordCount: brief.wordCount,
           contentType: brief.contentType || null,
           cta: brief.cta || null,
-          notes: brief.notes || null,
+          notes: encodeBriefNotes(brief),
           approvedAt: null,
         },
         create: {
@@ -1231,7 +1357,7 @@ export function createAdminAiRouter({
           wordCount: brief.wordCount,
           contentType: brief.contentType || null,
           cta: brief.cta || null,
-          notes: brief.notes || null,
+          notes: encodeBriefNotes(brief),
         },
       });
 
@@ -1287,6 +1413,8 @@ export function createAdminAiRouter({
 
       const briefPayload = buildBriefFromRequest(req.body as Record<string, unknown>, conversation.topic, toBriefPayload(conversation.brief));
 
+      const encodedNotes = encodeBriefNotes(briefPayload);
+
       await prismaClient.aiContentBrief.upsert({
         where: { conversationId: conversation.id },
         update: {
@@ -1299,7 +1427,7 @@ export function createAdminAiRouter({
           wordCount: briefPayload.wordCount,
           contentType: briefPayload.contentType || null,
           cta: briefPayload.cta || null,
-          notes: briefPayload.notes || null,
+          notes: encodedNotes,
           approvedAt: briefPayload.approvedAt ? new Date(briefPayload.approvedAt) : null,
         },
         create: {
@@ -1313,7 +1441,7 @@ export function createAdminAiRouter({
           wordCount: briefPayload.wordCount,
           contentType: briefPayload.contentType || null,
           cta: briefPayload.cta || null,
-          notes: briefPayload.notes || null,
+          notes: encodedNotes,
           approvedAt: briefPayload.approvedAt ? new Date(briefPayload.approvedAt) : null,
         },
       });
@@ -1573,6 +1701,7 @@ export function createAdminAiRouter({
       }
       const research = prepareResearchForGeneration(storedResearch);
       const historicalContext = await getHistoricalEngagementContext(prismaClient);
+      const writingProfile = await loadWritingProfile(prismaClient);
 
       const draft = await routeAiService.generateDraft({
         topic: conversation.topic,
@@ -1580,6 +1709,7 @@ export function createAdminAiRouter({
         messages: toMessageInputs(conversation.messages),
         historicalContext: historicalContext.summary,
         research,
+        writingProfile: isProfileEmpty(writingProfile) ? null : writingProfile,
       });
 
       const rawInternalLinkSuggestions =
@@ -1596,6 +1726,7 @@ export function createAdminAiRouter({
         ...(draft.verificationNotes || []),
         ...(research?.sources.length === 0 && storedResearch?.sources.length ? [SOURCELESS_RESEARCH_WARNING] : []),
       ]);
+      const notesWithQualityScore = encodeQualityScoreIntoNotes(verificationNotes, draft.qualityScore || null);
       const draftRecommendations = [
         ...(draft.recommendations || []),
         ...topicGaps.map((gap) => `Consider writing a related post: "${gap}" to strengthen internal linking.`),
@@ -1619,7 +1750,7 @@ export function createAdminAiRouter({
           engagementScore: draft.engagementScore,
           readabilityScore: draft.readabilityScore,
           recommendationsJson: JSON.stringify(draftRecommendations),
-          verificationNotesJson: JSON.stringify(verificationNotes),
+          verificationNotesJson: JSON.stringify(notesWithQualityScore),
           verificationFlagsJson: JSON.stringify(draft.verificationFlags || []),
           engagementInsightsJson: JSON.stringify(
             draft.engagementInsights && draft.engagementInsights.length > 0
@@ -1648,7 +1779,7 @@ export function createAdminAiRouter({
           engagementScore: draft.engagementScore,
           readabilityScore: draft.readabilityScore,
           recommendationsJson: JSON.stringify(draftRecommendations),
-          verificationNotesJson: JSON.stringify(verificationNotes),
+          verificationNotesJson: JSON.stringify(notesWithQualityScore),
           verificationFlagsJson: JSON.stringify(draft.verificationFlags || []),
           engagementInsightsJson: JSON.stringify(
             draft.engagementInsights && draft.engagementInsights.length > 0
@@ -1958,6 +2089,7 @@ export function createAdminAiRouter({
       const brief = toBriefPayload(conversation.brief);
       const research = prepareResearchForGeneration(toResearchPayload(conversation.research));
       const historicalContext = await getHistoricalEngagementContext(prismaClient);
+      const writingProfile = await loadWritingProfile(prismaClient);
       const proposal = await routeAiService.rewriteDraft({
         topic: conversation.topic,
         brief,
@@ -1966,6 +2098,7 @@ export function createAdminAiRouter({
         selectedText: coerceString(req.body?.selectedText, 5000) || null,
         historicalContext: historicalContext.summary,
         research,
+        writingProfile: isProfileEmpty(writingProfile) ? null : writingProfile,
       });
 
       const targetText = getProposalTargetText(draft, proposal.target);

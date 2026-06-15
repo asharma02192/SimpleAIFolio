@@ -151,7 +151,7 @@ export const aiWriterTools: Tool[] = [
         id: { type: "string", description: "Conversation ID (UUID)" },
         action: {
           type: "string",
-          enum: ["improve_intro", "stronger_title", "seo_focus", "more_human", "add_examples", "add_faq", "improve_cta", "shorten", "expand", "improve_readability"],
+          enum: ["improve_intro", "stronger_title", "seo_focus", "more_human", "add_examples", "add_faq", "improve_cta", "shorten", "expand", "improve_readability", "add_personal_experience", "make_more_opinionated", "add_code_examples", "add_real_workflow", "reduce_generic_ai_tone"],
           description: "Type of rewrite to perform",
         },
         selectedText: { type: "string", description: "Optional specific text to focus the rewrite on" },
@@ -179,6 +179,28 @@ export const aiWriterTools: Tool[] = [
       properties: {
         id: { type: "string", description: "Conversation ID (UUID)" },
         includeReferences: { type: "boolean", description: "Include approved research sources as a references section in the post", default: false },
+      },
+    },
+  },
+  {
+    name: "get_ai_writing_profile",
+    description: "Get the AI Writing Profile — author credibility, reusable stories, strong opinions, voice rules, and proof requirements. Agents MUST read this before creating expert posts to ensure drafts include author-specific evidence and voice. Returns empty defaults if no profile is configured.",
+    inputSchema: {
+      type: "object",
+      properties: {},
+    },
+  },
+  {
+    name: "update_ai_writing_profile",
+    description: "Update the AI Writing Profile. This profile is injected into brief and draft generation prompts to improve content quality with author-specific context. All fields are optional — only provided fields are updated.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        authorCredibility: { type: "string", description: "Author's real experience: roles, $ managed, campaign count, technical projects" },
+        reusableStories: { type: "array", items: { type: "string" }, description: "Concrete stories the AI can reference: project histories, campaign lessons, failures, wins" },
+        strongOpinions: { type: "array", items: { type: "string" }, description: "Preferred tools, contrarian takes, what the author believes" },
+        voiceRules: { type: "array", items: { type: "string" }, description: "Voice guidelines: direct, practical, no generic AI phrases, no fake certainty" },
+        proofRequirements: { type: "array", items: { type: "string" }, description: "What proof is needed: code, screenshots, configs, benchmarks, real examples" },
       },
     },
   },
@@ -416,6 +438,22 @@ export async function handleAiWriterTool(name: string, args: Record<string, unkn
         return ok({ success: true, postId: result.postId, editUrl: result.editUrl, saved: true });
       }
       if (status === 400) return fail("Generate a draft before saving.");
+      return fail(data);
+    }
+
+    case "get_ai_writing_profile": {
+      const { status, data } = await apiRequest("GET", "/api/admin/ai-writing-profile");
+      if (status !== 200) return fail(data);
+      return ok(data);
+    }
+
+    case "update_ai_writing_profile": {
+      const body: Record<string, unknown> = {};
+      for (const k of ["authorCredibility", "reusableStories", "strongOpinions", "voiceRules", "proofRequirements"]) {
+        if (args[k] !== undefined) body[k] = args[k];
+      }
+      const { status, data } = await apiRequest("PUT", "/api/admin/ai-writing-profile", body);
+      if (status === 200) return ok({ success: true, profile: data });
       return fail(data);
     }
 

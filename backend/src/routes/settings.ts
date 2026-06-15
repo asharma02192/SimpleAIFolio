@@ -151,6 +151,62 @@ router.put("/admin/ai-config", authMiddleware, requireRole("admin"), async (req:
   }
 });
 
+// GET /api/admin/ai-writing-profile — admin-only
+router.get("/admin/ai-writing-profile", authMiddleware, requireRole("admin"), async (_req: AuthRequest, res) => {
+  try {
+    const row = await prisma.siteSetting.findUnique({ where: { key: "internal_ai_writer_profile" } });
+    if (!row?.value) {
+      res.json({
+        authorCredibility: "",
+        reusableStories: [],
+        strongOpinions: [],
+        voiceRules: [],
+        proofRequirements: [],
+      });
+      return;
+    }
+    res.json(JSON.parse(row.value));
+  } catch {
+    res.json({
+      authorCredibility: "",
+      reusableStories: [],
+      strongOpinions: [],
+      voiceRules: [],
+      proofRequirements: [],
+    });
+  }
+});
+
+// PUT /api/admin/ai-writing-profile — admin-only
+router.put("/admin/ai-writing-profile", authMiddleware, requireRole("admin"), async (req: AuthRequest, res) => {
+  try {
+    const body = req.body as Record<string, unknown>;
+    const profile = {
+      authorCredibility: typeof body.authorCredibility === "string" ? body.authorCredibility.slice(0, 5000) : "",
+      reusableStories: Array.isArray(body.reusableStories)
+        ? body.reusableStories.filter((s): s is string => typeof s === "string").map((s) => s.slice(0, 2000)).slice(0, 30)
+        : [],
+      strongOpinions: Array.isArray(body.strongOpinions)
+        ? body.strongOpinions.filter((s): s is string => typeof s === "string").map((s) => s.slice(0, 1000)).slice(0, 30)
+        : [],
+      voiceRules: Array.isArray(body.voiceRules)
+        ? body.voiceRules.filter((s): s is string => typeof s === "string").map((s) => s.slice(0, 500)).slice(0, 20)
+        : [],
+      proofRequirements: Array.isArray(body.proofRequirements)
+        ? body.proofRequirements.filter((s): s is string => typeof s === "string").map((s) => s.slice(0, 500)).slice(0, 20)
+        : [],
+    };
+    await prisma.siteSetting.upsert({
+      where: { key: "internal_ai_writer_profile" },
+      update: { value: JSON.stringify(profile) },
+      create: { key: "internal_ai_writer_profile", value: JSON.stringify(profile) },
+    });
+    res.json(profile);
+  } catch {
+    res.status(500).json({ error: "Failed to update AI writing profile" });
+  }
+});
+
 // GET /api/settings — public, returns all settings as flat object
 router.get("/settings", async (_req, res) => {
   try {

@@ -1,5 +1,19 @@
 import type { AiChatMessage } from "./provider";
-import type { AiBriefInput, AiDraftInput, AiRewriteAction, AiDraftData, AiResearchData, AiBriefData } from "./blog-studio";
+import type { AiBriefInput, AiDraftInput, AiRewriteAction, AiDraftData, AiResearchData, AiBriefData, AiWritingProfile } from "./blog-studio";
+
+function serializeProfile(profile: AiWritingProfile | null | undefined): string {
+  if (!profile) return "No writing profile configured.";
+  if (!profile.authorCredibility && profile.reusableStories.length === 0 && profile.strongOpinions.length === 0 && profile.voiceRules.length === 0 && profile.proofRequirements.length === 0) {
+    return "No writing profile configured.";
+  }
+  return [
+    profile.authorCredibility ? `Author credibility:\n${profile.authorCredibility}` : "",
+    profile.reusableStories.length ? `Reusable stories/examples:\n${profile.reusableStories.map((s) => `- ${s}`).join("\n")}` : "",
+    profile.strongOpinions.length ? `Strong opinions/stance:\n${profile.strongOpinions.map((s) => `- ${s}`).join("\n")}` : "",
+    profile.voiceRules.length ? `Voice rules:\n${profile.voiceRules.map((s) => `- ${s}`).join("\n")}` : "",
+    profile.proofRequirements.length ? `Proof requirements:\n${profile.proofRequirements.map((s) => `- ${s}`).join("\n")}` : "",
+  ].filter(Boolean).join("\n\n");
+}
 
 const BLOG_STUDIO_SYSTEM_PROMPT = `
 You are an expert blog strategist, SEO editor, researcher, and content writer.
@@ -67,6 +81,13 @@ Return valid JSON only. Do not wrap it in markdown fences.`,
         `Create a structured content brief for the topic "${input.topic}".`,
         "Use the conversation transcript below.",
         "Fill in these fields: topic, audience, goal, tone, primaryKeyword, secondaryKeywords, wordCount, contentType, cta, notes.",
+        "Also fill expert fields: expertAngle, personalProofNeeded, stance, exampleRequirements, contentFormat.",
+        "The expertAngle should be a unique perspective the author can own.",
+        "The stance should be a clear editorial position, not neutral.",
+        "The personalProofNeeded should state what real evidence/examples the author needs to provide.",
+        "The exampleRequirements should specify what concrete examples, code, or data would strengthen the post.",
+        "The contentFormat should suggest a structure beyond the default intro-bullets-FAQ pattern.",
+        input.writingProfile ? `\nWriting profile (use this to inform the expert fields):\n${serializeProfile(input.writingProfile)}` : "",
         "Keep it production-ready for an SEO-focused editorial workflow.",
         "",
         "Conversation transcript:",
@@ -84,6 +105,11 @@ Return valid JSON only. Do not wrap it in markdown fences.`,
           contentType: "guide",
           cta: "string",
           notes: "string",
+          expertAngle: "string — unique perspective the author can own",
+          personalProofNeeded: "string — what real evidence the author must provide",
+          stance: "string — clear editorial position",
+          exampleRequirements: "string — what concrete examples/code/data would strengthen this",
+          contentFormat: "string — suggested structure (e.g. 'case study', 'tutorial with code', 'contrarian analysis')",
         }),
       ].join("\n"),
     },
@@ -91,6 +117,8 @@ Return valid JSON only. Do not wrap it in markdown fences.`,
 }
 
 export function buildDraftMessages(input: AiDraftInput): AiChatMessage[] {
+  const profileBlock = input.writingProfile ? `\n\nWriting profile — use this to add author-specific evidence, opinions, examples, and voice. Do NOT fabricate personal stories or numbers that are not in the profile. If the profile lacks evidence for a claim, add a recommendation asking the author to provide it.\n${serializeProfile(input.writingProfile)}` : "";
+
   return [
     {
       role: "system",
@@ -98,7 +126,16 @@ export function buildDraftMessages(input: AiDraftInput): AiChatMessage[] {
 
 Return valid JSON only. Do not wrap it in markdown fences.
 Do not include a status field. The backend controls draft status.
-Write the article body as safe semantic HTML using headings, paragraphs, lists, blockquotes, code blocks, and strong emphasis where useful.`,
+Write the article body as safe semantic HTML using headings, paragraphs, lists, blockquotes, code blocks, and strong emphasis where useful.
+
+Quality requirements:
+- Take a clear editorial stance. Do not be neutral or wishy-washy.
+- Back current facts with research sources. Do not invent statistics.
+- Include concrete examples, code snippets, or tested workflow notes for technical posts.
+- Vary structure — do not default to intro → bullet list → FAQ for every post.
+- Write in a direct, practical voice. Avoid generic AI phrases like "In today's fast-paced world" or "It's worth noting that."
+- If the writing profile is provided, weave in author-specific context where relevant.
+- Never invent personal stories, numbers, GitHub stats, campaign data, or screenshots.${profileBlock}`,
     },
     {
       role: "user",
@@ -109,6 +146,9 @@ Write the article body as safe semantic HTML using headings, paragraphs, lists, 
         "Include SEO metadata, slug, excerpt, outline, FAQ, contentHtml, category/tag suggestions, scores, and recommendations.",
         "If facts are uncertain, avoid inventing precise statistics.",
         "If research is available, use it to improve the content angle and call out anything that still needs verification.",
+        "Include a qualityScore object with self-assessment scores 1-10 for: accuracy, depth, originality, voice, proof, seo, overall.",
+        "The qualityScore.checklist should list specific items the author should verify or improve before publishing.",
+        "Be honest in the self-assessment — if the draft lacks personal proof or originality, score accordingly.",
         input.historicalContext
           ? `Historical context:\n${input.historicalContext}`
           : "Historical context: Not enough historical engagement data yet. Using best-practice scoring.",
@@ -169,6 +209,16 @@ Write the article body as safe semantic HTML using headings, paragraphs, lists, 
             },
           ],
           researchUsed: true,
+          qualityScore: {
+            accuracy: 8,
+            depth: 7,
+            originality: 6,
+            voice: 5,
+            proof: 4,
+            seo: 8,
+            overall: 6,
+            checklist: ["Add a real code example", "Include author's personal experience with X", "Verify the claim about Y"],
+          },
         }),
       ].join("\n"),
     },
@@ -325,7 +375,16 @@ export function buildRewriteMessages(input: {
   selectedText?: string | null;
   historicalContext?: string | null;
   research?: AiResearchData | null;
+  writingProfile?: AiWritingProfile | null;
 }): AiChatMessage[] {
+  const actionGuidance: Partial<Record<AiRewriteAction, string>> = {
+    add_personal_experience: "Inject author-specific stories, examples, or evidence from the writing profile. Do NOT fabricate personal experiences that are not in the profile. If the profile lacks relevant evidence, recommend what the author should add.",
+    make_more_opinionated: "Take a clearer, stronger editorial stance. Remove hedging language. State the position directly.",
+    add_code_examples: "Add concrete code snippets, configuration examples, or command-line output. Use proper <pre><code> blocks.",
+    add_real_workflow: "Add tested workflow notes, step-by-step processes, or real operational details that a practitioner would know.",
+    reduce_generic_ai_tone: "Remove generic AI phrases ('In today's fast-paced world', 'It's worth noting', 'Delve into', etc.). Make the voice more direct, specific, and human.",
+  };
+
   return [
     {
       role: "system",
@@ -333,12 +392,13 @@ export function buildRewriteMessages(input: {
 
 Return valid JSON only. Do not wrap it in markdown fences.
 Return a proposed improvement only. Do not describe multiple alternatives.
-Do not overwrite unrelated parts of the draft.`,
+Do not overwrite unrelated parts of the draft.${input.writingProfile ? `\n\nWriting profile:\n${serializeProfile(input.writingProfile)}` : ""}`,
     },
     {
       role: "user",
       content: [
         `Create a proposal for the rewrite action "${input.action}" on this blog draft.`,
+        actionGuidance[input.action] || "",
         "Return a concise proposal that the admin can review before applying.",
         input.selectedText ? `Selected text to focus on:\n${input.selectedText}` : "Selected text: none. Improve the most relevant part of the draft for this action.",
         input.historicalContext

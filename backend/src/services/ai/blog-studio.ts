@@ -72,6 +72,30 @@ export interface AiBriefData {
   cta: string;
   notes: string;
   approvedAt?: string | null;
+  expertAngle?: string;
+  personalProofNeeded?: string;
+  stance?: string;
+  exampleRequirements?: string;
+  contentFormat?: string;
+}
+
+export interface AiWritingProfile {
+  authorCredibility: string;
+  reusableStories: string[];
+  strongOpinions: string[];
+  voiceRules: string[];
+  proofRequirements: string[];
+}
+
+export interface AiQualityScore {
+  accuracy: number;
+  depth: number;
+  originality: number;
+  voice: number;
+  proof: number;
+  seo: number;
+  overall: number;
+  checklist: string[];
 }
 
 export interface AiDraftOutlineItem {
@@ -117,6 +141,7 @@ export interface AiDraftData {
   referencesEnabled?: boolean;
   postId?: string | null;
   status?: string;
+  qualityScore?: AiQualityScore | null;
 }
 
 export interface AiAnalysisResult {
@@ -133,6 +158,7 @@ export interface AiAnalysisResult {
 export interface AiBriefInput {
   topic: string;
   messages: AiConversationMessageInput[];
+  writingProfile?: AiWritingProfile | null;
 }
 
 export interface AiDraftInput {
@@ -141,6 +167,7 @@ export interface AiDraftInput {
   messages: AiConversationMessageInput[];
   historicalContext?: string | null;
   research?: AiResearchData | null;
+  writingProfile?: AiWritingProfile | null;
 }
 
 export type AiRewriteAction =
@@ -153,7 +180,12 @@ export type AiRewriteAction =
   | "improve_cta"
   | "shorten"
   | "expand"
-  | "improve_readability";
+  | "improve_readability"
+  | "add_personal_experience"
+  | "make_more_opinionated"
+  | "add_code_examples"
+  | "add_real_workflow"
+  | "reduce_generic_ai_tone";
 
 export interface AiRewriteProposal {
   id?: string;
@@ -194,6 +226,7 @@ export interface BlogStudioAiService {
     selectedText?: string | null;
     historicalContext?: string | null;
     research?: AiResearchData | null;
+    writingProfile?: AiWritingProfile | null;
   }): Promise<AiRewriteProposal>;
 }
 
@@ -287,6 +320,32 @@ function normalizeBrief(value: unknown, fallbackTopic: string): AiBriefData {
     contentType: clamp(typeof record.contentType === "string" ? record.contentType : "", 120),
     cta: clamp(typeof record.cta === "string" ? record.cta : "", 300),
     notes: clamp(typeof record.notes === "string" ? record.notes : "", 4000),
+    expertAngle: typeof record.expertAngle === "string" ? clamp(record.expertAngle, 500) : "",
+    personalProofNeeded: typeof record.personalProofNeeded === "string" ? clamp(record.personalProofNeeded, 500) : "",
+    stance: typeof record.stance === "string" ? clamp(record.stance, 500) : "",
+    exampleRequirements: typeof record.exampleRequirements === "string" ? clamp(record.exampleRequirements, 500) : "",
+    contentFormat: typeof record.contentFormat === "string" ? clamp(record.contentFormat, 300) : "",
+  };
+}
+
+function normalizeQualityScore(value: unknown): AiQualityScore | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  const score = (key: string) => {
+    const n = Number(record[key]);
+    return Number.isFinite(n) ? Math.min(10, Math.max(1, Math.round(n))) : 5;
+  };
+  const hasAny = ["accuracy", "depth", "originality", "voice", "proof", "seo", "overall"].some((k) => record[k] !== undefined);
+  if (!hasAny) return null;
+  return {
+    accuracy: score("accuracy"),
+    depth: score("depth"),
+    originality: score("originality"),
+    voice: score("voice"),
+    proof: score("proof"),
+    seo: score("seo"),
+    overall: score("overall"),
+    checklist: normalizeStringArray(record.checklist, 15, 300),
   };
 }
 
@@ -410,6 +469,7 @@ function normalizeDraft(value: unknown, fallbackTopic: string): AiDraftData {
     engagementInsights: normalizeStringArray(record.engagementInsights, 8),
     internalLinkSuggestions: normalizeInternalLinkSuggestions(record.internalLinkSuggestions),
     researchUsed: Boolean(record.researchUsed),
+    qualityScore: normalizeQualityScore(record.qualityScore),
   };
 }
 
@@ -787,6 +847,7 @@ export function createBlogStudioAiService({
             ...message,
             content: clamp(message.content, MAX_MESSAGE_LENGTH),
           })),
+          writingProfile: input.writingProfile,
         }),
         validate: isBriefShape,
         onAttempt: async (result, attempt) => {
@@ -808,6 +869,7 @@ export function createBlogStudioAiService({
           })),
           historicalContext: input.historicalContext,
           research: input.research,
+          writingProfile: input.writingProfile,
         }),
         validate: isDraftShape,
         onAttempt: async (result, attempt) => {
@@ -847,6 +909,7 @@ export function createBlogStudioAiService({
           selectedText: input.selectedText,
           historicalContext: input.historicalContext,
           research: input.research,
+          writingProfile: input.writingProfile,
         }),
         validate: isRewriteShape,
         onAttempt: async (result, attempt) => {
