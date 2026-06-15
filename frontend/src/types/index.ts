@@ -61,12 +61,7 @@ export interface SiteConfig {
   description: string;
   authorName: string;
   logoUrl?: string;
-  socialLinks: {
-    github?: string;
-    linkedin?: string;
-    twitter?: string;
-    email?: string;
-  };
+  socialLinks: Record<string, string>;
 }
 
 export interface PaginatedResponse<T> {

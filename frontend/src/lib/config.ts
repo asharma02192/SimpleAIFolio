@@ -45,12 +45,7 @@ export const siteConfig: SiteConfig = {
   tagline: "Welcome to my portfolio",
   description: "A personal portfolio and blog.",
   authorName: "Portfolio",
-  socialLinks: {
-    github: "",
-    linkedin: "",
-    twitter: "",
-    email: "",
-  },
+  socialLinks: {},
 };
 
 export const defaultSkillGroups: SkillGroup[] = [];
@@ -161,14 +156,16 @@ export async function serverFetch<T>(path: string, options: ServerFetchOptions =
 }
 
 function parseSocialLinks(value: unknown) {
-  const links = (value && typeof value === "object" ? value : {}) as Record<string, string>;
+  const incoming = (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
+  const result: Record<string, string> = {};
 
-  return {
-    github: links.github || siteConfig.socialLinks.github,
-    linkedin: links.linkedin || siteConfig.socialLinks.linkedin,
-    twitter: links.twitter || siteConfig.socialLinks.twitter,
-    email: links.email || siteConfig.socialLinks.email,
-  };
+  for (const [key, val] of Object.entries(incoming)) {
+    if (typeof val === "string" && val.trim()) {
+      result[key] = val.trim();
+    }
+  }
+
+  return result;
 }
 
 function parseHeroStats(value: unknown) {

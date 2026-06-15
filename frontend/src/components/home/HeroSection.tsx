@@ -43,26 +43,17 @@ export default function HeroSection({
                 </p>
               )}
               <div className="mt-[var(--space-6)] pt-[var(--space-6)] grid grid-cols-2 gap-x-[var(--space-4)] gap-y-[var(--space-3)]" style={{ borderTop: "1px solid var(--color-border)" }}>
-                {cfg.socialLinks.github && (
-                  <a href={cfg.socialLinks.github} target="_blank" rel="noopener noreferrer" className="font-[family-name:var(--font-body)] text-[var(--text-sm)] font-500 flex items-center gap-[var(--space-2)] transition-colors hover:text-[var(--color-accent)]" style={{ color: "var(--color-text-secondary)" }}>
-                    <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: "var(--color-accent)" }} /> GitHub
+                {Object.entries(cfg.socialLinks).filter(([, url]) => url).map(([name, url]) => (
+                  <a
+                    key={name}
+                    href={name === "email" ? `mailto:${url}` : url}
+                    {...(name !== "email" ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+                    className="font-[family-name:var(--font-body)] text-[var(--text-sm)] font-500 flex items-center gap-[var(--space-2)] transition-colors hover:text-[var(--color-accent)]"
+                    style={{ color: "var(--color-text-secondary)" }}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: "var(--color-accent)" }} /> {name.charAt(0).toUpperCase() + name.slice(1)}
                   </a>
-                )}
-                {cfg.socialLinks.linkedin && (
-                  <a href={cfg.socialLinks.linkedin} target="_blank" rel="noopener noreferrer" className="font-[family-name:var(--font-body)] text-[var(--text-sm)] font-500 flex items-center gap-[var(--space-2)] transition-colors hover:text-[var(--color-accent)]" style={{ color: "var(--color-text-secondary)" }}>
-                    <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: "var(--color-accent)" }} /> LinkedIn
-                  </a>
-                )}
-                {cfg.socialLinks.twitter && (
-                  <a href={cfg.socialLinks.twitter} target="_blank" rel="noopener noreferrer" className="font-[family-name:var(--font-body)] text-[var(--text-sm)] font-500 flex items-center gap-[var(--space-2)] transition-colors hover:text-[var(--color-accent)]" style={{ color: "var(--color-text-secondary)" }}>
-                    <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: "var(--color-accent)" }} /> Twitter
-                  </a>
-                )}
-                {cfg.socialLinks.email && (
-                  <a href={`mailto:${cfg.socialLinks.email}`} className="font-[family-name:var(--font-body)] text-[var(--text-sm)] font-500 flex items-center gap-[var(--space-2)] transition-colors hover:text-[var(--color-accent)]" style={{ color: "var(--color-text-secondary)" }}>
-                    <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: "var(--color-accent)" }} /> Email
-                  </a>
-                )}
+                ))}
               </div>
             </div>
           </div>

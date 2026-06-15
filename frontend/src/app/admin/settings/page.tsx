@@ -16,7 +16,7 @@ interface Settings {
   bio_about_1?: string;
   bio_about_2?: string;
   bio_about_3?: string;
-  social_links?: { github?: string; linkedin?: string; twitter?: string; email?: string };
+  social_links?: Record<string, string>;
   hero_stats?: { value: string; label: string }[];
   skill_groups?: { category: string; skills: { name: string; level: string }[] }[];
   announcement?: { text: string; link: string; enabled: boolean };
@@ -67,7 +67,7 @@ const defaultSettings: Settings = {
   bio_about_1: "",
   bio_about_2: "",
   bio_about_3: "",
-  social_links: { github: "", linkedin: "", twitter: "", email: "" },
+  social_links: { github: "", linkedin: "", twitter: "", email: "" } as Record<string, string>,
   hero_stats: [{ value: "", label: "" }],
   skill_groups: [],
   announcement: { text: "", link: "", enabled: false },
@@ -184,6 +184,39 @@ function SettingsContent() {
       ...current,
       social_links: { ...(current.social_links || {}), [key]: value },
     }));
+  };
+
+  const removeSocial = (key: string) => {
+    setSaveError(null);
+    setSettings((current) => {
+      const next = { ...(current.social_links || {}) };
+      delete next[key];
+      return { ...current, social_links: next };
+    });
+  };
+
+  const addSocial = (key: string) => {
+    const normalized = key.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "");
+    if (!normalized) return;
+    if ((settings.social_links || {})[normalized] !== undefined) return;
+    setSaveError(null);
+    setSettings((current) => ({
+      ...current,
+      social_links: { ...(current.social_links || {}), [normalized]: "" },
+    }));
+  };
+
+  const renameSocial = (oldKey: string, newKey: string) => {
+    const normalized = newKey.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "");
+    if (!normalized || normalized === oldKey) return;
+    setSaveError(null);
+    setSettings((current) => {
+      const entries = Object.entries(current.social_links || {});
+      const reordered = entries.map(([k, v]) => k === oldKey ? [normalized, v] as [string, string] : [k, v] as [string, string]);
+      const next: Record<string, string> = {};
+      for (const [k, v] of reordered) next[k] = v;
+      return { ...current, social_links: next };
+    });
   };
 
   const setStat = (index: number, field: "value" | "label", value: string) => {
@@ -613,11 +646,44 @@ function SettingsContent() {
                       </p>
                     </div>
                     <div className="grid grid-cols-1 gap-[var(--space-5)] sm:grid-cols-2">
-                      <div><label className={labelClass} style={{ color: "var(--color-text-tertiary)" }}>GitHub</label><input value={settings.social_links?.github || ""} onChange={(e) => setSocial("github", e.target.value)} className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-colors" style={inputStyle} /></div>
-                      <div><label className={labelClass} style={{ color: "var(--color-text-tertiary)" }}>LinkedIn</label><input value={settings.social_links?.linkedin || ""} onChange={(e) => setSocial("linkedin", e.target.value)} className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-colors" style={inputStyle} /></div>
-                      <div><label className={labelClass} style={{ color: "var(--color-text-tertiary)" }}>Twitter</label><input value={settings.social_links?.twitter || ""} onChange={(e) => setSocial("twitter", e.target.value)} className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-colors" style={inputStyle} /></div>
-                      <div><label className={labelClass} style={{ color: "var(--color-text-tertiary)" }}>Email</label><input value={settings.social_links?.email || ""} onChange={(e) => setSocial("email", e.target.value)} className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-colors" style={inputStyle} /></div>
+                      {Object.entries(settings.social_links || {}).map(([key, url]) => (
+                        <div key={key} className="flex flex-col gap-[var(--space-1)]">
+                          <div className="flex items-center justify-between">
+                            <input
+                              defaultValue={key}
+                              onBlur={(e) => renameSocial(key, e.target.value)}
+                              className="font-[family-name:var(--font-mono)] text-[var(--text-xs)] uppercase tracking-wider bg-transparent border-none outline-none w-full"
+                              style={{ color: "var(--color-text-tertiary)" }}
+                            />
+                            <button
+                              onClick={() => removeSocial(key)}
+                              className="text-[var(--text-xs)] transition-colors hover:opacity-70"
+                              style={{ color: "var(--color-text-tertiary)" }}
+                              title="Remove"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                          <input
+                            value={url}
+                            onChange={(e) => setSocial(key, e.target.value)}
+                            placeholder={`https://${key}.com/yourprofile`}
+                            className="w-full px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-colors"
+                            style={inputStyle}
+                          />
+                        </div>
+                      ))}
                     </div>
+                    <button
+                      onClick={() => {
+                        const name = prompt("Enter social platform name (e.g. substack, reddit, youtube):");
+                        if (name) addSocial(name);
+                      }}
+                      className="mt-[var(--space-4)] inline-flex items-center gap-1 px-3 py-[var(--space-2)] rounded-[var(--radius-md)] font-[family-name:var(--font-body)] text-[var(--text-sm)] font-500 transition-colors"
+                      style={{ background: "var(--color-bg)", border: "1px solid var(--color-border)", color: "var(--color-text)" }}
+                    >
+                      + Add Social Link
+                    </button>
                   </section>
 
                   <section className="rounded-[var(--radius-lg)] p-[var(--space-6)]" style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)" }}>
