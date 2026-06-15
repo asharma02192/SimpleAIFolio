@@ -121,6 +121,8 @@ function SettingsContent() {
   const [saving, setSaving] = useState(false);
   const [activeSection, setActiveSection] = useState<(typeof sections)[number]["id"]>("home");
   const [activeSiteSubTab, setActiveSiteSubTab] = useState<(typeof siteSubTabs)[number]["id"]>("general");
+  const [addingSocial, setAddingSocial] = useState(false);
+  const [newSocialName, setNewSocialName] = useState("");
 
   useEffect(() => {
     if (!token) return;
@@ -674,16 +676,57 @@ function SettingsContent() {
                         </div>
                       ))}
                     </div>
-                    <button
-                      onClick={() => {
-                        const name = prompt("Enter social platform name (e.g. substack, reddit, youtube):");
-                        if (name) addSocial(name);
-                      }}
-                      className="mt-[var(--space-4)] inline-flex items-center gap-1 px-3 py-[var(--space-2)] rounded-[var(--radius-md)] font-[family-name:var(--font-body)] text-[var(--text-sm)] font-500 transition-colors"
-                      style={{ background: "var(--color-bg)", border: "1px solid var(--color-border)", color: "var(--color-text)" }}
-                    >
-                      + Add Social Link
-                    </button>
+                    {addingSocial ? (
+                      <div className="mt-[var(--space-4)] flex items-center gap-[var(--space-2)]">
+                        <input
+                          autoFocus
+                          value={newSocialName}
+                          onChange={(e) => setNewSocialName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              addSocial(newSocialName);
+                              setNewSocialName("");
+                              setAddingSocial(false);
+                            } else if (e.key === "Escape") {
+                              setNewSocialName("");
+                              setAddingSocial(false);
+                            }
+                          }}
+                          placeholder="Platform name (e.g. substack, reddit, youtube)"
+                          className="flex-1 px-[var(--space-3)] py-[var(--space-2)] text-[var(--text-sm)] outline-none focus:border-[var(--color-accent)] focus:ring-2 focus:ring-[var(--color-accent)]/30 transition-colors"
+                          style={inputStyle}
+                        />
+                        <button
+                          onClick={() => {
+                            addSocial(newSocialName);
+                            setNewSocialName("");
+                            setAddingSocial(false);
+                          }}
+                          className="px-3 py-[var(--space-2)] rounded-[var(--radius-md)] font-[family-name:var(--font-body)] text-[var(--text-sm)] font-500 transition-colors"
+                          style={{ background: "var(--color-accent)", color: "var(--color-accent-on)" }}
+                        >
+                          Add
+                        </button>
+                        <button
+                          onClick={() => {
+                            setNewSocialName("");
+                            setAddingSocial(false);
+                          }}
+                          className="px-3 py-[var(--space-2)] rounded-[var(--radius-md)] font-[family-name:var(--font-body)] text-[var(--text-sm)] font-500 transition-colors"
+                          style={{ background: "var(--color-bg)", border: "1px solid var(--color-border)", color: "var(--color-text)" }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setAddingSocial(true)}
+                        className="mt-[var(--space-4)] inline-flex items-center gap-1 px-3 py-[var(--space-2)] rounded-[var(--radius-md)] font-[family-name:var(--font-body)] text-[var(--text-sm)] font-500 transition-colors"
+                        style={{ background: "var(--color-bg)", border: "1px solid var(--color-border)", color: "var(--color-text)" }}
+                      >
+                        + Add Social Link
+                      </button>
+                    )}
                   </section>
 
                   <section className="rounded-[var(--radius-lg)] p-[var(--space-6)]" style={{ background: "var(--color-bg-elevated)", border: "1px solid var(--color-border)" }}>

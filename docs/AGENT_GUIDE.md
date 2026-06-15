@@ -108,7 +108,7 @@ Same pattern as categories. Tags are more granular than categories (e.g., tag "R
 - `bio_hero` (homepage hero text), `bio_about_1`, `bio_about_2`, `bio_about_3`
 - `hero_stats` — array of `{"value": "8+", "label": "Years"}`
 - `skill_groups` — array of `{"category": "Frontend", "skills": [{"name": "React", "level": "expert"}]}`
-- `social_links` — object `{"github": "url", "linkedin": "url", "twitter": "url", "email": "addr"}`
+- `social_links` — object with any platform as key: `{"github": "url", "linkedin": "url", "substack": "url", "reddit": "url"}`. Defaults are github, linkedin, twitter, email but any platform name works (lowercase).
 - `theme` — `"light-minimal"`, `"dark-modern"`, or `"mono-editorial"`
 - `announcement` — object `{"text": "...", "link": "...", "enabled": true}`
 
