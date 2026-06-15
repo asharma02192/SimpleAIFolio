@@ -6,7 +6,7 @@
 
 ## You are connected to SimpleAIFolio CMS
 
-SimpleAIFolio is a portfolio and blog platform. You have **62 tools**, **6 resources**, and **6 prompts** to manage the entire site. Use them to create content, manage projects, check analytics, moderate comments, and configure settings.
+SimpleAIFolio is a portfolio and blog platform. You have **67 tools**, **6 resources**, and **6 prompts** to manage the entire site. Use them to create content, manage projects, check analytics, moderate comments, and configure settings.
 
 ## Critical Rules
 
@@ -144,36 +144,52 @@ Same pattern as categories. Tags are more granular than categories (e.g., tag "R
 | `update_snippet` | Edit code or toggle enabled |
 | `delete_snippet` | Remove — `id`, `confirm: true` |
 
-### AI Writer (12 tools)
+### AI Writer (15 tools)
 
-| Tool | When to Use |
-|------|-------------|
-| `list_ai_conversations` | Browse AI writing sessions |
-| `create_ai_conversation` | Start new — `topic` (max 240 chars) |
-| `get_ai_conversation` | Full detail including brief, draft, messages, proposals, research |
-| `send_ai_message` | Chat with AI about the post |
-| `generate_brief` | Create structured brief from topic |
-| `approve_brief` | Approve brief to enable research and draft generation (optionally override fields) |
-| `run_research` | **MANDATORY** — Run Exa web research. Fetches live sources, keywords, content gaps. Must be called before generate_draft. |
-| `update_research_sources` | Review and curate which sources the AI should use. Approve good sources, reject bad ones. |
-| `generate_draft` | Generate full HTML draft using brief + approved research. Will fail if research hasn't been run. |
-| `request_rewrite` | AI rewrite of section — `action` (10 options like improve_intro, seo_focus, add_faq) |
-| `apply_rewrite` | Apply a generated proposal |
-| `save_ai_draft` | Save AI draft to CMS as a blog post |
+| Tool | When to Use | Key Parameters |
+|------|-------------|----------------|
+| `list_ai_conversations` | Browse AI writing sessions | `filter` (active/archived/all), `search`, `page`, `pageSize` |
+| `create_ai_conversation` | Start new — `topic` (max 240 chars) | `topic` |
+| `get_ai_conversation` | Full detail including brief, draft, messages, proposals, research, quality scores | `id` |
+| `delete_ai_conversation` | Permanently remove a failed or abandoned conversation and all its data | `id` |
+| `send_ai_message` | Chat with AI about the post | `id`, `message` |
+| `generate_brief` | Create structured brief from topic + writing profile | `id` |
+| `approve_brief` | Approve brief to enable research and draft generation. Optionally override fields — unspecified fields are preserved, not cleared. | `id` + optional overrides |
+| `run_research` | **MANDATORY** — Run Exa web research. Fetches live sources, keywords, content gaps. Must be called before generate_draft. | `id` |
+| `update_research_sources` | Review and curate which sources the AI should use. Approve good sources, reject bad ones. | `id`, `sources[]` |
+| `generate_draft` | Generate full HTML draft using brief + approved research. Returns cached draft on retry (pass `force: true` to regenerate). Includes quality self-assessment scores. | `id`, `force` (optional) |
+| `request_rewrite` | AI rewrite of section — 15 actions available (see below) | `id`, `action`, `selectedText` (optional) |
+| `apply_rewrite` | Apply a generated proposal | `id`, `proposalId` |
+| `save_ai_draft` | Save AI draft to CMS as a blog post | `id`, `includeReferences` |
+| `get_ai_writing_profile` | Read the author's writing profile — **call this before creating expert posts** | (none) |
+| `update_ai_writing_profile` | Update author credibility, stories, opinions, voice rules, proof requirements | All fields optional |
+
+**Rewrite actions** (15 total):
+`improve_intro`, `stronger_title`, `seo_focus`, `more_human`, `add_examples`, `add_faq`, `improve_cta`, `shorten`, `expand`, `improve_readability`, `add_personal_experience`, `make_more_opinionated`, `add_code_examples`, `add_real_workflow`, `reduce_generic_ai_tone`
 
 **CRITICAL: The AI Writer pipeline must follow this exact order:**
 ```
 1. create_ai_conversation (topic)
 2. generate_brief
-3. approve_brief
-4. ★ run_research        ← MANDATORY — do NOT skip this
+3. approve_brief           ← preserves existing fields if no overrides given
+4. ★ run_research          ← MANDATORY — do NOT skip this
 5. update_research_sources (approve good sources)
-6. generate_draft        ← Will fail if step 4 was skipped
-7. request_rewrite + apply_rewrite (optional)
+6. generate_draft          ← Will fail if step 4 was skipped
+                             ← Returns cached draft on retry (no regeneration)
+                             ← Pass force=true to regenerate from scratch
+7. request_rewrite + apply_rewrite (optional — 15 actions available)
 8. save_ai_draft
 ```
 
-**Without `run_research`, the draft will be rejected.** This ensures all AI-generated content is grounded in current web data from Exa. Do NOT bypass this by using `create_post` directly for AI-assisted writing — that produces content without fact-checking or current information.
+**Error messages you may encounter:**
+- `"No brief found. Call generate_brief first."` — no brief exists yet
+- `"The brief has not been approved yet. Call approve_brief first."` — brief exists but approvedAt is null
+- `"Research has not been run. Call run_research before generate_draft."` — research step was skipped
+- `"You exceeded your current quota"` — OpenAI API quota exhausted (fails immediately, does not retry)
+
+**Timeout handling:** `generate_draft` can take 60-120+ seconds. If the client times out, the server may have completed successfully. Call `generate_draft` again — it returns the cached draft instantly instead of regenerating. Only pass `force: true` if you deliberately want to regenerate after editing the brief.
+
+**Quality scores:** Every generated draft includes a `qualityScore` object with 1-10 self-assessment across: `accuracy`, `depth`, `originality`, `voice`, `proof`, `seo`, `overall`. The `checklist` array lists specific items the author should verify or improve before publishing. Scores below 8 on `overall` or `proof` typically mean the draft needs real examples, code, or personal evidence added before publishing. The quality gate is **warn-only** — it never blocks save or publish.
 
 ### User Management (2 tools)
 
@@ -182,6 +198,44 @@ Same pattern as categories. Tags are more granular than categories (e.g., tag "R
 | `update_profile` | Update admin name or email |
 
 Note: `list_all_comments` and `update_comment_status` are also available for moderation.
+
+### AI Writing Profile (2 tools)
+
+The writing profile is the single most important quality lever for AI-generated content. It injects author-specific evidence, opinions, voice, and proof requirements into every brief and draft. **Always call `get_ai_writing_profile` before creating expert posts.**
+
+| Tool | When to Use |
+|------|-------------|
+| `get_ai_writing_profile` | Read the profile before generating briefs/drafts. Returns empty defaults if unset. |
+| `update_ai_writing_profile` | Set or update the profile. All fields optional — only provided fields are updated. |
+
+**Profile fields:**
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| `authorCredibility` | string | Real experience: roles, $ managed, campaign count, technical projects, years |
+| `reusableStories` | string[] | Concrete stories the AI can reference: project histories, campaign lessons, failures, wins |
+| `strongOpinions` | string[] | Preferred tools, contrarian takes, "what I believe" statements |
+| `voiceRules` | string[] | Voice guidelines: direct, practical, no generic AI phrases, no fake certainty |
+| `proofRequirements` | string[] | What proof is needed: code, screenshots, configs, benchmarks, real examples |
+
+**How the profile affects drafts:**
+- Brief generation uses the profile to generate expert-specific `expertAngle`, `stance`, `personalProofNeeded`, `exampleRequirements`, and `contentFormat`
+- Draft generation injects the profile into the system prompt — the AI weaves in author-specific context where relevant
+- The AI **never fabricates** personal stories, numbers, GitHub stats, or campaign data not in the profile
+- If the profile lacks evidence for a claim, the draft includes a recommendation asking the author to provide it
+- The profile is also injected into rewrite actions like `add_personal_experience` and `make_more_opinionated`
+
+**Example: Set up the profile for the first time**
+```
+1. get_ai_writing_profile → check if it's already configured
+2. update_ai_writing_profile with:
+   - authorCredibility: "10+ years in performance marketing. Managed $50M+ ad spend."
+   - reusableStories: ["Built SimpleAIFolio: open-source portfolio platform", "Scaled Meta Ads from $10k to $500k/month"]
+   - strongOpinions: ["Most teams over-engineer their automation stack", "Local-first beats cloud-first for solo devs"]
+   - voiceRules: ["Be direct and practical — no fluff", "Never use 'In today's fast-paced world'"]
+   - proofRequirements: ["Code snippets for technical posts", "Real benchmarks for marketing claims"]
+3. Now generate_brief and generate_draft will use this context automatically
+```
 
 ## Resources (readable context)
 
@@ -211,21 +265,27 @@ Resources provide structured data without calling tools. Read them for context:
 
 ### "Write a blog post about [topic]"
 
-**Option A: Full AI Writer pipeline (RECOMMENDED — uses live Exa research)**
+**Option A: Full AI Writer pipeline (RECOMMENDED — uses live Exa research + writing profile)**
 
 ```
-1. create_ai_conversation with topic
-2. generate_brief → get structured brief with SEO keywords
-3. approve_brief → enable research and drafting
-4. run_research → Exa fetches live web sources, keyword ideas, content gaps
-5. update_research_sources → approve 2-4 best sources, reject low-quality ones
-6. generate_draft → AI writes full HTML using brief + approved research
-7. (optional) request_rewrite + apply_rewrite to refine
-8. save_ai_draft → saves as a draft blog post with proper tags/category
-9. Tell user: "Draft saved. Review and publish when ready."
+1. get_ai_writing_profile → check if profile is configured (read it for context)
+2. create_ai_conversation with topic
+3. generate_brief → structured brief with expert angle, stance, proof requirements
+4. approve_brief → enable research and drafting (fields preserved if no overrides)
+5. run_research → Exa fetches live web sources, keyword ideas, content gaps
+6. update_research_sources → approve 2-4 best sources, reject low-quality ones
+7. generate_draft → AI writes full HTML using brief + research + writing profile
+                     → check qualityScore — if overall < 8, note checklist items
+8. (optional) request_rewrite + apply_rewrite to address quality checklist items
+   → useful actions: add_personal_experience, add_code_examples,
+     make_more_opinionated, reduce_generic_ai_tone
+9. save_ai_draft → saves as a draft blog post with proper tags/category
+10. Tell user: "Draft saved. Quality score: X/10. Items to review: [checklist]"
 ```
 
-**IMPORTANT:** Never skip steps 4-5. Without research, the AI writes from training data only, which may be outdated or inaccurate. The `generate_draft` tool will refuse if research hasn't been run.
+**IMPORTANT:** Never skip steps 5-6. Without research, the AI writes from training data only, which may be outdated or inaccurate. The `generate_draft` tool will refuse if research hasn't been run.
+
+**Timeout note:** `generate_draft` can take 60-120+ seconds for long articles. If you get a timeout error, call `generate_draft` again — it returns the cached draft instantly. The server completed the work even though the client timed out.
 
 **Option B: Manual writing (for when you write content yourself)**
 
