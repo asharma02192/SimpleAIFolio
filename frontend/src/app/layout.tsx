@@ -58,6 +58,9 @@ export async function generateMetadata(): Promise<Metadata> {
     },
     description,
     metadataBase: new URL(siteUrl),
+    ...(settings.siteConfig.faviconUrl
+      ? { icons: { icon: settings.siteConfig.faviconUrl, shortcut: settings.siteConfig.faviconUrl } }
+      : {}),
     openGraph: {
       type: "website",
       locale: "en_US",

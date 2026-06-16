@@ -61,6 +61,7 @@ export interface SiteConfig {
   description: string;
   authorName: string;
   logoUrl?: string;
+  faviconUrl?: string;
   socialLinks: Record<string, string>;
 }
 
